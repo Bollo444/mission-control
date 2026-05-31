@@ -19,10 +19,36 @@ export interface Provider {
   name: string;
   keyEnv: string;
   models: string[];
+  /** Offers a no-cost / free tier — surfaced as a badge in the routing UI. */
+  free?: boolean;
 }
 
-/** Catalog of providers + representative models for the routing UI. */
+/**
+ * Catalog of providers + representative models for the routing UI.
+ * Any agent can be routed to ANY provider here — free providers (Nous, Kilo,
+ * OpenRouter :free, Mistral, Local) are available to every agent, not just the
+ * one that shipped them.
+ */
 export const PROVIDERS: Provider[] = [
+  {
+    id: "nous",
+    name: "Nous Research",
+    keyEnv: "NOUS_API_KEY",
+    free: true,
+    models: [
+      "Hermes-4-405B",
+      "Hermes-4-70B",
+      "DeepHermes-3-Llama-3-8B-Preview",
+      "Hermes-3-Llama-3.1-405B",
+    ],
+  },
+  {
+    id: "kilo",
+    name: "Kilo (free tier)",
+    keyEnv: "KILOCODE_API_KEY",
+    free: true,
+    models: ["code-supernova", "x-ai/grok-code-fast-1", "kilocode/auto"],
+  },
   {
     id: "anthropic",
     name: "Anthropic",
@@ -39,13 +65,21 @@ export const PROVIDERS: Provider[] = [
     id: "mistral",
     name: "Mistral",
     keyEnv: "MISTRAL_API_KEY",
-    models: ["mistral-medium-3.5", "devstral-small", "codestral-latest"],
+    free: true,
+    models: ["devstral-small", "codestral-latest", "mistral-medium-3.5"],
   },
   {
     id: "openrouter",
     name: "OpenRouter",
     keyEnv: "OPENROUTER_API_KEY",
-    models: ["anthropic/claude-opus-4.8", "openai/gpt-5.1", "qwen/qwen-3-coder"],
+    free: true,
+    models: [
+      "qwen/qwen-3-coder:free",
+      "deepseek/deepseek-r1:free",
+      "nousresearch/deephermes-3-llama-3-8b-preview:free",
+      "anthropic/claude-opus-4.8",
+      "openai/gpt-5.1",
+    ],
   },
   {
     id: "google",
@@ -57,6 +91,7 @@ export const PROVIDERS: Provider[] = [
     id: "local",
     name: "Local (LM Studio / llama.cpp)",
     keyEnv: "LOCAL_API_KEY",
+    free: true,
     models: ["local-default", "devstral", "qwen3-coder"],
   },
 ];
@@ -65,13 +100,14 @@ const DEFAULTS: Settings = {
   vaultDir: VAULT_DIR,
   routing: {
     claude: { provider: "anthropic", model: "claude-opus-4-8" },
-    hermes: { provider: "openrouter", model: "anthropic/claude-opus-4.8" },
-    pi: { provider: "openai", model: "gpt-5.1" },
-    opencode: { provider: "openrouter", model: "qwen/qwen-3-coder" },
+    hermes: { provider: "nous", model: "Hermes-4-405B" },
+    pi: { provider: "openrouter", model: "qwen/qwen-3-coder:free" },
+    opencode: { provider: "openrouter", model: "qwen/qwen-3-coder:free" },
     antigravity: { provider: "google", model: "gemini-3-pro" },
+    openclaw: { provider: "kilo", model: "code-supernova" },
     jcode: { provider: "openrouter", model: "openai/gpt-5.1" },
-    vibe: { provider: "mistral", model: "mistral-medium-3.5" },
-    kilo: { provider: "local", model: "local-default" },
+    vibe: { provider: "mistral", model: "devstral-small" },
+    kilo: { provider: "kilo", model: "code-supernova" },
   },
   apiKeys: {},
   updatedAt: new Date(0).toISOString(),

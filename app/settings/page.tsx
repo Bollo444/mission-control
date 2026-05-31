@@ -100,7 +100,10 @@ export default function SettingsPage() {
                   <Select
                     value={route.provider}
                     onChange={(v) => setRoute(a.id, { provider: v })}
-                    options={providers.map((p) => ({ value: p.id, label: p.name }))}
+                    options={providers.map((p) => ({
+                      value: p.id,
+                      label: p.free ? `${p.name} · free` : p.name,
+                    }))}
                   />
                   <Select
                     value={route.model}
@@ -128,8 +131,16 @@ export default function SettingsPage() {
                 return (
                   <div key={p.id}>
                     <div className="mb-1 flex items-center justify-between">
-                      <label className="text-xs font-medium text-[var(--color-ink-2)]">
-                        {p.name}{" "}
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-[var(--color-ink-2)]">
+                        {p.name}
+                        {p.free && (
+                          <span
+                            className="rounded px-1 py-px text-[9px] font-semibold uppercase"
+                            style={{ background: hexA("#5cd6a0", 0.15), color: "#5cd6a0" }}
+                          >
+                            free
+                          </span>
+                        )}
                         <span className="font-mono text-[10px] text-[var(--color-ink-4)]">
                           {p.keyEnv}
                         </span>

@@ -94,7 +94,7 @@ export const AGENTS: AgentDef[] = [
   {
     id: "hermes",
     name: "Hermes",
-    tagline: "Agentic coding agent with a web console — autonomous task runs.",
+    tagline: "Nous Research's self-improving coding agent — builds & refines skills, runs anywhere.",
     kind: "cli",
     accent: "#9d8cff",
     glyph: "⬢",
@@ -109,18 +109,18 @@ export const AGENTS: AgentDef[] = [
     install: {
       manager: "uv",
       command: "uv tool install hermes-agent",
-      docs: "https://github.com/",
-      unverified: true,
+      docs: "https://nousresearch.com",
     },
     tools: [
-      "Web console UI",
+      "Self-improving skills",
       "Autonomous task runs",
       "Multi-step planning",
       "Tool calling",
       "Session memory",
+      "ACP (hermes-acp)",
     ],
     docsNote:
-      "Hermes is provisioned as a pluggable agent. Confirm the exact package/binary, then activate the install action on this page.",
+      "Installed via Nous Research's hermes-agent (provides the `hermes` CLI). Route it to the Nous provider and set NOUS_API_KEY for free Hermes models.",
   },
   {
     id: "pi",
@@ -305,17 +305,23 @@ export const AGENTS: AgentDef[] = [
   {
     id: "kilo",
     name: "Kilo Code",
-    tagline: "Open-source AI coding agent (VS Code / config-driven).",
-    kind: "framework",
+    tagline: "Open-source agentic coding CLI — 500+ models, free tier; VS Code & JetBrains too.",
+    kind: "cli",
     accent: "#c0c6d4",
     glyph: "◈",
     primary: false,
     bin: "kilo",
-    configPaths: [home(".config", "kilo")],
+    binPaths: [
+      home("AppData", "Roaming", "npm", "kilo.cmd"),
+      home(".local", "bin", "kilo.exe"),
+    ],
+    configPaths: [home(".config", "kilo"), home(".kilocode")],
     configFormat: "dir",
     sessionFormat: "none",
-    install: { manager: "vscode", command: "", docs: "https://kilocode.ai" },
-    tools: ["VS Code extension", "Custom modes", "MCP", "Config-driven"],
+    launch: { cmd: "kilo", args: [], askCwd: true },
+    install: { manager: "npm", command: "npm install -g @kilocode/cli", docs: "https://kilo.ai/cli" },
+    homepage: "https://kilo.ai",
+    tools: ["CLI agent", "Free models (500+)", "Custom modes", "MCP", "VS Code / JetBrains"],
   },
 ];
 

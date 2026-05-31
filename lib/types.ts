@@ -64,6 +64,7 @@ export interface Provider {
   name: string;
   keyEnv: string;
   models: string[];
+  free?: boolean;
 }
 
 export interface PublicSettings {
