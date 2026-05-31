@@ -4,13 +4,14 @@ import { useParams } from "next/navigation";
 import { useMemo } from "react";
 import { useFetch } from "@/lib/useFetch";
 import type { AgentDetail, ActivityEntry, MemoryResp } from "@/lib/types";
-import { hexA, relTime } from "@/lib/format";
+import { hexA } from "@/lib/format";
 import { StatusPill, Kind, ExternalLink } from "@/components/ui";
 import LaunchControls from "@/components/LaunchControls";
 import ConfigViewer from "@/components/ConfigViewer";
 import MemoryEditor from "@/components/MemoryEditor";
 import SessionList from "@/components/SessionList";
 import ActivityFeed from "@/components/ActivityFeed";
+import AgentMetrics from "@/components/AgentMetrics";
 import { getSkin, typeFontClass } from "@/components/skins";
 import AntigravityIde from "@/components/ide/AntigravityIde";
 import OpenClawConsole from "@/components/ide/OpenClawConsole";
@@ -53,9 +54,9 @@ export default function AgentPage() {
   const myActivity = (mem?.activity ?? []).filter((e: ActivityEntry) => e.agentId === a.id);
 
   return (
-    <>
+    <div className="flex h-full flex-col overflow-hidden">
       {/* Skinned hero — unique background + animated mascot per agent */}
-      <header className="relative min-h-[190px] overflow-hidden border-b">
+      <header className="relative min-h-[190px] shrink-0 overflow-hidden border-b">
         <Background />
         <div
           className="absolute inset-0"
@@ -108,20 +109,14 @@ export default function AgentPage() {
         </div>
       </header>
 
+      <div className="min-h-0 flex-1 overflow-y-auto">
       <div className="grid grid-cols-1 gap-6 px-8 py-7 lg:grid-cols-[1fr_360px]">
         {/* Main column */}
         <div className="flex flex-col gap-6">
           {/* Launch + stats */}
           <section className="mc-panel p-5">
-            <div className="mb-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
-              <Metric value={s.sessionCount} label="sessions" />
-              <Metric value={s.configs.filter((c) => c.exists).length} label="configs" />
-              <Metric value={relTime(s.lastActive)} label="last active" small />
-              <Metric
-                value={a.route ? a.route.model.split("/").pop()! : "—"}
-                label="routed model"
-                small
-              />
+            <div className="mb-4">
+              <AgentMetrics agent={a} />
             </div>
             <LaunchControls
               id={a.id}
@@ -198,26 +193,6 @@ export default function AgentPage() {
           </section>
         </div>
       </div>
-    </>
-  );
-}
-
-function Metric({
-  value,
-  label,
-  small,
-}: {
-  value: React.ReactNode;
-  label: string;
-  small?: boolean;
-}) {
-  return (
-    <div>
-      <div className={`mc-stat-value leading-none ${small ? "text-base" : "text-2xl"}`}>
-        {value}
-      </div>
-      <div className="mt-1.5 text-[10px] uppercase tracking-wider text-[var(--color-ink-4)]">
-        {label}
       </div>
     </div>
   );

@@ -31,7 +31,7 @@ export default function OpenClawConsole({ agent }: { agent: AgentDetail }) {
   const installed = agent.status.installed;
 
   return (
-    <div className="flex h-[calc(100vh-1px)] flex-col overflow-hidden bg-[#120708] text-[var(--color-ink)]">
+    <div className="flex h-full flex-col overflow-hidden bg-[#120708] text-[var(--color-ink)]">
       {/* Windows title bar */}
       <div className="flex h-9 shrink-0 items-center border-b border-white/10">
         <div className="flex items-center gap-2 px-3 text-xs text-[var(--color-ink-3)]">

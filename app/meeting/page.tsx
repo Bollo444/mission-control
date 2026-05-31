@@ -114,9 +114,9 @@ export default function MeetingPage() {
   const nextSpeaker = revealed < turns.length ? turns[revealed] : null;
 
   return (
-    <>
+    <div className="flex h-full flex-col overflow-hidden">
       {/* header + live metrics */}
-      <div className="flex flex-wrap items-end justify-between gap-4 border-b px-8 py-6">
+      <div className="flex shrink-0 flex-wrap items-end justify-between gap-4 border-b px-8 py-6">
         <div>
           <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: SIGNAL }}>
             All-hands · live boardroom
@@ -147,10 +147,10 @@ export default function MeetingPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 px-8 py-7 xl:grid-cols-[1fr_300px]">
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-6 overflow-hidden px-8 py-7 xl:grid-cols-[1fr_300px]">
         {/* transcript + input */}
-        <div className="flex min-w-0 flex-col">
-          <div className="mc-panel flex min-h-[58vh] flex-col overflow-hidden">
+        <div className="flex min-w-0 flex-col overflow-hidden">
+          <div className="mc-panel flex min-h-0 flex-1 flex-col overflow-hidden">
             <div className="flex-1 overflow-auto px-5 py-4">
               {loading && shown.length === 0 ? (
                 <div className="grid h-full place-items-center text-sm text-[var(--color-ink-4)]">
@@ -202,7 +202,7 @@ export default function MeetingPage() {
         </div>
 
         {/* roster */}
-        <aside className="flex flex-col gap-4">
+        <aside className="flex flex-col gap-4 overflow-y-auto">
           <div className="mc-panel p-4">
             <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--color-ink-4)]">
               Around the table · {meta?.roster.length ?? 9}
@@ -222,7 +222,7 @@ export default function MeetingPage() {
           </div>
         </aside>
       </div>
-    </>
+    </div>
   );
 }
 

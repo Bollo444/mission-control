@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useFetch } from "@/lib/useFetch";
 import type { PublicSettings, AgentsResp } from "@/lib/types";
-import { PageHeader } from "@/components/ui";
+import { PageHeader, Screen } from "@/components/ui";
 import { hexA } from "@/lib/format";
 
 export default function SettingsPage() {
@@ -53,8 +53,9 @@ export default function SettingsPage() {
   }
 
   return (
-    <>
-      <PageHeader
+    <Screen
+      header={
+        <PageHeader
         eyebrow="Control plane"
         title="Settings · Model Routing"
         sub="One place to route each agent to a provider + model and manage shared API keys. Routing is stored centrally and surfaced on every agent's page."
@@ -68,8 +69,9 @@ export default function SettingsPage() {
             {saved === "saving" ? "Saving…" : saved === "ok" ? "Saved ✓" : "Save changes"}
           </button>
         }
-      />
-
+        />
+      }
+    >
       <div className="grid grid-cols-1 gap-6 px-8 py-7 xl:grid-cols-[1fr_380px]">
         {/* Routing table */}
         <section className="mc-panel overflow-hidden">
@@ -180,7 +182,7 @@ export default function SettingsPage() {
           </section>
         </div>
       </div>
-    </>
+    </Screen>
   );
 }
 

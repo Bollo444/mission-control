@@ -7,7 +7,7 @@ import type { AgentSummary, ActivityEntry } from "@/lib/types";
 import { relTime } from "@/lib/format";
 import AgentCard from "@/components/AgentCard";
 import ActivityFeed from "@/components/ActivityFeed";
-import { PageHeader, Stat } from "@/components/ui";
+import { PageHeader, Screen, Stat } from "@/components/ui";
 
 interface AgentsResp {
   agents: AgentSummary[];
@@ -37,8 +37,9 @@ export default function OverviewPage() {
     .pop() as string | undefined;
 
   return (
-    <>
-      <PageHeader
+    <Screen
+      header={
+        <PageHeader
         eyebrow="Fleet status"
         title="Mission Control"
         sub="One command center for every coding agent. Launch, route models, and share memory through a single Obsidian vault — so every agent knows what the others are doing."
@@ -49,8 +50,9 @@ export default function OverviewPage() {
             <Stat value={relTime(lastActive ?? null)} label="last active" />
           </div>
         }
-      />
-
+        />
+      }
+    >
       <div className="grid grid-cols-1 gap-6 px-8 py-7 xl:grid-cols-[1fr_340px]">
         <div className="flex flex-col gap-7">
           <section>
@@ -99,6 +101,6 @@ export default function OverviewPage() {
           </div>
         </aside>
       </div>
-    </>
+    </Screen>
   );
 }

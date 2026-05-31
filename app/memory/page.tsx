@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { useFetch } from "@/lib/useFetch";
 import type { MemoryResp, AgentsResp } from "@/lib/types";
-import { PageHeader, Stat } from "@/components/ui";
+import { PageHeader, Screen, Stat } from "@/components/ui";
 import ActivityFeed from "@/components/ActivityFeed";
 import SharedEditor from "@/components/SharedEditor";
 
@@ -20,8 +20,9 @@ export default function MemoryPage() {
   const activity = data?.activity ?? [];
 
   return (
-    <>
-      <PageHeader
+    <Screen
+      header={
+        <PageHeader
         eyebrow="Obsidian vault"
         title="Shared Memory Vault"
         sub="One vault, every agent. The activity feed is the live record of what each agent is doing; shared knowledge is the durable cross-agent brain."
@@ -31,8 +32,9 @@ export default function MemoryPage() {
             <Stat value={agents.length} label="agent notes" />
           </div>
         }
-      />
-
+        />
+      }
+    >
       <div className="px-8 py-7">
         <div className="mb-6 rounded-xl border bg-[var(--color-surface-2)] px-4 py-3">
           <div className="text-[11px] uppercase tracking-wider text-[var(--color-ink-4)]">
@@ -63,6 +65,6 @@ export default function MemoryPage() {
           </section>
         </div>
       </div>
-    </>
+    </Screen>
   );
 }

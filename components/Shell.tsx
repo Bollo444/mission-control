@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { NavAgent } from "@/lib/types";
 import { hexA } from "@/lib/format";
+import RouteTransition from "./RouteTransition";
 
 function NavLink({
   href,
@@ -71,8 +72,8 @@ export default function Shell({
   }, []);
 
   return (
-    <div className="flex min-h-screen">
-      <aside className="sticky top-0 hidden h-screen w-[264px] shrink-0 flex-col border-r px-4 py-5 md:flex">
+    <div className="flex h-screen overflow-hidden">
+      <aside className="hidden h-screen w-[264px] shrink-0 flex-col border-r px-4 py-5 md:flex">
         <Link href="/" className="mb-6 flex items-center gap-3 px-2">
           <span
             className="grid h-9 w-9 place-items-center rounded-xl text-base font-bold"
@@ -130,7 +131,7 @@ export default function Shell({
         <div className="mt-6 mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--color-ink-4)]">
           Coding Agents
         </div>
-        <nav className="flex flex-col gap-1">
+        <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
           {nav.map((a) => (
             <AgentNav
               key={a.id}
@@ -140,7 +141,7 @@ export default function Shell({
           ))}
         </nav>
 
-        <div className="mt-auto flex items-center justify-between border-t pt-4 text-[11px] text-[var(--color-ink-4)]">
+        <div className="mt-4 flex shrink-0 items-center justify-between border-t pt-4 text-[11px] text-[var(--color-ink-4)]">
           <span className="flex items-center gap-1.5">
             <span
               className="mc-live-dot inline-block h-1.5 w-1.5 rounded-full"
@@ -152,7 +153,9 @@ export default function Shell({
         </div>
       </aside>
 
-      <main className="min-w-0 flex-1">{children}</main>
+      <main className="h-screen min-w-0 flex-1 overflow-hidden">
+        <RouteTransition>{children}</RouteTransition>
+      </main>
     </div>
   );
 }

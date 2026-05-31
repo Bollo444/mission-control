@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useFetch } from "@/lib/useFetch";
 import type { SessionMeta, AgentsResp } from "@/lib/types";
-import { PageHeader, Stat } from "@/components/ui";
+import { PageHeader, Screen, Stat } from "@/components/ui";
 import SessionList from "@/components/SessionList";
 import { hexA } from "@/lib/format";
 
@@ -33,8 +33,9 @@ export default function SessionsPage() {
   const shown = filter === "all" ? sessions : sessions.filter((s) => s.agentId === filter);
 
   return (
-    <>
-      <PageHeader
+    <Screen
+      header={
+        <PageHeader
         eyebrow="Unified history"
         title="Sessions"
         sub="Every agent's conversations and runs, aggregated from their own session stores into one searchable timeline."
@@ -44,8 +45,9 @@ export default function SessionsPage() {
             <Stat value={Object.keys(counts).length} label="active agents" />
           </div>
         }
-      />
-
+        />
+      }
+    >
       <div className="px-8 py-7">
         <div className="mb-4 flex flex-wrap gap-2">
           <FilterChip
@@ -71,7 +73,7 @@ export default function SessionsPage() {
 
         <SessionList sessions={shown} accentFor={accentFor} showAgent />
       </div>
-    </>
+    </Screen>
   );
 }
 
