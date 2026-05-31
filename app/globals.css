@@ -1,0 +1,348 @@
+@import "tailwindcss";
+
+/*
+  Mission Control design language
+  --------------------------------
+  - Refined near-black base (never pure #000), 5-level grayscale
+  - Hairline borders carry elevation in dark mode (shadows stay <=4%)
+  - One global accent (signal cyan); per-agent identity colors layer on top
+  - 2:1 number-to-unit typographic ratio for telemetry readouts
+*/
+
+@theme {
+  --color-base: #0c0d10;
+  --color-surface: #121419;
+  --color-surface-2: #171a21;
+  --color-surface-3: #1e222b;
+  --color-line: #262b36;
+  --color-line-soft: #1d212a;
+
+  --color-ink: #e8eaf0;
+  --color-ink-2: #aab1c2;
+  --color-ink-3: #7b8294;
+  --color-ink-4: #565d6e;
+
+  --color-signal: #46e0d0;
+  --color-signal-dim: #1f6b64;
+  --color-amber: #f5b75a;
+  --color-rose: #f06a7a;
+  --color-violet: #9d8cff;
+  --color-green: #5cd6a0;
+
+  --font-sans: ui-sans-serif, system-ui, "Segoe UI", Roboto, Helvetica, Arial,
+    sans-serif;
+  --font-mono: "Cascadia Code", "JetBrains Mono", ui-monospace, "SF Mono",
+    Menlo, Consolas, monospace;
+
+  --radius-card: 14px;
+}
+
+* {
+  border-color: var(--color-line);
+}
+
+html,
+body {
+  background: var(--color-base);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  /* Subtle grid + radial glow — command-center backdrop, kept very low contrast */
+  background-image:
+    radial-gradient(
+      1200px 600px at 80% -10%,
+      rgba(70, 224, 208, 0.06),
+      transparent 60%
+    ),
+    linear-gradient(rgba(255, 255, 255, 0.014) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.014) 1px, transparent 1px);
+  background-size: 100% 100%, 44px 44px, 44px 44px;
+  background-attachment: fixed;
+}
+
+::selection {
+  background: var(--color-signal-dim);
+  color: #eafffb;
+}
+
+/* Thin, unobtrusive scrollbars */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-line);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-ink-4);
+  background-clip: content-box;
+}
+
+@keyframes mc-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+@keyframes mc-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes mc-sheen {
+  from {
+    background-position: -200% 0;
+  }
+  to {
+    background-position: 200% 0;
+  }
+}
+
+.mc-rise {
+  animation: mc-rise 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* ---- Skin animation library (each agent draws from a different subset) ---- */
+@keyframes mc-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes mc-spin-rev {
+  to {
+    transform: rotate(-360deg);
+  }
+}
+@keyframes mc-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-9px);
+  }
+}
+@keyframes mc-drift {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(14px, -22px, 0);
+  }
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+}
+@keyframes mc-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.85;
+  }
+  50% {
+    transform: scale(1.06);
+    opacity: 1;
+  }
+}
+@keyframes mc-shimmer {
+  0% {
+    background-position: -150% 0;
+  }
+  100% {
+    background-position: 250% 0;
+  }
+}
+@keyframes mc-iris {
+  0% {
+    filter: hue-rotate(0deg);
+  }
+  100% {
+    filter: hue-rotate(360deg);
+  }
+}
+@keyframes mc-scan {
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(900%);
+  }
+}
+@keyframes mc-dash {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes mc-wave {
+  0%,
+  100% {
+    transform: scaleY(0.35);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+@keyframes mc-ripple {
+  0% {
+    transform: scale(0.4);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+@keyframes mc-orbit {
+  from {
+    transform: rotate(0deg) translateX(var(--r, 22px)) rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg) translateX(var(--r, 22px)) rotate(-360deg);
+  }
+}
+@keyframes mc-blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes mc-rays {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes mc-cloud {
+  0% {
+    transform: translateX(0) scale(1.1);
+  }
+  50% {
+    transform: translateX(-30px) scale(1.15);
+  }
+  100% {
+    transform: translateX(0) scale(1.1);
+  }
+}
+/* OpenClaw — predator scan-HUD grammar */
+@keyframes mc-rake {
+  0% {
+    opacity: 0;
+    transform: translateX(-60px);
+  }
+  20% {
+    opacity: 0.9;
+  }
+  65% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(80px);
+  }
+}
+@keyframes mc-grab {
+  0%,
+  100% {
+    transform: rotate(9deg);
+  }
+  50% {
+    transform: rotate(-8deg);
+  }
+}
+@keyframes mc-grab-rev {
+  0%,
+  100% {
+    transform: rotate(-9deg);
+  }
+  50% {
+    transform: rotate(8deg);
+  }
+}
+@keyframes mc-lock {
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.75;
+    transform: scale(0.93);
+  }
+}
+/* typing caret used by the interactive terminal + meeting reveal */
+@keyframes mc-type {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+.mc-anim-spin {
+  animation: mc-spin 18s linear infinite;
+}
+.mc-anim-float {
+  animation: mc-float 5s ease-in-out infinite;
+}
+.mc-anim-breathe {
+  animation: mc-breathe 4s ease-in-out infinite;
+}
+.mc-iris-layer {
+  animation: mc-iris 24s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+.mc-live-dot {
+  animation: mc-pulse 1.8s ease-in-out infinite;
+}
+
+/* Hairline elevated panel */
+.mc-panel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+}
+
+.mc-panel-2 {
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+}
+
+/* Telemetry number: big value, small dim unit (2:1 ratio) */
+.mc-stat-value {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}

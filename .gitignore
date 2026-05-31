@@ -1,0 +1,35 @@
+# dependencies
+/node_modules
+
+# next.js build output
+/.next/
+/out/
+/build
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# env / secrets (never commit API keys)
+.env
+.env.*
+!.env.example
+
+# logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# local screenshots / scratch
+/shots/
+/shots$1.png
+
+# the shared-memory vault is personal and lives in $HOME, never in the repo
+/MissionControlVault/
