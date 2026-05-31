@@ -2,42 +2,59 @@
 
 import { usePathname } from "next/navigation";
 
-/* Replays a distinct, identity-themed entrance animation on every tab switch.
-   Keyed by pathname so navigating remounts the wrapper and re-fires the CSS. */
+/* On every tab switch this remounts (keyed by pathname) and fires two things:
+   1) a content entrance animation on the page, and
+   2) a themed color SWEEP overlay that plays regardless of how fast the page's
+      data loads — so the transition is always visibly dramatic and distinct
+      per agent. The overlay clears to transparent and never blocks clicks. */
 
-const AGENT_ENTER: Record<string, string> = {
-  claude: "mc-enter-ember",
-  hermes: "mc-enter-shimmer",
-  pi: "mc-enter-wipe",
-  opencode: "mc-enter-iris",
-  antigravity: "mc-enter-warp",
-  openclaw: "mc-enter-slash",
-  jcode: "mc-enter-zoom",
-  vibe: "mc-enter-pulse",
-  kilo: "mc-enter-fold",
+interface Trans {
+  enter: string;
+  sweep: string;
+  accent: string;
+}
+
+const AGENTS: Record<string, Trans> = {
+  claude: { enter: "mc-enter-ember", sweep: "mc-sweep-across", accent: "#e0915f" },
+  hermes: { enter: "mc-enter-shimmer", sweep: "mc-sweep-across", accent: "#9d8cff" },
+  pi: { enter: "mc-enter-wipe", sweep: "mc-sweep-up", accent: "#5cd6a0" },
+  opencode: { enter: "mc-enter-iris", sweep: "mc-sweep-iris", accent: "#f5b75a" },
+  antigravity: { enter: "mc-enter-warp", sweep: "mc-sweep-across", accent: "#6ea8fe" },
+  openclaw: { enter: "mc-enter-slash", sweep: "mc-sweep-diag", accent: "#ff4438" },
+  jcode: { enter: "mc-enter-zoom", sweep: "mc-sweep-diag", accent: "#46e0d0" },
+  vibe: { enter: "mc-enter-pulse", sweep: "mc-sweep-iris", accent: "#f06a7a" },
+  kilo: { enter: "mc-enter-fold", sweep: "mc-sweep-up", accent: "#c0c6d4" },
 };
 
-const ROUTE_ENTER: Record<string, string> = {
-  "/": "mc-enter-zoom",
-  "/sessions": "mc-enter-wipe",
-  "/memory": "mc-enter-iris",
-  "/meeting": "mc-enter-warp",
-  "/settings": "mc-enter-fold",
+const ROUTES: Record<string, Trans> = {
+  "/": { enter: "mc-enter-zoom", sweep: "mc-sweep-iris", accent: "#46e0d0" },
+  "/sessions": { enter: "mc-enter-wipe", sweep: "mc-sweep-up", accent: "#46e0d0" },
+  "/memory": { enter: "mc-enter-iris", sweep: "mc-sweep-iris", accent: "#46e0d0" },
+  "/meeting": { enter: "mc-enter-warp", sweep: "mc-sweep-across", accent: "#9d8cff" },
+  "/settings": { enter: "mc-enter-fold", sweep: "mc-sweep-up", accent: "#46e0d0" },
 };
 
-function enterClass(pathname: string): string {
+const DEFAULT: Trans = { enter: "mc-enter-rise", sweep: "mc-sweep-across", accent: "#46e0d0" };
+
+function transFor(pathname: string): Trans {
   if (pathname.startsWith("/agents/")) {
     const id = pathname.split("/")[2] ?? "";
-    return AGENT_ENTER[id] ?? "mc-enter-rise";
+    return AGENTS[id] ?? DEFAULT;
   }
-  return ROUTE_ENTER[pathname] ?? "mc-enter-rise";
+  return ROUTES[pathname] ?? DEFAULT;
 }
 
 export default function RouteTransition({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const t = transFor(pathname);
   return (
-    <div key={pathname} className={`h-full overflow-hidden ${enterClass(pathname)}`}>
-      {children}
+    <div key={pathname} className="relative h-full overflow-hidden">
+      <div className={`h-full overflow-hidden ${t.enter}`}>{children}</div>
+      <div
+        aria-hidden
+        className={`mc-route-sweep pointer-events-none absolute inset-0 z-40 ${t.sweep}`}
+        style={{ ["--sweep" as string]: t.accent } as React.CSSProperties}
+      />
     </div>
   );
 }

@@ -9,6 +9,7 @@ import type {
 } from "@/lib/types";
 import { hexA, stateColor } from "@/lib/format";
 import { getSkin } from "@/components/skins";
+import { getVoicePref, pickVoice } from "@/lib/voices";
 
 const PHASE_LABEL: Record<string, string> = {
   open: "Roll call",
@@ -44,7 +45,10 @@ export default function MeetingPage() {
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [voiceOn, setVoiceOn] = useState(false);
+  const [partial, setPartial] = useState(0);
   const endRef = useRef<HTMLDivElement>(null);
+  const voicesRef = useRef<SpeechSynthesisVoice[]>([]);
 
   const convene = useCallback(async () => {
     setLoading(true);
@@ -63,18 +67,65 @@ export default function MeetingPage() {
     void convene();
   }, [convene]);
 
-  // Reveal turns one at a time for a conversational cadence.
+  // Load installed TTS voices (async on most browsers) and stop speech on exit.
   useEffect(() => {
-    if (revealed >= turns.length) return;
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+    const load = () => {
+      voicesRef.current = window.speechSynthesis.getVoices();
+    };
+    load();
+    window.speechSynthesis.addEventListener("voiceschanged", load);
+    return () => {
+      window.speechSynthesis.removeEventListener("voiceschanged", load);
+      window.speechSynthesis.cancel();
+    };
+  }, []);
+
+  // Silent mode: reveal whole turns on a timer (voice mode drives reveal itself).
+  useEffect(() => {
+    if (voiceOn || revealed >= turns.length) return;
     const next = turns[revealed];
     const delay = Math.min(1500, 480 + (next?.text.length ?? 0) * 7);
     const t = setTimeout(() => setRevealed((r) => r + 1), delay);
     return () => clearTimeout(t);
-  }, [revealed, turns]);
+  }, [revealed, turns, voiceOn]);
+
+  // Voice mode: speak the next turn in its agent's voice, revealing words as spoken.
+  useEffect(() => {
+    if (!voiceOn || revealed >= turns.length) return;
+    const turn = turns[revealed];
+    const advance = () => setRevealed((r) => r + 1);
+    if (turn.agentId === "user" || typeof window === "undefined" || !window.speechSynthesis) {
+      setPartial(Infinity);
+      const t = setTimeout(advance, 500);
+      return () => clearTimeout(t);
+    }
+    const synth = window.speechSynthesis;
+    const pref = getVoicePref(turn.agentId);
+    const u = new SpeechSynthesisUtterance(turn.text);
+    const v = pickVoice(voicesRef.current, pref);
+    if (v) u.voice = v;
+    u.lang = pref.lang;
+    u.rate = pref.rate;
+    u.pitch = pref.pitch;
+    setPartial(0);
+    u.onboundary = (e) => {
+      const upto = turn.text.slice(0, e.charIndex ?? 0).trim();
+      setPartial(upto ? upto.split(/\s+/).length + 1 : 1);
+    };
+    u.onend = () => {
+      setPartial(Infinity);
+      setTimeout(advance, 140);
+    };
+    u.onerror = () => advance();
+    synth.cancel();
+    synth.speak(u);
+    return () => synth.cancel();
+  }, [voiceOn, revealed, turns]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [revealed, busy]);
+  }, [revealed, busy, partial]);
 
   const speak = useCallback(
     async (message: string) => {
@@ -137,6 +188,14 @@ export default function MeetingPage() {
             </div>
           ))}
           <button
+            onClick={() => setVoiceOn((v) => !v)}
+            className="rounded-xl border px-3 py-2 text-sm font-semibold transition-colors hover:bg-[var(--color-surface-3)]"
+            style={voiceOn ? { borderColor: hexA(SIGNAL, 0.5), color: SIGNAL } : { color: "var(--color-ink-3)" }}
+            title="Read the meeting aloud — each agent in its own voice & accent"
+          >
+            {voiceOn ? "🔊 Voices on" : "🔈 Voices off"}
+          </button>
+          <button
             onClick={convene}
             disabled={loading}
             className="rounded-xl border px-4 py-2 text-sm font-semibold transition-colors hover:bg-[var(--color-surface-3)] disabled:opacity-40"
@@ -159,7 +218,12 @@ export default function MeetingPage() {
               ) : (
                 <Transcript turns={shown} />
               )}
-              {nextSpeaker && <Typing turn={nextSpeaker} />}
+              {nextSpeaker &&
+                (voiceOn ? (
+                  <SpeakingTurn turn={nextSpeaker} words={partial} />
+                ) : (
+                  <Typing turn={nextSpeaker} />
+                ))}
               {busy && !nextSpeaker && <ThinkingDots />}
               <div ref={endRef} />
             </div>
@@ -296,6 +360,32 @@ function TurnRow({ t }: { t: MeetingTurn }) {
           style={isUser ? { color: "var(--color-ink)" } : undefined}
         >
           {t.text}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function SpeakingTurn({ turn, words }: { turn: MeetingTurn; words: number }) {
+  const all = turn.text.split(/\s+/);
+  const shown = words >= all.length ? turn.text : all.slice(0, Math.max(0, words)).join(" ");
+  return (
+    <div className="flex gap-3 py-2">
+      <Avatar agentId={turn.agentId} accent={turn.accent} glyph={turn.glyph} />
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-semibold" style={{ color: turn.accent }}>
+            {turn.name}
+          </span>
+          <span className="text-[10px] uppercase tracking-wider text-[var(--color-ink-4)]">{turn.role}</span>
+          <span className="text-[10px]" style={{ color: turn.accent }}>🔊 speaking</span>
+        </div>
+        <p className="mt-0.5 text-sm leading-relaxed text-[var(--color-ink-2)]">
+          {shown}
+          <span
+            className="ml-0.5 inline-block h-3.5 w-1.5 align-[-2px]"
+            style={{ background: turn.accent, animation: "mc-type 1s steps(1) infinite" }}
+          />
         </p>
       </div>
     </div>
