@@ -15,7 +15,7 @@ export default function AgentCard({ a, index }: { a: AgentSummary; index: number
     <Link
       href={`/agents/${a.id}`}
       className="mc-rise mc-glow-edge group relative flex min-h-[212px] flex-col overflow-hidden rounded-[14px] border p-5 transition-transform duration-200 hover:-translate-y-0.5"
-      style={{ animationDelay: `${index * 40}ms`, ["--glow"]: hexA(a.accent, 0.5) } as React.CSSProperties}
+      style={{ animationDelay: `${index * 22}ms`, ["--glow"]: hexA(a.accent, 0.5) } as React.CSSProperties}
     >
       {/* unique animated background + readability scrim */}
       <Background className="opacity-90 transition-opacity duration-300 group-hover:opacity-100" />

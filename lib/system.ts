@@ -14,7 +14,7 @@ import type { FleetAgentLine, FleetState, SystemReport } from "./types";
  */
 
 /** Aggregate non-idle CPU % across all cores, measured over a short window. */
-async function cpuUsagePct(sampleMs = 140): Promise<number> {
+async function cpuUsagePct(sampleMs = 90): Promise<number> {
   const snapshot = () => {
     let idle = 0;
     let total = 0;

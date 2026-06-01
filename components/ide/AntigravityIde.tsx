@@ -55,6 +55,7 @@ export default function AntigravityIde({ agent }: { agent: AgentDetail }) {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState("");
   const editorRef = useRef<HTMLTextAreaElement>(null);
+  const gutterRef = useRef<HTMLDivElement>(null);
 
   const tree = vault?.tree ?? [];
   const files = useMemo(() => tree.filter((n) => !n.dir), [tree]);
@@ -342,8 +343,11 @@ export default function AntigravityIde({ agent }: { agent: AgentDetail }) {
               />
             ) : activeDoc ? (
               <div className="flex h-full flex-col">
-                <div className="flex min-h-0 flex-1 overflow-auto">
-                  <div className="select-none border-r border-white/10 px-3 py-3 text-right font-mono text-[12.5px] leading-[1.5rem] text-[var(--color-ink-4)]">
+                <div className="flex min-h-0 flex-1 overflow-hidden">
+                  <div
+                    ref={gutterRef}
+                    className="select-none overflow-hidden border-r border-white/10 px-3 py-3 text-right font-mono text-[12.5px] leading-[1.5rem] text-[var(--color-ink-4)]"
+                  >
                     {Array.from({ length: lineCount }).map((_, i) => (
                       <div key={i}>{i + 1}</div>
                     ))}
@@ -358,8 +362,12 @@ export default function AntigravityIde({ agent }: { agent: AgentDetail }) {
                     }}
                     onKeyUp={(e) => trackCursor(e.currentTarget)}
                     onClick={(e) => trackCursor(e.currentTarget)}
+                    onScroll={(e) => {
+                      if (gutterRef.current) gutterRef.current.scrollTop = e.currentTarget.scrollTop;
+                    }}
+                    wrap="off"
                     spellCheck={false}
-                    className="min-h-full flex-1 resize-none bg-transparent px-4 py-3 font-mono text-[12.5px] leading-[1.5rem] text-[var(--color-ink-2)] outline-none"
+                    className="min-h-full flex-1 resize-none overflow-auto whitespace-pre bg-transparent px-4 py-3 font-mono text-[12.5px] leading-[1.5rem] text-[var(--color-ink-2)] outline-none"
                   />
                 </div>
                 <div className="flex shrink-0 items-center gap-3 border-t border-white/10 px-4 py-2">

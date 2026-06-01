@@ -117,7 +117,7 @@ body {
 }
 
 .mc-rise {
-  animation: mc-rise 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: mc-rise 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 /* Tasteful accent hover-glow. An element's own box-shadow is not clipped by its
@@ -370,16 +370,16 @@ body {
 
 /* `backwards` (not forwards) so the element reverts to an untransformed base
    after entering — keeps position:fixed children (e.g. command palette) correct. */
-.mc-enter-ember { animation: mc-enter-ember 0.55s cubic-bezier(0.16, 1, 0.3, 1) backwards; }
-.mc-enter-shimmer { animation: mc-enter-shimmer 0.5s cubic-bezier(0.16, 1, 0.3, 1) backwards; }
-.mc-enter-wipe { animation: mc-enter-wipe 0.6s cubic-bezier(0.16, 1, 0.3, 1) backwards; }
-.mc-enter-iris { animation: mc-enter-iris 0.6s ease-out backwards; }
-.mc-enter-warp { animation: mc-enter-warp 0.55s cubic-bezier(0.16, 1, 0.3, 1) backwards; }
-.mc-enter-slash { animation: mc-enter-slash 0.55s cubic-bezier(0.7, 0, 0.3, 1) backwards; }
-.mc-enter-zoom { animation: mc-enter-zoom 0.45s cubic-bezier(0.16, 1, 0.3, 1) backwards; }
-.mc-enter-pulse { animation: mc-enter-pulse 0.5s cubic-bezier(0.16, 1, 0.3, 1) backwards; }
-.mc-enter-fold { animation: mc-enter-fold 0.55s cubic-bezier(0.16, 1, 0.3, 1) backwards; }
-.mc-enter-rise { animation: mc-enter-rise 0.45s cubic-bezier(0.16, 1, 0.3, 1) backwards; }
+.mc-enter-ember { animation: mc-enter-ember 0.34s cubic-bezier(0.16, 1, 0.3, 1) backwards; }
+.mc-enter-shimmer { animation: mc-enter-shimmer 0.3s cubic-bezier(0.16, 1, 0.3, 1) backwards; }
+.mc-enter-wipe { animation: mc-enter-wipe 0.36s cubic-bezier(0.16, 1, 0.3, 1) backwards; }
+.mc-enter-iris { animation: mc-enter-iris 0.38s ease-out backwards; }
+.mc-enter-warp { animation: mc-enter-warp 0.34s cubic-bezier(0.16, 1, 0.3, 1) backwards; }
+.mc-enter-slash { animation: mc-enter-slash 0.36s cubic-bezier(0.7, 0, 0.3, 1) backwards; }
+.mc-enter-zoom { animation: mc-enter-zoom 0.3s cubic-bezier(0.16, 1, 0.3, 1) backwards; }
+.mc-enter-pulse { animation: mc-enter-pulse 0.32s cubic-bezier(0.16, 1, 0.3, 1) backwards; }
+.mc-enter-fold { animation: mc-enter-fold 0.34s cubic-bezier(0.16, 1, 0.3, 1) backwards; }
+.mc-enter-rise { animation: mc-enter-rise 0.3s cubic-bezier(0.16, 1, 0.3, 1) backwards; }
 
 /* Themed sweep overlay — fires on every tab switch regardless of content load
    timing, so the transition is always visibly dramatic. Clears to transparent
@@ -405,10 +405,10 @@ body {
   0% { transform: translateY(100%); opacity: 0.95; }
   100% { transform: translateY(-100%); opacity: 0; }
 }
-.mc-sweep-across { animation: mc-sweep-across 0.6s cubic-bezier(0.7, 0, 0.3, 1) backwards; }
-.mc-sweep-diag { animation: mc-sweep-diag 0.62s cubic-bezier(0.7, 0, 0.3, 1) backwards; }
-.mc-sweep-iris { animation: mc-sweep-iris 0.6s ease-out backwards; }
-.mc-sweep-up { animation: mc-sweep-up 0.58s cubic-bezier(0.7, 0, 0.3, 1) backwards; }
+.mc-sweep-across { animation: mc-sweep-across 0.42s cubic-bezier(0.7, 0, 0.3, 1) backwards; }
+.mc-sweep-diag { animation: mc-sweep-diag 0.44s cubic-bezier(0.7, 0, 0.3, 1) backwards; }
+.mc-sweep-iris { animation: mc-sweep-iris 0.42s ease-out backwards; }
+.mc-sweep-up { animation: mc-sweep-up 0.42s cubic-bezier(0.7, 0, 0.3, 1) backwards; }
 
 /* Memory swarm: bubble entrance + pop-to-open burst */
 @keyframes mc-pop-in {

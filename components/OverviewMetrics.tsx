@@ -68,7 +68,7 @@ function Gauge({ label, pct, sub }: { label: string; pct?: number; sub: string }
       </div>
       <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-white/10">
         <div
-          className="h-full rounded-full transition-[width] duration-700 ease-out"
+          className="h-full rounded-full transition-[width] duration-500 ease-out"
           style={{ width: `${v}%`, background: col }}
         />
       </div>
@@ -87,9 +87,9 @@ function FleetBar({ sys }: { sys: SystemReport | null }) {
   return (
     <div>
       <div className="flex h-3 w-full overflow-hidden rounded-full bg-white/10">
-        <div className="h-full transition-[width] duration-700 ease-out" style={{ width: `${pct(ready)}%`, background: COLORS.ready }} />
-        <div className="h-full transition-[width] duration-700 ease-out" style={{ width: `${pct(config)}%`, background: COLORS.config }} />
-        <div className="h-full transition-[width] duration-700 ease-out" style={{ width: `${pct(offline)}%`, background: COLORS.offline }} />
+        <div className="h-full transition-[width] duration-500 ease-out" style={{ width: `${pct(ready)}%`, background: COLORS.ready }} />
+        <div className="h-full transition-[width] duration-500 ease-out" style={{ width: `${pct(config)}%`, background: COLORS.config }} />
+        <div className="h-full transition-[width] duration-500 ease-out" style={{ width: `${pct(offline)}%`, background: COLORS.offline }} />
       </div>
       <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px]">
         <Legend c={COLORS.ready} label="ready" n={ready} />

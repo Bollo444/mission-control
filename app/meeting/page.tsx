@@ -85,7 +85,7 @@ export default function MeetingPage() {
   useEffect(() => {
     if (voiceOn || revealed >= turns.length) return;
     const next = turns[revealed];
-    const delay = Math.min(1500, 480 + (next?.text.length ?? 0) * 7);
+    const delay = Math.min(650, 200 + (next?.text.length ?? 0) * 3);
     const t = setTimeout(() => setRevealed((r) => r + 1), delay);
     return () => clearTimeout(t);
   }, [revealed, turns, voiceOn]);
@@ -97,7 +97,7 @@ export default function MeetingPage() {
     const advance = () => setRevealed((r) => r + 1);
     if (turn.agentId === "user" || typeof window === "undefined" || !window.speechSynthesis) {
       setPartial(Infinity);
-      const t = setTimeout(advance, 500);
+      const t = setTimeout(advance, 280);
       return () => clearTimeout(t);
     }
     const synth = window.speechSynthesis;
@@ -115,7 +115,7 @@ export default function MeetingPage() {
     };
     u.onend = () => {
       setPartial(Infinity);
-      setTimeout(advance, 140);
+      setTimeout(advance, 90);
     };
     u.onerror = () => advance();
     synth.cancel();
