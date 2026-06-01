@@ -119,8 +119,8 @@ export default function AgentMetrics({ agent }: { agent: AgentDetail }) {
           const r = w.get(ctx);
           const barCol = w.bar && r.pct != null ? pctColor(r.pct) : accent;
           return (
-            <div key={w.id} className="rounded-xl border bg-[var(--color-surface-2)] px-3.5 py-3">
-              <div className="mc-stat-value text-xl leading-none" style={{ color: barCol }}>
+            <div key={w.id} className="overflow-hidden rounded-xl border bg-[var(--color-surface-2)] px-3.5 py-3">
+              <div className="mc-stat-value truncate text-xl leading-none" style={{ color: barCol }}>
                 {r.value}
               </div>
               {w.bar && r.pct != null && (

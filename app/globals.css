@@ -120,6 +120,16 @@ body {
   animation: mc-rise 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+/* Tasteful accent hover-glow. An element's own box-shadow is not clipped by its
+   own overflow, so this works on rounded, overflow-hidden cards. --glow holds
+   the agent accent at low alpha; spread is negative to keep it tight, not neon. */
+.mc-glow-edge {
+  transition: box-shadow 0.22s ease, transform 0.2s ease;
+}
+.mc-glow-edge:hover {
+  box-shadow: 0 0 26px -8px var(--glow, transparent);
+}
+
 /* ---- Skin animation library (each agent draws from a different subset) ---- */
 @keyframes mc-spin {
   to {

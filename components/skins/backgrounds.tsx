@@ -154,9 +154,9 @@ export function OpenCodeBg({ className = "" }: { className?: string }) {
       <div
         className="absolute inset-0"
         style={{
-          background: "#140f06",
+          background: "#0c0a16",
           backgroundImage:
-            "radial-gradient(rgba(245,183,90,0.5) 1px, transparent 1.6px)",
+            "radial-gradient(rgba(157,140,255,0.5) 1px, transparent 1.6px)",
           backgroundSize: "14px 14px",
           maskImage: "radial-gradient(120% 100% at 70% 30%, #000 30%, transparent 80%)",
           WebkitMaskImage: "radial-gradient(120% 100% at 70% 30%, #000 30%, transparent 80%)",
@@ -166,7 +166,7 @@ export function OpenCodeBg({ className = "" }: { className?: string }) {
         className="absolute inset-x-0 h-16"
         style={{
           background:
-            "linear-gradient(180deg, transparent, rgba(245,183,90,0.18), transparent)",
+            "linear-gradient(180deg, transparent, rgba(157,140,255,0.18), transparent)",
           animation: "mc-scan 5s linear infinite",
         }}
       />
@@ -179,7 +179,7 @@ export function OpenCodeBg({ className = "" }: { className?: string }) {
             top: `${20 + i * 22}%`,
             width: 40 - i * 8,
             height: 6,
-            background: "rgba(245,183,90,0.25)",
+            background: "rgba(157,140,255,0.25)",
             animation: `mc-blink ${1.5 + i}s steps(2) infinite`,
           }}
         />

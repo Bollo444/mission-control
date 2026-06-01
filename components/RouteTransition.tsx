@@ -16,9 +16,9 @@ interface Trans {
 
 const AGENTS: Record<string, Trans> = {
   claude: { enter: "mc-enter-ember", sweep: "mc-sweep-across", accent: "#e0915f" },
-  hermes: { enter: "mc-enter-shimmer", sweep: "mc-sweep-across", accent: "#9d8cff" },
+  hermes: { enter: "mc-enter-shimmer", sweep: "mc-sweep-across", accent: "#f5b75a" },
   pi: { enter: "mc-enter-wipe", sweep: "mc-sweep-up", accent: "#5cd6a0" },
-  opencode: { enter: "mc-enter-iris", sweep: "mc-sweep-iris", accent: "#f5b75a" },
+  opencode: { enter: "mc-enter-iris", sweep: "mc-sweep-iris", accent: "#9d8cff" },
   antigravity: { enter: "mc-enter-warp", sweep: "mc-sweep-across", accent: "#6ea8fe" },
   openclaw: { enter: "mc-enter-slash", sweep: "mc-sweep-diag", accent: "#ff4438" },
   jcode: { enter: "mc-enter-zoom", sweep: "mc-sweep-diag", accent: "#46e0d0" },

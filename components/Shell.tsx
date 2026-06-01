@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import type { NavAgent } from "@/lib/types";
 import { hexA } from "@/lib/format";
 import RouteTransition from "./RouteTransition";
+import { useEdgeAutoScroll } from "./useEdgeAutoScroll";
 
 function NavLink({
   href,
@@ -34,15 +35,23 @@ function AgentNav({ a, active }: { a: NavAgent; active: boolean }) {
   return (
     <Link
       href={`/agents/${a.id}`}
-      className="group flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors"
-      style={{
-        background: active ? hexA(a.accent, 0.12) : "transparent",
-        color: active ? "var(--color-ink)" : "var(--color-ink-2)",
-        boxShadow: active ? `inset 2px 0 0 ${a.accent}` : "none",
-      }}
+      className="mc-glow-edge group relative flex items-center gap-3 overflow-hidden rounded-lg px-3 py-2 text-sm transition-colors"
+      style={
+        {
+          background: active ? hexA(a.accent, 0.12) : "transparent",
+          color: active ? "var(--color-ink)" : "var(--color-ink-2)",
+          ["--glow"]: hexA(a.accent, 0.5),
+        } as React.CSSProperties
+      }
     >
+      {active && (
+        <span
+          className="absolute bottom-1 left-0 top-1 w-0.5 rounded-full"
+          style={{ background: a.accent }}
+        />
+      )}
       <span
-        className="grid h-6 w-6 place-items-center rounded-md text-[13px] font-semibold"
+        className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-[13px] font-semibold"
         style={{ background: hexA(a.accent, 0.16), color: a.accent }}
       >
         {a.glyph}
@@ -61,6 +70,7 @@ export default function Shell({
 }) {
   const pathname = usePathname();
   const [clock, setClock] = useState("");
+  const agentNavRef = useEdgeAutoScroll<HTMLElement>();
 
   useEffect(() => {
     const t = setInterval(
@@ -131,7 +141,7 @@ export default function Shell({
         <div className="mt-6 mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--color-ink-4)]">
           Coding Agents
         </div>
-        <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
+        <nav ref={agentNavRef} className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
           {nav.map((a) => (
             <AgentNav
               key={a.id}

@@ -111,20 +111,20 @@ export function OpenCodeMascot({ size = 64, className }: MProps) {
   const blades = Array.from({ length: 6 });
   return (
     <svg width={size} height={size} viewBox="0 0 100 100" className={className} aria-hidden>
-      <circle cx="50" cy="50" r="38" fill="none" stroke="#f5b75a" strokeWidth="2" strokeOpacity="0.5" />
+      <circle cx="50" cy="50" r="38" fill="none" stroke="#9d8cff" strokeWidth="2" strokeOpacity="0.5" />
       <g className="mc-anim-spin" style={{ transformOrigin: "50px 50px" }}>
         {blades.map((_, i) => (
           <path
             key={i}
             d="M50 50 L50 14 A36 36 0 0 1 81 32 Z"
-            fill="#f5b75a"
+            fill="#9d8cff"
             fillOpacity={0.14 + (i % 3) * 0.08}
             transform={`rotate(${i * 60} 50 50)`}
           />
         ))}
       </g>
-      <circle cx="50" cy="50" r="12" fill="#1b1408" stroke="#f5b75a" strokeWidth="2" />
-      <circle cx="50" cy="50" r="4" fill="#ffd98a" className="mc-anim-breathe" style={{ transformOrigin: "50px 50px" }} />
+      <circle cx="50" cy="50" r="12" fill="#140f22" stroke="#9d8cff" strokeWidth="2" />
+      <circle cx="50" cy="50" r="4" fill="#cdbcff" className="mc-anim-breathe" style={{ transformOrigin: "50px 50px" }} />
     </svg>
   );
 }

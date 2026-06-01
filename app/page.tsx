@@ -7,6 +7,7 @@ import type { AgentSummary, ActivityEntry } from "@/lib/types";
 import { relTime } from "@/lib/format";
 import AgentCard from "@/components/AgentCard";
 import ActivityFeed from "@/components/ActivityFeed";
+import OverviewMetrics from "@/components/OverviewMetrics";
 import { PageHeader, Screen, Stat } from "@/components/ui";
 
 interface AgentsResp {
@@ -55,6 +56,7 @@ export default function OverviewPage() {
     >
       <div className="grid grid-cols-1 gap-6 px-8 py-7 xl:grid-cols-[1fr_340px]">
         <div className="flex flex-col gap-7">
+          <OverviewMetrics />
           <section>
             <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--color-ink-4)]">
               Coding Agents · dedicated mission control
