@@ -22,6 +22,7 @@ and direct calls to the model providers you choose.
 - [The fleet](#the-fleet)
 - [Features](#features)
 - [Requirements](#requirements)
+- [Platform support — do I qualify?](#platform-support--do-i-qualify)
 - [Quick start](#quick-start)
 - [Operating it end-to-end](#operating-it-end-to-end) — start here
 - [Model routing & providers](#model-routing--providers)
@@ -101,6 +102,60 @@ config exists. Ones you don't have installed appear as provisionable personas.
   provisionable.
 - Optional: API keys for whichever model providers you want to use (most have a
   no-credit-card free tier — see the [provider table](#the-provider-catalog)).
+
+---
+
+## Platform support — do I qualify?
+
+The **dashboard core runs anywhere Node 18.18+ runs** — Windows, macOS, or Linux,
+on **x64 or ARM64** (this project is developed on a Windows/ARM64 Snapdragon
+laptop, so ARM is a first-class target). Everything built for routing and
+reliability is OS-agnostic. The **agent control surface** (launching CLIs in a
+terminal, the one-click IDE, `winget` installs) is **Windows-first** and degrades
+gracefully elsewhere.
+
+### Compatibility matrix
+
+| Capability | Windows | macOS | Linux |
+|---|---|---|---|
+| Web dashboard, **model routing**, **health monitor / failover**, free-tier panel, providers | ✅ | ✅ | ✅ |
+| Shared Obsidian vault, team meeting, sessions, **host telemetry** (CPU/mem/disk) | ✅ | ✅ | ✅ |
+| Agent **detection** (installed? which version?) | ✅ | ✅ via `PATH` | ✅ via `PATH` |
+| **Launch** a CLI agent in a *visible* terminal | ✅ `cmd` | ✅ `Terminal.app` | ✅ (needs a terminal emulator) |
+| One-click **Open IDE** (Antigravity) | ✅ | ✅ \* | ✅ \* |
+| One-click **Install** button | ✅ `winget`/`npm` | ✅ `npm` (`winget` = Windows) | ✅ `npm` |
+| UI window chrome & `Ctrl` shortcuts | native feel | works (Windows-styled) | works (Windows-styled) |
+
+✅ works · ⚠️ degraded but usable · ❌ Windows-only · \* if the agent's binary path resolves on that OS
+
+Why: detection resolves binaries from your `PATH` (cross-platform), telemetry
+handles both `C:\` and `/`, and launching/opening/installing now spawn a real
+terminal on each OS (Windows `cmd`, macOS `Terminal.app`, the first available
+Linux emulator). The only Windows-specific leftovers are `winget` installs and
+the default agent binary paths in [`lib/registry.ts`](lib/registry.ts) — on
+macOS/Linux just point those at your real binaries (agents are pluggable).
+
+### Do I qualify? (pre-install checklist)
+
+You can run Mission Control as a **provider-routing + self-healing health-monitor
++ telemetry console** on **any** of these:
+
+- [ ] **OS:** Windows 10/11, macOS, or a modern Linux
+- [ ] **CPU:** x64 **or** ARM64 (Apple Silicon, Snapdragon, …)
+- [ ] **Node.js 18.18+** (20+ recommended) + a modern browser
+- [ ] ~300 MB free for `node_modules` and the build
+
+On **macOS and Linux** the launch / Open-IDE / install buttons open a real
+terminal too (Linux needs a terminal emulator installed). The only Windows-only
+piece is `winget` installs; everything else — routing, failover, telemetry, the
+vault, the meeting — is identical on every platform.
+
+> **Cross-platform launch is built in** (see [`lib/launch.ts`](lib/launch.ts)):
+> macOS opens `Terminal.app` via AppleScript; Linux uses the first available
+> emulator (`x-terminal-emulator`, `gnome-terminal`, `konsole`, `xfce4-terminal`,
+> `kitty`, `alacritty`, `xterm`). Developed on Windows, so the macOS/Linux paths
+> follow each platform's standard mechanism — open an issue if your emulator
+> isn't covered.
 
 ---
 

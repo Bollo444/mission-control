@@ -44,7 +44,8 @@ export default function MeetingPage() {
   const [revealed, setRevealed] = useState(0);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [started, setStarted] = useState(false);
   const [voiceOn, setVoiceOn] = useState(false);
   const [partial, setPartial] = useState(0);
   const endRef = useRef<HTMLDivElement>(null);
@@ -63,7 +64,10 @@ export default function MeetingPage() {
     }
   }, []);
 
-  useEffect(() => {
+  // The boardroom stays quiet until you explicitly convene it — landing on the
+  // tab (e.g. by accident) never auto-starts a meeting.
+  const start = useCallback(() => {
+    setStarted(true);
     void convene();
   }, [convene]);
 
@@ -179,30 +183,42 @@ export default function MeetingPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          {(meta?.metrics ?? []).map((m) => (
-            <div key={m.label} className="rounded-xl border bg-[var(--color-surface)] px-3.5 py-2 text-center">
-              <div className="mc-stat-value text-lg leading-none" style={{ color: toneColor[m.tone] }}>
-                {m.value}
-              </div>
-              <div className="mt-1 text-[10px] uppercase tracking-wider text-[var(--color-ink-4)]">{m.label}</div>
-            </div>
-          ))}
-          <button
-            onClick={() => setVoiceOn((v) => !v)}
-            className="rounded-xl border px-3 py-2 text-sm font-semibold transition-colors hover:bg-[var(--color-surface-3)]"
-            style={voiceOn ? { borderColor: hexA(SIGNAL, 0.5), color: SIGNAL } : { color: "var(--color-ink-3)" }}
-            title="Read the meeting aloud — each agent in its own voice & accent"
-          >
-            {voiceOn ? "🔊 Voices on" : "🔈 Voices off"}
-          </button>
-          <button
-            onClick={convene}
-            disabled={loading}
-            className="rounded-xl border px-4 py-2 text-sm font-semibold transition-colors hover:bg-[var(--color-surface-3)] disabled:opacity-40"
-            style={{ borderColor: hexA(SIGNAL, 0.4), color: SIGNAL }}
-          >
-            {loading ? "Convening…" : "↻ New round"}
-          </button>
+          {started ? (
+            <>
+              {(meta?.metrics ?? []).map((m) => (
+                <div key={m.label} className="rounded-xl border bg-[var(--color-surface)] px-3.5 py-2 text-center">
+                  <div className="mc-stat-value text-lg leading-none" style={{ color: toneColor[m.tone] }}>
+                    {m.value}
+                  </div>
+                  <div className="mt-1 text-[10px] uppercase tracking-wider text-[var(--color-ink-4)]">{m.label}</div>
+                </div>
+              ))}
+              <button
+                onClick={() => setVoiceOn((v) => !v)}
+                className="rounded-xl border px-3 py-2 text-sm font-semibold transition-colors hover:bg-[var(--color-surface-3)]"
+                style={voiceOn ? { borderColor: hexA(SIGNAL, 0.5), color: SIGNAL } : { color: "var(--color-ink-3)" }}
+                title="Read the meeting aloud — each agent in its own voice & accent"
+              >
+                {voiceOn ? "🔊 Voices on" : "🔈 Voices off"}
+              </button>
+              <button
+                onClick={convene}
+                disabled={loading}
+                className="rounded-xl border px-4 py-2 text-sm font-semibold transition-colors hover:bg-[var(--color-surface-3)] disabled:opacity-40"
+                style={{ borderColor: hexA(SIGNAL, 0.4), color: SIGNAL }}
+              >
+                {loading ? "Convening…" : "↻ New round"}
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={start}
+              className="rounded-xl px-5 py-2.5 text-sm font-semibold text-[#06121f]"
+              style={{ background: SIGNAL }}
+            >
+              ▶ Convene the fleet
+            </button>
+          )}
         </div>
       </div>
 
@@ -211,24 +227,43 @@ export default function MeetingPage() {
         <div className="flex min-w-0 flex-col overflow-hidden">
           <div className="mc-panel flex min-h-0 flex-1 flex-col overflow-hidden">
             <div className="flex-1 overflow-auto px-5 py-4">
-              {loading && shown.length === 0 ? (
+              {!started ? (
+                <div className="grid h-full place-items-center px-6 text-center">
+                  <div className="max-w-md">
+                    <div className="mb-3 text-4xl">🗣️</div>
+                    <h2 className="text-lg font-semibold">The boardroom is quiet</h2>
+                    <p className="mt-2 text-sm text-[var(--color-ink-4)]">
+                      Nothing runs until you say so. Convene the fleet to generate a
+                      fresh, metric-grounded all-hands from the live system state.
+                    </p>
+                    <button
+                      onClick={start}
+                      className="mt-5 rounded-xl px-5 py-2.5 text-sm font-semibold text-[#06121f]"
+                      style={{ background: SIGNAL }}
+                    >
+                      ▶ Convene the fleet
+                    </button>
+                  </div>
+                </div>
+              ) : loading && shown.length === 0 ? (
                 <div className="grid h-full place-items-center text-sm text-[var(--color-ink-4)]">
                   Convening the room…
                 </div>
               ) : (
                 <Transcript turns={shown} />
               )}
-              {nextSpeaker &&
+              {started && nextSpeaker &&
                 (voiceOn ? (
                   <SpeakingTurn turn={nextSpeaker} words={partial} />
                 ) : (
                   <Typing turn={nextSpeaker} />
                 ))}
-              {busy && !nextSpeaker && <ThinkingDots />}
+              {started && busy && !nextSpeaker && <ThinkingDots />}
               <div ref={endRef} />
             </div>
 
-            {/* topic chips + input */}
+            {/* topic chips + input — only after the meeting is convened */}
+            {started && (
             <div className="shrink-0 border-t px-4 py-3">
               <div className="mb-2 flex flex-wrap gap-1.5">
                 {TOPICS.map((t) => (
@@ -262,6 +297,7 @@ export default function MeetingPage() {
                 </button>
               </div>
             </div>
+            )}
           </div>
         </div>
 
