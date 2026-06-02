@@ -25,6 +25,7 @@ and direct calls to the model providers you choose.
 - [Platform support — do I qualify?](#platform-support--do-i-qualify)
 - [Quick start](#quick-start)
 - [Operating it end-to-end](#operating-it-end-to-end) — start here
+- [How it works under the hood — control plane vs. inference path](#how-it-works-under-the-hood--control-plane-vs-inference-path)
 - [Model routing & providers](#model-routing--providers)
 - [API keys: placement, routing & the recommended setup](#api-keys-placement-routing--the-recommended-setup)
 - [Free-tier health monitor (failover & recovery)](#free-tier-health-monitor-failover--recovery)
@@ -209,6 +210,43 @@ That's the whole loop. The rest of this README explains each piece.
 
 ---
 
+## How it works under the hood — control plane vs. inference path
+
+> [!IMPORTANT]
+> **Mission Control is a control plane, not a proxy that sits in front of your
+> agents.** The routing table records *your intent* and the health monitor
+> manages that record — but your agents (`opencode`, `pi`, Claude Code, …) are
+> independent programs that read **their own** configs and call LLM providers
+> **directly**. Mission Control never sees or intercepts those API calls.
+>
+> **When troubleshooting:** if an agent isn't using the model you picked in
+> Settings, that's expected — the Settings table is a *plan*, not enforcement.
+> The agent uses whatever is in its own config. To make a routing choice (or the
+> [cascade proxy](#reliable-free-openrouter-access-cascade-proxy)) actually take
+> effect, you point that agent's own config / base-URL at it.
+
+Two mental pictures:
+
+- **Routing table = a seating chart on the wall.** "Pi sits at the OpenRouter
+  desk" is a plan everyone can see — but writing a new name on the chart doesn't
+  physically move the person. The agent goes wherever *its own config* takes it.
+- **Cascade proxy = a smart switchboard.** Dial *through* it and it tries every
+  free line until one connects — but only if your phone is set to dial through
+  the switchboard. A phone set to call OpenRouter directly bypasses it and gets
+  the busy signal (429) itself.
+
+What Mission Control **does**: read your agents' on-disk configs (to show
+installed / version / routed model), store your routing intent + API keys (in
+`~/.mission-control`, outside the repo), launch agents, run the health monitor,
+and expose the opt-in cascade proxy. What it **doesn't do**: rewrite each agent's
+private config or man-in-the-middle their provider traffic — by design, so it
+stays non-invasive and predictable. Wiring an agent to actually use a model or
+the proxy means editing **that agent's own config** (in its home directory,
+outside this repo) — a machine-local change that is never committed and never
+affects anyone who clones the repo.
+
+---
+
 ## Model routing & providers
 
 ### Preferred vs. effective routing
@@ -283,6 +321,14 @@ curl http://127.0.0.1:4317/api/route/openrouter/v1/chat/completions \
 ```
 
 Implemented in [`app/api/route/openrouter/[...path]/route.ts`](app/api/route/openrouter).
+
+> [!NOTE]
+> Pointing an agent at this proxy means editing **that agent's own config** (in
+> its home directory, outside this repo). It's machine-local — never committed,
+> and it doesn't affect anyone who clones the repo or their copy of that agent.
+> One tradeoff: that agent then needs the Mission Control server running
+> (`127.0.0.1:4317`) for its OpenRouter calls. See
+> [control plane vs. inference path](#how-it-works-under-the-hood--control-plane-vs-inference-path).
 
 ---
 
