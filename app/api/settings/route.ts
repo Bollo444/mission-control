@@ -11,6 +11,7 @@ export async function GET() {
 export async function POST(req: Request) {
   let body: {
     routing?: Record<string, { provider: string; model: string }>;
+    routingPreferred?: Record<string, { provider: string; model: string }>;
     apiKeys?: Record<string, string>;
     vaultDir?: string;
   };
@@ -19,6 +20,10 @@ export async function POST(req: Request) {
   } catch {
     return NextResponse.json({ ok: false, message: "Invalid body" }, { status: 400 });
   }
+  // A routing change from the UI is an explicit user choice: it becomes the new
+  // preferred default AND the live route (clearing any prior health failover),
+  // unless the caller is specifically setting only one of the two.
+  if (body.routing && !body.routingPreferred) body.routingPreferred = body.routing;
   const next = writeSettings(body);
   return NextResponse.json({ ok: true, settings: publicSettings(next) });
 }

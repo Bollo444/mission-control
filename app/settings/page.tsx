@@ -2,20 +2,25 @@
 
 import { useEffect, useState } from "react";
 import { useFetch } from "@/lib/useFetch";
-import type { PublicSettings, AgentsResp } from "@/lib/types";
+import type { PublicSettings, AgentsResp, HealthState, ProviderStatus } from "@/lib/types";
 import { PageHeader, Screen } from "@/components/ui";
 import { hexA } from "@/lib/format";
 
 export default function SettingsPage() {
   const { data, reload } = useFetch<PublicSettings>("/api/settings", 0);
   const { data: agentsData } = useFetch<AgentsResp>("/api/agents", 0);
+  const { data: health, reload: reloadHealth } = useFetch<HealthState>("/api/health", 0);
 
+  // The table edits the PREFERRED route (the user's chosen default). The live
+  // "effective" route (data.routing) can differ when the health monitor has
+  // failed an agent over — that's surfaced as a badge, not folded into intent.
   const [routing, setRouting] = useState<PublicSettings["routing"]>({});
   const [keys, setKeys] = useState<Record<string, string>>({});
   const [saved, setSaved] = useState<"idle" | "saving" | "ok">("idle");
+  const [checking, setChecking] = useState(false);
 
   useEffect(() => {
-    if (data) setRouting(data.routing);
+    if (data) setRouting(data.routingPreferred ?? data.routing);
   }, [data]);
 
   if (!data || !agentsData) {
@@ -52,6 +57,17 @@ export default function SettingsPage() {
     setTimeout(() => setSaved("idle"), 1800);
   }
 
+  async function checkNow() {
+    setChecking(true);
+    try {
+      await fetch("/api/health", { method: "POST" });
+      reloadHealth();
+      reload();
+    } finally {
+      setChecking(false);
+    }
+  }
+
   return (
     <Screen
       header={
@@ -78,13 +94,17 @@ export default function SettingsPage() {
           <div className="border-b px-5 py-4">
             <h2 className="text-sm font-semibold">Per-agent model routing</h2>
             <p className="text-xs text-[var(--color-ink-4)]">
-              Choose the brain behind each agent.
+              Choose the brain behind each agent — this sets its preferred default.
             </p>
           </div>
           <div className="divide-y">
             {agents.map((a) => {
               const route = routing[a.id] ?? { provider: "anthropic", model: "" };
               const prov = providers.find((p) => p.id === route.provider);
+              const eff = data.routing[a.id];
+              const pref = data.routingPreferred?.[a.id];
+              const failedOver =
+                eff && pref && (eff.provider !== pref.provider || eff.model !== pref.model);
               return (
                 <div
                   key={a.id}
@@ -113,9 +133,69 @@ export default function SettingsPage() {
                     options={(prov?.models ?? []).map((m) => ({ value: m, label: m }))}
                     grow
                   />
+                  {failedOver && (
+                    <span className="basis-full pl-1 text-[10px] text-[#e0b341]">
+                      ⚠ failover active — running{" "}
+                      <span className="font-mono">{eff.provider}/{eff.model}</span> because{" "}
+                      <span className="font-mono">{pref.provider}/{pref.model}</span> is down;
+                      auto-reverts when it's back.
+                    </span>
+                  )}
                 </div>
               );
             })}
+          </div>
+
+          {/* Free-tier limits + live availability — sits under the last agent (Kilo) */}
+          <div className="border-t px-5 py-4">
+            <div className="mb-1 flex items-center justify-between gap-3">
+              <h3 className="text-sm font-semibold">
+                Free-tier limits{" "}
+                <span className="font-normal text-[var(--color-ink-4)]">&amp; live status</span>
+              </h3>
+              <button
+                onClick={checkNow}
+                disabled={checking}
+                className="rounded-md border px-2.5 py-1 text-[11px] font-medium text-[var(--color-ink-2)] hover:border-[var(--color-ink-4)] disabled:opacity-50"
+              >
+                {checking ? "Checking…" : "Check now"}
+              </button>
+            </div>
+            <p className="mb-3 text-xs leading-relaxed text-[var(--color-ink-4)]">
+              Roughly how much you can use each free provider, plus whether its endpoint
+              is reachable right now. Hermes re-checks every{" "}
+              {health ? Math.max(1, Math.round(health.intervalMinutes / 60)) : 6}h
+              {health?.lastCheckedAt ? ` · last checked ${timeAgo(health.lastCheckedAt)}` : " · not checked yet"}.
+              If a model goes down, OpenCode auto-routes that agent to a healthy free
+              one and reverts when it returns.
+            </p>
+            <ul className="flex flex-col gap-2.5">
+              {providers
+                .filter((p) => p.free)
+                .map((p) => {
+                  const h = health?.providers?.[p.id];
+                  return (
+                    <li
+                      key={p.id}
+                      className="flex flex-col gap-0.5 sm:flex-row sm:items-baseline sm:gap-3"
+                    >
+                      <span className="flex min-w-[170px] items-center gap-1.5 text-xs font-semibold text-[var(--color-ink-2)]">
+                        <StatusDot status={h?.status} />
+                        {p.name}
+                      </span>
+                      <span className="text-[11px] leading-relaxed text-[var(--color-ink-4)]">
+                        {p.freeLimit ?? "Rate-limited free tier"}
+                        {h?.status && h.status !== "available" && (
+                          <span className="text-[var(--color-ink-3)]">
+                            {" "}· {statusLabel(h.status)}
+                            {h.detail ? ` (${h.detail})` : ""}
+                          </span>
+                        )}
+                      </span>
+                    </li>
+                  );
+                })}
+            </ul>
           </div>
         </section>
 
@@ -211,5 +291,46 @@ function Select({
         </option>
       ))}
     </select>
+  );
+}
+
+function timeAgo(iso: string): string {
+  const s = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
+  if (s < 60) return `${s}s ago`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
+
+function statusLabel(s: ProviderStatus): string {
+  return s === "available"
+    ? "available"
+    : s === "unavailable"
+      ? "unreachable"
+      : s === "unconfigured"
+        ? "no key set"
+        : "unknown";
+}
+
+function statusColor(s?: ProviderStatus): string {
+  return s === "available"
+    ? "#5cd6a0"
+    : s === "unavailable"
+      ? "#ff6b6b"
+      : s === "unconfigured"
+        ? "#6b7280"
+        : "#e0b341"; // unknown / not yet checked
+}
+
+function StatusDot({ status }: { status?: ProviderStatus }) {
+  const c = statusColor(status);
+  return (
+    <span
+      title={status ? statusLabel(status) : "not checked yet"}
+      className="inline-block h-2 w-2 shrink-0 rounded-full"
+      style={{ background: c, boxShadow: `0 0 6px ${c}` }}
+    />
   );
 }

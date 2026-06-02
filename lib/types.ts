@@ -65,14 +65,48 @@ export interface Provider {
   keyEnv: string;
   models: string[];
   free?: boolean;
+  /** Human-readable approximate free-tier allowance, shown in the routing UI. */
+  freeLimit?: string;
 }
 
 export interface PublicSettings {
   vaultDir: string;
+  /** Live route in use per agent (may be a health failover). */
   routing: Record<string, RouteRule>;
+  /** The user's chosen default per agent — what the fleet auto-reverts to. */
+  routingPreferred: Record<string, RouteRule>;
   keyStatus: Record<string, boolean>;
   updatedAt: string;
   providers: Provider[];
+}
+
+// ---- Free-tier health monitoring (probe + auto-failover) ----
+
+export type ProviderStatus = "available" | "unavailable" | "unconfigured" | "unknown";
+
+export interface ProviderHealth {
+  id: string;
+  status: ProviderStatus;
+  checkedAt: string | null;
+  detail?: string;
+  /** model id -> true (available) / false (confirmed unavailable) / null (unverified). */
+  models: Record<string, boolean | null>;
+}
+
+export interface HealthAction {
+  ts: string;
+  agentId: string;
+  kind: "failover" | "restore";
+  from: string; // "provider/model"
+  to: string; // "provider/model"
+  reason: string;
+}
+
+export interface HealthState {
+  lastCheckedAt: string | null;
+  intervalMinutes: number;
+  providers: Record<string, ProviderHealth>;
+  actions: HealthAction[]; // newest first
 }
 
 export interface AgentDetail extends Omit<AgentSummary, "installable"> {
