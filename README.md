@@ -259,6 +259,31 @@ legitimate path is **model selection**: route to a model that is un-aligned *by
 design*, e.g. OpenRouter's `cognitivecomputations/dolphin-mistral-24b-venice-edition:free`,
 or run a pre-abliterated GGUF locally. No special tooling required.
 
+### Reliable free OpenRouter access (cascade proxy)
+
+OpenRouter's free pool is heavily rate-limited (lots of users hammer it), and
+its native multi-model fallback caps at **3** models. Mission Control exposes an
+OpenAI-compatible proxy that cascades through **every** OpenRouter free model in
+the catalog — in chunks of 3 — and returns the first one that isn't throttled,
+so a single request rarely fails:
+
+- **Base URL:** `http://127.0.0.1:4317/api/route/openrouter/v1`
+- **Use it:** point any agent/tool's OpenRouter **base URL** at that, then call
+  `/chat/completions` as usual. Send a free model in `model` (tried first) or
+  omit it. **No key goes in the request** — the proxy uses the
+  `OPENROUTER_API_KEY` stored in `~/.mission-control`.
+- The response carries an `X-MC-OR-Fallback-Set` header showing how deep the
+  cascade went (`0` = the primary set served).
+
+```bash
+curl http://127.0.0.1:4317/api/route/openrouter/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model":"qwen/qwen3-coder:free","messages":[{"role":"user","content":"hi"}]}'
+# if qwen is throttled, it's transparently served by the next live free model
+```
+
+Implemented in [`app/api/route/openrouter/[...path]/route.ts`](app/api/route/openrouter).
+
 ---
 
 ## API keys: placement, routing & the recommended setup
@@ -494,6 +519,7 @@ app/
   api/
     agents, agents/[id], launch, sessions, memory, settings, system, vault, meeting
     health/route.ts       GET last health state · POST run a sweep now
+    route/openrouter/…    OpenAI-compatible proxy: cascades free models past 429s
 lib/
   registry.ts             agent definitions (identity, detection, launch, install)
   settings.ts             provider catalog, routing (preferred + effective), key persistence
