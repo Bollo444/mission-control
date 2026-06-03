@@ -653,6 +653,35 @@ under PM2 it ticks every 6h with no extra cron. Keep the
 [security model](#security-model) in mind — the launch endpoint is powerful, so
 any remote exposure must be authenticated.
 
+### Can I deploy it to the cloud (Vercel, Netlify, …)? Mostly no — here's the map
+
+> [!IMPORTANT]
+> Mission Control is built to run **on the machine it commands.** The fleet
+> console reads *your* agent configs, spawns *your* CLIs, and reports *your*
+> host's telemetry — a cloud host runs somewhere else, so that half simply can't
+> see your machine. Serverless hosts can't even run it properly (read-only
+> filesystem → keys/routing/usage/logs don't persist; no long-lived process for
+> the scheduler; no `child_process` to launch anything). Only the
+> [Fleet Gateway](#fleet-gateway--one-endpoint-every-provider) is genuinely
+> cloud-portable, and only after swapping the `~/.mission-control` JSON store for
+> a KV/DB and the 6h `setInterval` for a cron trigger.
+
+| Target | Type | Runs it? | What you actually get |
+|---|---|---|---|
+| **Your machine + tunnel** (PM2 + Cloudflare Access) | local | ✅ fully | The real thing — agent control + your telemetry + the gateway, reachable anywhere. **Recommended.** |
+| **Railway · Render · Fly.io · any VPS / Docker** | persistent container | ⚠️ runs | Gateway + dashboard + persistence + the 6h scheduler all work — but it observes/controls *that cloud box*, not your laptop. Worth it only for a hosted **gateway**, not local fleet control. |
+| **Vercel** | serverless | ❌ | Builds, then breaks: read-only FS (nothing persists), no background scheduler, no process spawning. A hollow shell. |
+| **Netlify** | serverless | ❌ | Same limitations as Vercel. |
+| **Cloudflare Pages / Workers** | edge / serverless | ❌ | Same — and the edge runtime has no Node `fs` / `child_process` at all. |
+| **GitHub Pages** | static only | ❌ | No server, so the `/api/*` routes can't run. |
+
+**Rule of thumb:** if a host is *serverless* (Vercel / Netlify / CF Pages /
+GitHub Pages) — don't; the app needs a persistent process and a writable disk.
+If a host is a *persistent container* (Railway / Render / Fly / a VPS / Docker),
+it'll run, but you'll be commanding *that server*, not your computer — which only
+makes sense for the gateway. For the tool's actual purpose, **run it locally and
+reach it through a tunnel** (as the recipe above does).
+
 ---
 
 ## Architecture
