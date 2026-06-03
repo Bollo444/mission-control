@@ -78,6 +78,8 @@ export interface PublicSettings {
   keyStatus: Record<string, boolean>;
   /** Mission Control's Fleet Gateway access token (its own token, shown to you). */
   gatewayToken: string;
+  /** True when MC_ENCRYPTION_KEY is set (provider keys encrypted at rest). */
+  encryption: boolean;
   updatedAt: string;
   providers: Provider[];
 }

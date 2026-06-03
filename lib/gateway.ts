@@ -1,15 +1,18 @@
+import crypto from "node:crypto";
 import { PROVIDERS, readSettings, type RouteRule } from "./settings";
 import { logEvent } from "./logbook";
+import { recordAttempt, overBudget } from "./usage";
 
 /*
   Fleet Gateway — one OpenAI-compatible endpoint in front of every configured
   free provider. A request is routed to a primary (explicit model, per-agent
-  preference, or "auto"), and on a rate-limit / error it cascades to the next
-  healthy provider with a short cooldown — so a single call rarely fails.
+  preference, "auto", or a sticky-session model) and cascades across healthy,
+  under-budget providers on rate-limit/error with a short cooldown.
 
-  Inspired by FreeLLMAPI, but native to Mission Control: no second service, no
-  database, JSON/in-memory state only, and it makes the routing table live for
-  any agent that points its base URL here.
+  Inspired by FreeLLMAPI, native to Mission Control: no second service, no
+  database — in-memory cooldowns/sessions + the ~/.mission-control JSON store.
+  Adds: usage-aware budget pre-checks, 30-minute sticky sessions, and vision
+  routing (image requests go to vision-capable models).
 */
 
 type Keys = Record<string, string>;
@@ -21,13 +24,11 @@ function key(k: Keys, name: string): string | undefined {
 interface ChatProvider {
   id: string;
   keyName: string;
-  /** Needs a key to serve inference (everything except a local server). */
   requiresKey: boolean;
   url: (k: Keys) => string | null;
   extraHeaders?: Record<string, string>;
 }
 
-/** Providers that expose an OpenAI-compatible /chat/completions endpoint. */
 const CHAT: Record<string, ChatProvider> = {
   cerebras: { id: "cerebras", keyName: "CEREBRAS_API_KEY", requiresKey: true, url: () => "https://api.cerebras.ai/v1/chat/completions" },
   nim: { id: "nim", keyName: "NVIDIA_API_KEY", requiresKey: true, url: () => "https://integrate.api.nvidia.com/v1/chat/completions" },
@@ -77,32 +78,36 @@ const AUTO: RouteRule[] = [
   { provider: "opencode", model: "big-pickle" },
 ];
 
-const COOLDOWN_MS = 60_000;
-const MAX_ATTEMPTS = 8;
-const cooldownUntil = new Map<string, number>();
+/** Vision-capable free models, for requests that include images. */
+const VISION: RouteRule[] = [
+  { provider: "github", model: "openai/gpt-4o" },
+  { provider: "openrouter", model: "nvidia/nemotron-nano-12b-v2-vl:free" },
+  { provider: "groq", model: "meta-llama/llama-4-scout-17b-16e-instruct" },
+];
 
-function isCooled(provider: string): boolean {
-  const until = cooldownUntil.get(provider);
-  return until !== undefined && Date.now() < until;
-}
-function cool(provider: string) {
-  cooldownUntil.set(provider, Date.now() + COOLDOWN_MS);
-}
+const COOLDOWN_MS = 60_000;
+const STICKY_MS = 30 * 60_000;
+const MAX_ATTEMPTS = 8;
+
+const cooldownUntil = new Map<string, number>();
+const stickyRoutes = new Map<string, { route: RouteRule; until: number }>();
+
+const isCooled = (p: string) => {
+  const u = cooldownUntil.get(p);
+  return u !== undefined && Date.now() < u;
+};
+const cool = (p: string) => cooldownUntil.set(p, Date.now() + COOLDOWN_MS);
 
 function hasKey(keys: Keys, p: ChatProvider): boolean {
   if (!p.requiresKey) return true;
   return Boolean(key(keys, p.keyName) && (p.id !== "cloudflare" || key(keys, "CLOUDFLARE_ACCOUNT_ID")));
 }
 
-/** Find the provider whose catalog lists `model` (preferring a chat provider). */
 function providerForModel(model: string): string | null {
-  for (const p of PROVIDERS) {
-    if (CHAT[p.id] && p.models.includes(model)) return p.id;
-  }
+  for (const p of PROVIDERS) if (CHAT[p.id] && p.models.includes(model)) return p.id;
   return null;
 }
 
-/** Resolve the primary route from an explicit model id, else per-agent, else null. */
 function resolvePrimary(model: string | undefined, agentId: string | undefined, keys: Keys): RouteRule | null {
   const m = (model ?? "").trim();
   if (m && m.toLowerCase() !== "auto") {
@@ -111,10 +116,9 @@ function resolvePrimary(model: string | undefined, agentId: string | undefined, 
     if (head && CHAT[head]) return { provider: head, model: m.slice(slash + 1) };
     const owner = providerForModel(m);
     if (owner) return { provider: owner, model: m };
-    if (m.includes("/")) return { provider: "openrouter", model: m }; // looks like an OpenRouter slug
+    if (m.includes("/")) return { provider: "openrouter", model: m };
     return null;
   }
-  // No explicit model: use this agent's preferred route if it's a chat provider.
   if (agentId) {
     const pref = readSettings().routingPreferred[agentId];
     if (pref && CHAT[pref.provider]) return pref;
@@ -122,20 +126,55 @@ function resolvePrimary(model: string | undefined, agentId: string | undefined, 
   return null;
 }
 
-function buildCandidates(primary: RouteRule | null, keys: Keys): RouteRule[] {
+// ---- request introspection ----
+
+function needsVision(body: Record<string, unknown>): boolean {
+  const msgs = Array.isArray(body.messages) ? (body.messages as Array<{ content?: unknown }>) : [];
+  return msgs.some(
+    (m) =>
+      Array.isArray(m.content) &&
+      (m.content as Array<{ type?: string }>).some((p) => p?.type === "image_url" || p?.type === "image" || p?.type === "input_image")
+  );
+}
+
+function sessionKey(body: Record<string, unknown>, agentId?: string, sessionId?: string): string {
+  if (sessionId) return sessionId.slice(0, 64);
+  const msgs = Array.isArray(body.messages) ? body.messages : [];
+  const seed = `${agentId ?? ""}|${JSON.stringify(msgs.slice(0, 1))}`;
+  return crypto.createHash("sha256").update(seed).digest("hex").slice(0, 16);
+}
+
+function getSticky(k: string): RouteRule | undefined {
+  const s = stickyRoutes.get(k);
+  if (s && Date.now() < s.until && !isCooled(s.route.provider)) return s.route;
+  return undefined;
+}
+function setSticky(k: string, route: RouteRule) {
+  stickyRoutes.set(k, { route, until: Date.now() + STICKY_MS });
+}
+
+function buildCandidates(
+  primary: RouteRule | null,
+  keys: Keys,
+  opts: { vision: boolean; sticky?: RouteRule; respectBudget: boolean }
+): RouteRule[] {
+  const base = opts.vision ? VISION : [...(primary ? [primary] : []), ...AUTO];
   const ordered: RouteRule[] = [];
   const seen = new Set<string>();
   const push = (r: RouteRule) => {
     const id = `${r.provider}/${r.model}`;
-    if (seen.has(id)) return;
-    seen.add(id);
-    ordered.push(r);
+    if (!seen.has(id)) {
+      seen.add(id);
+      ordered.push(r);
+    }
   };
-  if (primary) push(primary);
-  for (const r of AUTO) push(r);
+  if (opts.sticky && !opts.vision) push(opts.sticky);
+  for (const r of base) push(r);
   return ordered.filter((r) => {
     const p = CHAT[r.provider];
-    return p && hasKey(keys, p) && !isCooled(r.provider);
+    if (!p || !hasKey(keys, p) || isCooled(r.provider)) return false;
+    if (opts.respectBudget && overBudget(r.provider)) return false;
+    return true;
   });
 }
 
@@ -152,21 +191,33 @@ export interface CascadeErr {
   attempts: number;
 }
 
-/**
- * Try the requested model, then cascade across providers on rate-limit/error.
- * Returns the first OK upstream response (body intact for streaming).
- */
 export async function cascadeChat(
   body: Record<string, unknown>,
-  opts: { agentId?: string } = {}
+  opts: { agentId?: string; sessionId?: string } = {}
 ): Promise<CascadeOk | CascadeErr> {
   const settings = readSettings();
   const keys = settings.apiKeys;
-  const primary = resolvePrimary(body.model as string | undefined, opts.agentId, keys);
-  const candidates = buildCandidates(primary, keys).slice(0, MAX_ATTEMPTS);
+  const vision = needsVision(body);
+  const skey = sessionKey(body, opts.agentId, opts.sessionId);
+  const sticky = getSticky(skey);
+  const primary = vision ? null : resolvePrimary(body.model as string | undefined, opts.agentId, keys);
+
+  let candidates = buildCandidates(primary, keys, { vision, sticky, respectBudget: true });
+  if (candidates.length === 0) {
+    // Budgets knocked everyone out — try anyway (cooldown + key checks still apply).
+    candidates = buildCandidates(primary, keys, { vision, sticky, respectBudget: false });
+  }
+  candidates = candidates.slice(0, MAX_ATTEMPTS);
 
   if (candidates.length === 0) {
-    return { ok: false, status: 503, error: "No free chat providers are configured (add a provider key in Settings).", attempts: 0 };
+    return {
+      ok: false,
+      status: 503,
+      error: vision
+        ? "No vision-capable free provider is configured (add a Groq/GitHub/OpenRouter key)."
+        : "No free chat providers are configured (add a provider key in Settings).",
+      attempts: 0,
+    };
   }
 
   let attempts = 0;
@@ -186,31 +237,31 @@ export async function cascadeChat(
     const reqBody = JSON.stringify({ ...body, model: cand.model });
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 60_000);
+    const t0 = Date.now();
     try {
       const upstream = await fetch(url, { method: "POST", headers, body: reqBody, signal: ctrl.signal });
       clearTimeout(timer);
+      const latencyMs = Date.now() - t0;
       if (upstream.ok) {
+        recordAttempt(cand.provider, { ok: true, latencyMs });
+        setSticky(skey, cand);
         logEvent({
           source: "gateway",
           level: attempts > 1 ? "success" : "info",
           event: "served",
-          detail: `${cand.provider}/${cand.model}${attempts > 1 ? ` (after ${attempts - 1} fallback${attempts > 2 ? "s" : ""})` : ""}`,
-          meta: { agentId: opts.agentId, attempts },
+          detail: `${cand.provider}/${cand.model}${attempts > 1 ? ` (after ${attempts - 1} fallback${attempts > 2 ? "s" : ""})` : ""}${vision ? " · vision" : ""}`,
+          meta: { agentId: opts.agentId, attempts, latencyMs },
         });
         return { ok: true, response: upstream, served: cand, attempts };
       }
+      recordAttempt(cand.provider, { ok: false, latencyMs });
       lastStatus = upstream.status;
       lastText = (await upstream.text().catch(() => "")).slice(0, 160);
       if (upstream.status === 429 || upstream.status >= 500) cool(cand.provider);
-      logEvent({
-        source: "gateway",
-        level: "warn",
-        event: `${cand.provider} ${upstream.status}`,
-        detail: `${cand.model} — cascading`,
-        meta: { agentId: opts.agentId },
-      });
+      logEvent({ source: "gateway", level: "warn", event: `${cand.provider} ${upstream.status}`, detail: `${cand.model} — cascading`, meta: { agentId: opts.agentId } });
     } catch (e) {
       clearTimeout(timer);
+      recordAttempt(cand.provider, { ok: false, latencyMs: Date.now() - t0 });
       cool(cand.provider);
       lastStatus = 0;
       lastText = e instanceof Error && e.name === "AbortError" ? "timeout" : "unreachable";

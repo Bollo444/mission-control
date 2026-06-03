@@ -1,5 +1,6 @@
 import { cascadeChat, gatewayModels } from "@/lib/gateway";
 import { getGatewayToken } from "@/lib/settings";
+import { recordTokens } from "@/lib/usage";
 import { logEvent } from "@/lib/logbook";
 
 export const runtime = "nodejs";
@@ -42,20 +43,30 @@ export async function POST(req: Request, { params }: { params: Promise<{ path: s
 
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   const agentId = req.headers.get("x-mc-agent") || undefined;
-  const result = await cascadeChat(body, { agentId });
+  const sessionId = req.headers.get("x-mc-session") || undefined;
+  const result = await cascadeChat(body, { agentId, sessionId });
 
   if (!result.ok) {
     return Response.json({ error: result.error }, { status: result.status });
   }
   const u = result.response;
-  return new Response(u.body, {
-    status: u.status,
-    headers: {
-      "Content-Type": u.headers.get("content-type") || "application/json",
-      "X-MC-Served-By": `${result.served.provider}/${result.served.model}`,
-      "X-MC-Attempts": String(result.attempts),
-    },
-  });
+  const headers: Record<string, string> = {
+    "Content-Type": u.headers.get("content-type") || "application/json",
+    "X-MC-Served-By": `${result.served.provider}/${result.served.model}`,
+    "X-MC-Attempts": String(result.attempts),
+  };
+  // Non-streaming: capture token usage for the budget gauges, then pass through.
+  if (body.stream !== true) {
+    const text = await u.text();
+    try {
+      const tok = (JSON.parse(text) as { usage?: { total_tokens?: number } }).usage?.total_tokens;
+      if (typeof tok === "number") recordTokens(result.served.provider, tok);
+    } catch {
+      /* not JSON */
+    }
+    return new Response(text, { status: u.status, headers });
+  }
+  return new Response(u.body, { status: u.status, headers });
 }
 
 export async function GET(req: Request, { params }: { params: Promise<{ path: string[] }> }) {

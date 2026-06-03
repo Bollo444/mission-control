@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useFetch } from "@/lib/useFetch";
 import type { PublicSettings, AgentsResp, HealthState, ProviderStatus } from "@/lib/types";
+import type { UsageRow } from "@/lib/usage";
 import { PageHeader, Screen } from "@/components/ui";
 import { hexA } from "@/lib/format";
 
@@ -10,6 +11,7 @@ export default function SettingsPage() {
   const { data, reload } = useFetch<PublicSettings>("/api/settings", 0);
   const { data: agentsData } = useFetch<AgentsResp>("/api/agents", 0);
   const { data: health, reload: reloadHealth } = useFetch<HealthState>("/api/health", 0);
+  const { data: usageData } = useFetch<{ usage: UsageRow[]; generatedAt: string }>("/api/usage", 6000);
 
   // The table edits the PREFERRED route (the user's chosen default). The live
   // "effective" route (data.routing) can differ when the health monitor has
@@ -29,6 +31,11 @@ export default function SettingsPage() {
 
   const providers = data.providers;
   const agents = agentsData.agents;
+  const usageBy: Record<string, UsageRow> = Object.fromEntries(
+    (usageData?.usage ?? []).map((u) => [u.provider, u])
+  );
+  const totalServed = (usageData?.usage ?? []).reduce((n, r) => n + r.successes, 0);
+  const activeProviders = (usageData?.usage ?? []).filter((r) => r.requests > 0).length;
 
   function setRoute(agentId: string, patch: Partial<{ provider: string; model: string }>) {
     setRouting((r) => {
@@ -177,21 +184,24 @@ export default function SettingsPage() {
                   return (
                     <li
                       key={p.id}
-                      className="flex flex-col gap-0.5 sm:flex-row sm:items-baseline sm:gap-3"
+                      className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-4"
                     >
-                      <span className="flex min-w-[170px] items-center gap-1.5 text-xs font-semibold text-[var(--color-ink-2)]">
-                        <StatusDot status={h?.status} />
-                        {p.name}
-                      </span>
-                      <span className="text-[11px] leading-relaxed text-[var(--color-ink-4)]">
-                        {p.freeLimit ?? "Rate-limited free tier"}
-                        {h?.status && h.status !== "available" && (
-                          <span className="text-[var(--color-ink-3)]">
-                            {" "}· {statusLabel(h.status)}
-                            {h.detail ? ` (${h.detail})` : ""}
-                          </span>
-                        )}
-                      </span>
+                      <div className="min-w-0">
+                        <span className="flex items-center gap-1.5 text-xs font-semibold text-[var(--color-ink-2)]">
+                          <StatusDot status={h?.status} />
+                          {p.name}
+                        </span>
+                        <span className="text-[11px] leading-relaxed text-[var(--color-ink-4)]">
+                          {p.freeLimit ?? "Rate-limited free tier"}
+                          {h?.status && h.status !== "available" && (
+                            <span className="text-[var(--color-ink-3)]">
+                              {" "}· {statusLabel(h.status)}
+                              {h.detail ? ` (${h.detail})` : ""}
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                      <Gauge u={usageBy[p.id]} />
                     </li>
                   );
                 })}
@@ -205,7 +215,14 @@ export default function SettingsPage() {
             <h2 className="mb-1 text-sm font-semibold">Provider API keys</h2>
             <p className="mb-4 text-xs text-[var(--color-ink-4)]">
               Stored locally in <code className="text-[var(--color-ink-3)]">~/.mission-control</code>.
-              Values are never sent back to the browser.
+              Values are never sent back to the browser.{" "}
+              {data.encryption ? (
+                <span className="text-[#5cd6a0]">🔒 Encrypted at rest.</span>
+              ) : (
+                <span>
+                  Set <code className="text-[var(--color-ink-3)]">MC_ENCRYPTION_KEY</code> to encrypt at rest.
+                </span>
+              )}
             </p>
             <div className="flex flex-col gap-3">
               {providers.map((p) => {
@@ -261,6 +278,12 @@ export default function SettingsPage() {
             </p>
             <CopyRow label="Base URL" value="http://127.0.0.1:4317/api/gateway/v1" />
             <CopyRow label="Token (use as the API key)" value={data.gatewayToken} />
+            {totalServed > 0 && (
+              <p className="mt-1 text-[11px] text-[var(--color-ink-4)]">
+                {totalServed.toLocaleString()} request{totalServed === 1 ? "" : "s"} served today across{" "}
+                {activeProviders} provider{activeProviders === 1 ? "" : "s"} — per-provider usage in the gauges.
+              </p>
+            )}
           </section>
 
           <section className="mc-panel-2 p-5 text-sm">
@@ -375,6 +398,36 @@ function CopyRow({ label, value }: { label: string; value: string }) {
         >
           {copied ? "Copied ✓" : "Copy"}
         </button>
+      </div>
+    </div>
+  );
+}
+
+function Gauge({ u }: { u?: UsageRow }) {
+  if (!u || u.requests === 0) {
+    return <span className="shrink-0 text-[10px] text-[var(--color-ink-4)] sm:text-right">no gateway traffic yet</span>;
+  }
+  const rpd = u.limit.rpd;
+  const pct = rpd ? Math.min(100, Math.round((u.reqDay / rpd) * 100)) : null;
+  const bar = pct === null ? "#6ea8fe" : pct > 90 ? "#ff6b6b" : pct > 70 ? "#e0b341" : "#5cd6a0";
+  return (
+    <div className="w-full shrink-0 sm:w-44">
+      <div className="flex items-center justify-between text-[10px] text-[var(--color-ink-3)]">
+        <span>
+          {rpd
+            ? `${u.reqDay.toLocaleString()} / ${rpd.toLocaleString()} req today`
+            : `${u.reqDay.toLocaleString()} req today`}
+        </span>
+        {u.over && <span style={{ color: "#ff6b6b" }}>over</span>}
+      </div>
+      {pct !== null && (
+        <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-[var(--color-surface-3)]">
+          <div className="h-full rounded-full" style={{ width: `${pct}%`, background: bar }} />
+        </div>
+      )}
+      <div className="mt-1 flex items-center gap-2 text-[9px] text-[var(--color-ink-4)]">
+        {u.successRate !== null && <span>{Math.round(u.successRate * 100)}% ok</span>}
+        {u.avgLatencyMs !== null && <span>· {u.avgLatencyMs}ms avg</span>}
       </div>
     </div>
   );

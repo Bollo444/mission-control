@@ -3,6 +3,13 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { MC_CONFIG_DIR, MC_SETTINGS_FILE, VAULT_DIR } from "./paths";
 import { logEvent } from "./logbook";
+import { encryptSecret, decryptSecret, encryptionEnabled } from "./secretbox";
+
+function mapValues(obj: Record<string, string>, fn: (v: string) => string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(obj)) out[k] = fn(v);
+  return out;
+}
 
 export interface RouteRule {
   provider: string;
@@ -270,7 +277,7 @@ export function readSettings(): Settings {
         ...DEFAULTS.routingPreferred,
         ...(parsed.routingPreferred ?? parsed.routing ?? {}),
       },
-      apiKeys: { ...DEFAULTS.apiKeys, ...(parsed.apiKeys ?? {}) },
+      apiKeys: mapValues({ ...DEFAULTS.apiKeys, ...(parsed.apiKeys ?? {}) }, decryptSecret),
     };
   } catch {
     return { ...DEFAULTS };
@@ -287,7 +294,9 @@ export function writeSettings(next: Partial<Settings>): Settings {
   if (next.gatewayToken) merged.gatewayToken = next.gatewayToken;
   merged.updatedAt = new Date().toISOString();
   fs.mkdirSync(MC_CONFIG_DIR, { recursive: true });
-  fs.writeFileSync(MC_SETTINGS_FILE, JSON.stringify(merged, null, 2), "utf8");
+  // Encrypt provider keys at rest when MC_ENCRYPTION_KEY is set (no-op otherwise).
+  const onDisk = { ...merged, apiKeys: mapValues(merged.apiKeys, encryptSecret) };
+  fs.writeFileSync(MC_SETTINGS_FILE, JSON.stringify(onDisk, null, 2), "utf8");
   const changed: string[] = [];
   if (next.routing) changed.push(`routing[${Object.keys(next.routing).join(",")}]`);
   if (next.routingPreferred) changed.push(`preferred[${Object.keys(next.routingPreferred).join(",")}]`);
@@ -340,6 +349,7 @@ export function publicSettings(s: Settings) {
     routingPreferred: s.routingPreferred,
     keyStatus,
     gatewayToken: s.gatewayToken ?? "",
+    encryption: encryptionEnabled(),
     updatedAt: s.updatedAt,
     providers: PROVIDERS.map((p) => ({ ...p, freeLimit: FREE_LIMITS[p.id] })),
   };

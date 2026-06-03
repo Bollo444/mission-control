@@ -480,6 +480,16 @@ cooldowns + your existing `~/.mission-control` store. (A single-provider
 [OpenRouter cascade](#reliable-free-openrouter-access-cascade-proxy) variant also
 lives at `/api/route/openrouter/v1`.)
 
+**Also built in:**
+- **Usage-aware budgets** — per-provider RPM/RPD/TPM/TPD counters in
+  `~/.mission-control/usage.json`; a provider over a known limit is skipped, and
+  **Settings shows live used/limit gauges** + success rate / avg latency per
+  provider (`GET /api/usage`).
+- **Sticky sessions** — a conversation stays on one model for ~30 min (keyed by an
+  `X-MC-Session` header, or auto-derived from the conversation) to avoid drift.
+- **Vision routing** — requests containing images are routed only to
+  vision-capable free models.
+
 > [!NOTE]
 > The gateway only helps an agent **whose base URL points at it** — see
 > [control plane vs. inference path](#how-it-works-under-the-hood--control-plane-vs-inference-path).
@@ -507,6 +517,7 @@ All optional — copy `.env.example` to `.env` to override (`.env` is gitignored
 | `MC_VAULT_DIR` | `$HOME/MissionControlVault` | Point the shared vault at a custom (e.g. existing Obsidian) folder |
 | `MC_HEALTH_INTERVAL_MIN` | `360` (6h) | Health-sweep cadence in minutes (floored at 5) |
 | `LOCAL_BASE_URL` | `http://127.0.0.1:1234/v1` | OpenAI-compatible base for the **Local** provider (LM Studio/Ollama/vLLM) |
+| `MC_ENCRYPTION_KEY` | — | When set, provider keys are encrypted at rest (AES-256-GCM). **Back it up** — keys can't be recovered without it |
 | `<PROVIDER>_API_KEY` | — | Optional fallback for any provider key (prefer the Settings page) |
 
 - **Port** is `4317` (change in `package.json` scripts).
@@ -557,6 +568,9 @@ This is a **local control plane with real power** — treat it accordingly:
   proxy (Cloudflare Access, a VPN, or an SSH tunnel) — never a bare public port.
 - **Keys at rest** live in `~/.mission-control/settings.json`, outside the repo.
   The browser only ever receives `configured` booleans, never raw keys.
+- **Optional encryption at rest** — set `MC_ENCRYPTION_KEY` and provider keys are
+  AES-256-GCM encrypted in `settings.json` (decrypted only in memory). Off by
+  default; **back up the key** or encrypted values can't be recovered.
 - **Least-privilege tokens.** Prefer narrowly scoped keys (e.g. a Cloudflare
   *Workers AI*-only token). Rotate anything that may have been exposed.
 - **Destructive system actions are proposed, not executed.** OpenClaw's console
