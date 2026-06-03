@@ -174,7 +174,7 @@ vault, the meeting — is identical on every platform.
 ## Quick start
 
 ```bash
-git clone <your-fork-url> mission-control
+git clone https://github.com/Bollo444/mission-control.git
 cd mission-control
 npm install
 npm run dev          # http://localhost:4317
