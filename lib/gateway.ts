@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { PROVIDERS, readSettings, type RouteRule } from "./settings";
 import { logEvent } from "./logbook";
 import { recordAttempt, overBudget } from "./usage";
+import { recordHeaders } from "./livelimits";
 
 /*
   Fleet Gateway — one OpenAI-compatible endpoint in front of every configured
@@ -266,6 +267,7 @@ export async function cascadeChat(
       const upstream = await fetch(url, { method: "POST", headers, body: reqBody, signal: ctrl.signal });
       clearTimeout(timer);
       const latencyMs = Date.now() - t0;
+      recordHeaders(cand.provider, upstream.headers, cand.model); // capture live x-ratelimit-* if present
       if (upstream.ok) {
         recordAttempt(cand.provider, { ok: true, latencyMs });
         setSticky(skey, cand);

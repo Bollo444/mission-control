@@ -3,6 +3,7 @@ import path from "node:path";
 import { MC_CONFIG_DIR } from "./paths";
 import { PROVIDERS, readSettings, writeSettings, type RouteRule } from "./settings";
 import { appendActivity } from "./memory";
+import { refreshOpenRouterLimit } from "./livelimits";
 import type {
   HealthAction,
   HealthState,
@@ -310,6 +311,9 @@ export async function runHealthCheck(opts: { scheduled?: boolean } = {}): Promis
     );
     const providers: Record<string, ProviderHealth> = {};
     for (const ph of probed) providers[ph.id] = ph;
+
+    // Refresh OpenRouter's live free-tier daily limit from credits purchased.
+    await refreshOpenRouterLimit(keys).catch(() => {});
 
     // A model is "confirmed bad" if its whole provider endpoint is down, or the
     // provider answered but the model is absent from the live list. Unconfigured

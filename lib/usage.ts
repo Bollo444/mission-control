@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { MC_CONFIG_DIR } from "./paths";
 import { limitFor, type ProviderLimit } from "./limits";
+import { getLiveLimit } from "./livelimits";
 
 /*
   Per-provider usage ledger for the Fleet Gateway — rolling RPM/RPD/TPM/TPD
@@ -146,12 +147,15 @@ export function recordTokens(provider: string, tokens: number) {
 /** True if a known limit is already met (advisory pre-check before routing). */
 export function overBudget(provider: string): boolean {
   const lim = limitFor(provider);
-  if (!lim.rpm && !lim.rpd && !lim.tpm && !lim.tpd) return false;
+  const live = getLiveLimit(provider);
+  const effRpd = live?.rpd ?? lim.rpd;
+  if (!lim.rpm && !effRpd && !lim.tpm && !lim.tpd && live?.rpdRemaining == null) return false;
   const l = readLedger();
   const u = getRolled(l, provider);
   return Boolean(
     (lim.rpm && u.reqMin >= lim.rpm) ||
-      (lim.rpd && u.reqDay >= lim.rpd) ||
+      (effRpd && u.reqDay >= effRpd) ||
+      (live?.rpdRemaining != null && live.rpdRemaining <= 0) ||
       (lim.tpm && u.tokMin >= lim.tpm) ||
       (lim.tpd && u.tokDay >= lim.tpd)
   );
@@ -169,6 +173,12 @@ export interface UsageRow {
   successRate: number | null; // 0..1
   avgLatencyMs: number | null;
   lastServedAt: string | null;
+  /** Effective requests/day limit — provider-reported (live) if known, else the static estimate. */
+  effRpd: number | null;
+  /** Requests remaining today — provider-reported when available, else effRpd − reqDay. */
+  rpdRemaining: number | null;
+  /** True when the limit came from the provider (headers / OpenRouter credits), not an estimate. */
+  live: boolean;
   over: boolean;
 }
 
@@ -178,6 +188,10 @@ export function usageReport(providers: string[]): UsageRow[] {
     const u = l[p] ?? blank();
     if (l[p]) roll(u);
     const lim = limitFor(p);
+    const live = getLiveLimit(p);
+    const effRpd = live?.rpd ?? lim.rpd ?? null;
+    const rpdRemaining =
+      live?.rpdRemaining != null ? live.rpdRemaining : effRpd != null ? Math.max(0, effRpd - u.reqDay) : null;
     return {
       provider: p,
       limit: lim,
@@ -190,9 +204,13 @@ export function usageReport(providers: string[]): UsageRow[] {
       successRate: u.requests ? u.successes / u.requests : null,
       avgLatencyMs: u.latencySamples ? Math.round(u.latencyTotalMs / u.latencySamples) : null,
       lastServedAt: u.lastServedAt,
+      effRpd,
+      rpdRemaining,
+      live: live?.rpd != null,
       over:
+        Boolean(effRpd && u.reqDay >= effRpd) ||
+        Boolean(rpdRemaining != null && rpdRemaining <= 0) ||
         Boolean(lim.rpm && u.reqMin >= lim.rpm) ||
-        Boolean(lim.rpd && u.reqDay >= lim.rpd) ||
         Boolean(lim.tpm && u.tokMin >= lim.tpm) ||
         Boolean(lim.tpd && u.tokDay >= lim.tpd),
     };

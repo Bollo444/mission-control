@@ -407,16 +407,18 @@ function Gauge({ u }: { u?: UsageRow }) {
   if (!u || u.requests === 0) {
     return <span className="shrink-0 text-[10px] text-[var(--color-ink-4)] sm:text-right">no gateway traffic yet</span>;
   }
-  const rpd = u.limit.rpd;
-  const pct = rpd ? Math.min(100, Math.round((u.reqDay / rpd) * 100)) : null;
+  const rpd = u.effRpd;
+  const used = rpd != null && u.rpdRemaining != null ? Math.max(0, rpd - u.rpdRemaining) : u.reqDay;
+  const pct = rpd ? Math.min(100, Math.round((used / rpd) * 100)) : null;
   const bar = pct === null ? "#6ea8fe" : pct > 90 ? "#ff6b6b" : pct > 70 ? "#e0b341" : "#5cd6a0";
   return (
-    <div className="w-full shrink-0 sm:w-44">
+    <div className="w-full shrink-0 sm:w-48">
       <div className="flex items-center justify-between text-[10px] text-[var(--color-ink-3)]">
         <span>
           {rpd
-            ? `${u.reqDay.toLocaleString()} / ${rpd.toLocaleString()} req today`
+            ? `${used.toLocaleString()} / ${rpd.toLocaleString()} req today`
             : `${u.reqDay.toLocaleString()} req today`}
+          {u.live && <span className="text-[#5cd6a0]"> · live</span>}
         </span>
         {u.over && <span style={{ color: "#ff6b6b" }}>over</span>}
       </div>
@@ -426,7 +428,8 @@ function Gauge({ u }: { u?: UsageRow }) {
         </div>
       )}
       <div className="mt-1 flex items-center gap-2 text-[9px] text-[var(--color-ink-4)]">
-        {u.successRate !== null && <span>{Math.round(u.successRate * 100)}% ok</span>}
+        {u.rpdRemaining != null && <span>{u.rpdRemaining.toLocaleString()} left</span>}
+        {u.successRate !== null && <span>· {Math.round(u.successRate * 100)}% ok</span>}
         {u.avgLatencyMs !== null && <span>· {u.avgLatencyMs}ms avg</span>}
       </div>
     </div>

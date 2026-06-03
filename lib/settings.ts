@@ -329,7 +329,7 @@ const FREE_LIMITS: Record<string, string> = {
   cerebras: "~1,000,000 tokens/day · ~30 req/min · 8K context cap — no card",
   github: "Any GitHub account — ~10–15 req/min · ~50–150 req/day · 8K in / 4K out per request",
   mistral: "Free 'Experiment' tier — ~1 req/sec · ~500K tokens/min · ~1B tokens/month (phone-verified)",
-  openrouter: "':free' models — 20 req/min · 50 req/day (→ 1,000/day after a one-time $10 top-up)",
+  openrouter: "':free' models — 20 req/min · 50 req/day (→ 1,000/day once ≥$10 in credits is purchased, cumulative) — live",
   cloudflare: "Free 10,000 Neurons/day (~hundreds of small requests/day)",
   nim: "Free dev tier — 1,000 credits on signup (up to 5,000) · 40 req/min · 80+ models (key: nvapi-…)",
   local: "Unlimited — runs on your own hardware (LM Studio / llama.cpp); limited only by your machine",

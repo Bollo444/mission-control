@@ -495,9 +495,12 @@ lives at `/api/route/openrouter/v1`.)
 **Also built in:**
 - **Usage-aware budgets** — per-provider RPM/RPD/TPM/TPD counters in
   `~/.mission-control/usage.json` (tokens captured from both streamed and
-  non-streamed responses); a provider over a known limit is skipped, and
-  **Settings shows live used/limit gauges** + success rate / avg latency per
-  provider (`GET /api/usage`).
+  non-streamed responses). **Limits go live where the provider reports them:**
+  OpenRouter's daily cap is derived from credits purchased (50 → **1,000/day** at
+  ≥ $10, cumulative), and providers that return `x-ratelimit-*` headers (e.g.
+  **Groq**) show real remaining counts — everything else falls back to a labeled
+  estimate. A provider over its limit is skipped, and Settings shows live
+  used/limit gauges + success rate / avg latency (`GET /api/usage`).
 - **Gateway analytics** — a dedicated **Gateway** tab with today / 7-day / 30-day
   windows (volume, success rate, latency, tokens per provider), `GET /api/analytics`.
 - **Sticky sessions** — a conversation stays on one model for ~30 min (keyed by an
@@ -718,6 +721,7 @@ lib/
   health.ts               provider probes, auto-failover/revert, scheduler  ← failover engine
   gateway.ts              multi-provider cascade gateway (adapters, cooldown, sticky, vision, tools)
   usage.ts                gateway usage ledger (RPM/RPD/TPM/TPD + daily history) · limits.ts
+  livelimits.ts           live provider limits (x-ratelimit headers + OpenRouter credits)
   secretbox.ts            opt-in AES-256-GCM encryption for keys at rest
   logbook.ts              universal event log — append/read events.log
   detect / system / meeting / sessions / memory / launch / format / types / paths / voices
