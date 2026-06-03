@@ -1,4 +1,8 @@
-# Mission Control — Agent Fleet Console
+<p align="center">
+  <img src="assets/banner.svg" alt="Mission Control — AI agent fleet console + free-LLM gateway" width="920">
+</p>
+
+# Mission Control — AI agent fleet console + free-LLM gateway
 
 A single local web dashboard that unifies **nine AI coding agents** running on
 your machine into one command center — with a live system terminal, a shared
