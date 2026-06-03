@@ -242,13 +242,20 @@ export const PROVIDERS: Provider[] = [
   },
 ];
 
-/** The fleet's out-of-the-box routing. Used for both effective + preferred. */
+/**
+ * The fleet's out-of-the-box routing. Used for both effective + preferred.
+ * EVERY agent defaults to a FREE model so a fresh clone is $0 out of the box —
+ * spread so each free provider lights up at least one agent. Add one free key in
+ * Settings (Cloudflare / NVIDIA NIM / Groq / Cerebras need no card) and you're
+ * chatting; switch any of these anytime. (Your own saved choices are never
+ * overwritten — these are only the defaults a new clone starts from.)
+ */
 const DEFAULT_ROUTING: Record<string, RouteRule> = {
-  claude: { provider: "anthropic", model: "claude-opus-4-8" },
-  hermes: { provider: "nous", model: "Hermes-4-405B" },
+  claude: { provider: "cerebras", model: "gpt-oss-120b" },
+  hermes: { provider: "nim", model: "qwen/qwen3-coder-480b-a35b-instruct" },
   pi: { provider: "openrouter", model: "qwen/qwen3-coder:free" },
   opencode: { provider: "opencode", model: "big-pickle" },
-  antigravity: { provider: "google", model: "gemini-3-pro" },
+  antigravity: { provider: "groq", model: "llama-3.3-70b-versatile" },
   openclaw: { provider: "cloudflare", model: "@cf/qwen/qwen2.5-coder-32b-instruct" },
   jcode: { provider: "cloudflare", model: "@cf/openai/gpt-oss-120b" },
   vibe: { provider: "mistral", model: "mistral-small-latest" },
