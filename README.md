@@ -4,6 +4,14 @@
 
 # Mission Control — AI agent fleet console + free-LLM gateway
 
+> [!NOTE]
+> **How I got it running (a quick nudge):** locally on Windows/ARM, kept always-on
+> with **PM2**, and reached remotely through a **Cloudflare Tunnel behind Cloudflare
+> Access** — *not* a cloud host ([why](#deployment-always-on)). Free providers
+> (Cloudflare Workers AI · NVIDIA NIM · Groq · Cerebras) do the heavy lifting, with
+> **OpenCode** pointed at the [Fleet Gateway](#fleet-gateway--one-endpoint-every-provider).
+> New here? Start at [Quick start](#quick-start).
+
 A single local web dashboard that unifies **nine AI coding agents** running on
 your machine into one command center — with a live system terminal, a shared
 **Obsidian memory vault**, a **team-meeting boardroom**, a multi-provider
