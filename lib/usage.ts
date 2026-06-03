@@ -9,6 +9,15 @@ import { limitFor, type ProviderLimit } from "./limits";
   ~/.mission-control/usage.json. Powers budget pre-checks and the Settings gauges.
 */
 
+export interface DayStat {
+  req: number;
+  ok: number;
+  fail: number;
+  tok: number;
+  latSum: number;
+  latN: number;
+}
+
 export interface ProviderUsage {
   day: string; // UTC YYYY-MM-DD
   reqDay: number;
@@ -22,6 +31,8 @@ export interface ProviderUsage {
   latencyTotalMs: number;
   latencySamples: number;
   lastServedAt: string | null;
+  /** Per-day history (last ~31 days) for time-windowed analytics. */
+  days: Record<string, DayStat>;
 }
 
 type Ledger = Record<string, ProviderUsage>;
@@ -45,7 +56,18 @@ function blank(): ProviderUsage {
     latencyTotalMs: 0,
     latencySamples: 0,
     lastServedAt: null,
+    days: {},
   };
+}
+
+function dayStat(u: ProviderUsage): DayStat {
+  if (!u.days) u.days = {};
+  const d = today();
+  if (!u.days[d]) u.days[d] = { req: 0, ok: 0, fail: 0, tok: 0, latSum: 0, latN: 0 };
+  // prune to the last 31 days
+  const keys = Object.keys(u.days).sort();
+  while (keys.length > 31) delete u.days[keys.shift()!];
+  return u.days[d];
 }
 
 function readLedger(): Ledger {
@@ -89,18 +111,24 @@ function getRolled(l: Ledger, p: string): ProviderUsage {
 export function recordAttempt(provider: string, opts: { ok: boolean; latencyMs?: number }) {
   const l = readLedger();
   const u = getRolled(l, provider);
+  const ds = dayStat(u);
   u.requests++;
+  ds.req++;
   if (opts.ok) {
     u.successes++;
     u.reqDay++;
     u.reqMin++;
     u.lastServedAt = new Date().toISOString();
+    ds.ok++;
   } else {
     u.failures++;
+    ds.fail++;
   }
   if (typeof opts.latencyMs === "number") {
     u.latencyTotalMs += opts.latencyMs;
     u.latencySamples++;
+    ds.latSum += opts.latencyMs;
+    ds.latN++;
   }
   writeLedger(l);
 }
@@ -111,6 +139,7 @@ export function recordTokens(provider: string, tokens: number) {
   const u = getRolled(l, provider);
   u.tokDay += tokens;
   u.tokMin += tokens;
+  dayStat(u).tok += tokens;
   writeLedger(l);
 }
 
@@ -172,4 +201,50 @@ export function usageReport(providers: string[]): UsageRow[] {
 
 export function clearUsage() {
   writeLedger({});
+}
+
+export interface AnalyticsRow {
+  provider: string;
+  requests: number;
+  successes: number;
+  failures: number;
+  successRate: number | null;
+  avgLatencyMs: number | null;
+  tokens: number;
+}
+
+/** Aggregate per-provider stats over the last `windowDays` (0 = today only). */
+export function analyticsReport(windowDays: number): AnalyticsRow[] {
+  const l = readLedger();
+  const cutoff = new Date(Date.now() - windowDays * 86400_000).toISOString().slice(0, 10);
+  const rows: AnalyticsRow[] = [];
+  for (const [provider, u] of Object.entries(l)) {
+    let req = 0,
+      ok = 0,
+      fail = 0,
+      tok = 0,
+      latSum = 0,
+      latN = 0;
+    for (const [date, ds] of Object.entries(u.days ?? {})) {
+      if (date < cutoff) continue;
+      req += ds.req;
+      ok += ds.ok;
+      fail += ds.fail;
+      tok += ds.tok;
+      latSum += ds.latSum;
+      latN += ds.latN;
+    }
+    if (req > 0) {
+      rows.push({
+        provider,
+        requests: req,
+        successes: ok,
+        failures: fail,
+        successRate: req ? ok / req : null,
+        avgLatencyMs: latN ? Math.round(latSum / latN) : null,
+        tokens: tok,
+      });
+    }
+  }
+  return rows.sort((a, b) => b.requests - a.requests);
 }

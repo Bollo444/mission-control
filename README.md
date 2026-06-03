@@ -482,13 +482,42 @@ lives at `/api/route/openrouter/v1`.)
 
 **Also built in:**
 - **Usage-aware budgets** — per-provider RPM/RPD/TPM/TPD counters in
-  `~/.mission-control/usage.json`; a provider over a known limit is skipped, and
+  `~/.mission-control/usage.json` (tokens captured from both streamed and
+  non-streamed responses); a provider over a known limit is skipped, and
   **Settings shows live used/limit gauges** + success rate / avg latency per
   provider (`GET /api/usage`).
+- **Gateway analytics** — a dedicated **Gateway** tab with today / 7-day / 30-day
+  windows (volume, success rate, latency, tokens per provider), `GET /api/analytics`.
 - **Sticky sessions** — a conversation stays on one model for ~30 min (keyed by an
   `X-MC-Session` header, or auto-derived from the conversation) to avoid drift.
 - **Vision routing** — requests containing images are routed only to
   vision-capable free models.
+- **Tool-aware routing** — `tools` / `tool_choice` are forwarded to the
+  OpenAI-compatible pool (all tool-capable for the default models); known
+  non-chat models are excluded and the cascade handles any provider that rejects
+  a tool call.
+
+**Wire a tool to it** — example for [OpenCode](https://opencode.ai) (a custom
+provider in `~/.config/opencode/opencode.json`):
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "missioncontrol": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Mission Control Gateway",
+      "options": { "baseURL": "http://127.0.0.1:4317/api/gateway/v1", "apiKey": "<gateway token>" },
+      "models": { "auto": { "name": "Auto — free fleet cascade" } }
+    }
+  },
+  "model": "missioncontrol/auto"
+}
+```
+
+> Don't point **Claude Code** at the gateway — it speaks Anthropic's Messages API
+> (not OpenAI's) and you'd downgrade your paid Claude to free models. Keep Claude
+> on Anthropic; route provider-agnostic tools (OpenCode, etc.) through the gateway.
 
 > [!NOTE]
 > The gateway only helps an agent **whose base URL points at it** — see
@@ -631,19 +660,24 @@ app/
   meeting/page.tsx        team meeting boardroom
   sessions/page.tsx       unified session history
   memory/page.tsx         vault: activity feed + shared knowledge editor
-  settings/page.tsx       model routing (preferred/effective) + API keys + gateway + live health
+  settings/page.tsx       model routing (preferred/effective) + API keys + gateway + budget gauges
+  gateway/page.tsx        gateway analytics (today / 7d / 30d, per provider)
   logs/page.tsx           live universal event log (the Logs tab)
   api/
     agents, agents/[id], launch, sessions, memory, settings, system, vault, meeting
     health/route.ts       GET last health state · POST run a sweep now
     gateway/[...path]      Fleet Gateway — all-provider OpenAI-compatible endpoint
     route/openrouter/…    single-provider OpenRouter cascade proxy
+    usage/route.ts         GET per-provider usage + budgets · DELETE clear
+    analytics/route.ts     GET windowed gateway analytics (today / 7d / 30d)
     logs/route.ts          GET universal log (filters) · DELETE clear
 lib/
   registry.ts             agent definitions (identity, detection, launch, install)
   settings.ts             provider catalog, routing (preferred + effective), keys, gateway token
   health.ts               provider probes, auto-failover/revert, scheduler  ← failover engine
-  gateway.ts              multi-provider cascade gateway (adapters + cooldown routing)
+  gateway.ts              multi-provider cascade gateway (adapters, cooldown, sticky, vision, tools)
+  usage.ts                gateway usage ledger (RPM/RPD/TPM/TPD + daily history) · limits.ts
+  secretbox.ts            opt-in AES-256-GCM encryption for keys at rest
   logbook.ts              universal event log — append/read events.log
   detect / system / meeting / sessions / memory / launch / format / types / paths / voices
 instrumentation.ts        Next.js boot hook — starts the 6h health scheduler

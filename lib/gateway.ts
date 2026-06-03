@@ -137,6 +137,16 @@ function needsVision(body: Record<string, unknown>): boolean {
   );
 }
 
+function needsTools(body: Record<string, unknown>): boolean {
+  return (
+    (Array.isArray(body.tools) && body.tools.length > 0) ||
+    (body.tool_choice !== undefined && body.tool_choice !== "none")
+  );
+}
+
+/** Models that can't take a tool call — route tool requests away from these. */
+const TOOL_DENY = /embed|guard|whisper|tts|moderation|-vl\b|vision/i;
+
 function sessionKey(body: Record<string, unknown>, agentId?: string, sessionId?: string): string {
   if (sessionId) return sessionId.slice(0, 64);
   const msgs = Array.isArray(body.messages) ? body.messages : [];
@@ -207,7 +217,16 @@ export async function cascadeChat(
     // Budgets knocked everyone out — try anyway (cooldown + key checks still apply).
     candidates = buildCandidates(primary, keys, { vision, sticky, respectBudget: false });
   }
+  // Tool-aware: keep only tool-capable models for tool-call requests (if any remain).
+  const tools = needsTools(body);
+  if (tools) {
+    const toolCapable = candidates.filter((c) => !TOOL_DENY.test(c.model));
+    if (toolCapable.length) candidates = toolCapable;
+  }
   candidates = candidates.slice(0, MAX_ATTEMPTS);
+  if (tools) {
+    logEvent({ source: "gateway", level: "info", event: "tool-call request", detail: `${candidates.length} tool-capable candidate(s)`, meta: { agentId: opts.agentId } });
+  }
 
   if (candidates.length === 0) {
     return {
@@ -234,7 +253,12 @@ export async function cascadeChat(
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(p.extraHeaders ?? {}),
     };
-    const reqBody = JSON.stringify({ ...body, model: cand.model });
+    const sendBody: Record<string, unknown> = { ...body, model: cand.model };
+    // Ask for usage on streamed responses so the gateway can count tokens.
+    if (sendBody.stream === true && sendBody.stream_options === undefined) {
+      sendBody.stream_options = { include_usage: true };
+    }
+    const reqBody = JSON.stringify(sendBody);
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 60_000);
     const t0 = Date.now();

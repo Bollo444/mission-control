@@ -66,6 +66,31 @@ export async function POST(req: Request, { params }: { params: Promise<{ path: s
     }
     return new Response(text, { status: u.status, headers });
   }
+  // Streaming: pass through transparently while scanning the tail for token usage.
+  if (u.body) {
+    const provider = result.served.provider;
+    let buf = "";
+    const dec = new TextDecoder();
+    const ts = new TransformStream<Uint8Array, Uint8Array>({
+      transform(chunk, ctrl) {
+        try {
+          buf += dec.decode(chunk, { stream: true });
+        } catch {
+          /* binary */
+        }
+        if (buf.length > 8000) buf = buf.slice(-8000);
+        ctrl.enqueue(chunk);
+      },
+      flush() {
+        const mm = buf.match(/"total_tokens"\s*:\s*(\d+)/g);
+        if (mm && mm.length) {
+          const n = mm[mm.length - 1].match(/(\d+)/);
+          if (n) recordTokens(provider, parseInt(n[1], 10));
+        }
+      },
+    });
+    return new Response(u.body.pipeThrough(ts), { status: u.status, headers });
+  }
   return new Response(u.body, { status: u.status, headers });
 }
 
