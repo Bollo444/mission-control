@@ -136,6 +136,12 @@ export default function Shell({
             </span>
             Settings · Routing
           </NavLink>
+          <NavLink href="/logs" active={pathname === "/logs"}>
+            <span className="grid h-6 w-6 place-items-center rounded-md text-[13px]">
+              ▤
+            </span>
+            Logs
+          </NavLink>
         </nav>
 
         <div className="mt-6 mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--color-ink-4)]">

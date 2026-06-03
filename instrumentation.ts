@@ -7,4 +7,6 @@ export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
   const { startHealthScheduler } = await import("./lib/health");
   startHealthScheduler();
+  const { logEvent } = await import("./lib/logbook");
+  logEvent({ source: "system", level: "success", event: "Mission Control server started" });
 }

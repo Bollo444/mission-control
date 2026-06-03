@@ -249,6 +249,20 @@ export default function SettingsPage() {
             </div>
           </section>
 
+          <section className="mc-panel p-5">
+            <h2 className="mb-1 text-sm font-semibold">Fleet Gateway</h2>
+            <p className="mb-3 text-xs leading-relaxed text-[var(--color-ink-4)]">
+              One OpenAI-compatible endpoint in front of every free provider, with
+              automatic cascade on rate-limits. Point an agent/tool's base URL here
+              and use the token as its API key. Send header{" "}
+              <code className="text-[var(--color-ink-3)]">X-MC-Agent: &lt;id&gt;</code> to route by that
+              agent's preferred model, or use model{" "}
+              <code className="text-[var(--color-ink-3)]">auto</code> to let the fleet pick.
+            </p>
+            <CopyRow label="Base URL" value="http://127.0.0.1:4317/api/gateway/v1" />
+            <CopyRow label="Token (use as the API key)" value={data.gatewayToken} />
+          </section>
+
           <section className="mc-panel-2 p-5 text-sm">
             <h2 className="mb-1 font-semibold">Vault</h2>
             <p className="text-xs text-[var(--color-ink-4)]">Shared memory location</p>
@@ -332,5 +346,36 @@ function StatusDot({ status }: { status?: ProviderStatus }) {
       className="inline-block h-2 w-2 shrink-0 rounded-full"
       style={{ background: c, boxShadow: `0 0 6px ${c}` }}
     />
+  );
+}
+
+function CopyRow({ label, value }: { label: string; value: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="mb-2.5">
+      <div className="mb-1 text-[11px] font-medium text-[var(--color-ink-3)]">{label}</div>
+      <div className="flex items-center gap-2">
+        <code
+          className="min-w-0 flex-1 truncate rounded-lg bg-[var(--color-surface)] px-2.5 py-2 font-mono text-[11px] text-[var(--color-ink-2)]"
+          title={value}
+        >
+          {value || "—"}
+        </code>
+        <button
+          onClick={async () => {
+            try {
+              await navigator.clipboard.writeText(value);
+              setCopied(true);
+              setTimeout(() => setCopied(false), 1200);
+            } catch {
+              /* clipboard blocked */
+            }
+          }}
+          className="shrink-0 rounded-lg border px-2.5 py-2 text-xs text-[var(--color-ink-3)] transition-colors hover:bg-[var(--color-surface-3)]"
+        >
+          {copied ? "Copied ✓" : "Copy"}
+        </button>
+      </div>
+    </div>
   );
 }

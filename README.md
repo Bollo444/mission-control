@@ -29,6 +29,8 @@ and direct calls to the model providers you choose.
 - [Model routing & providers](#model-routing--providers)
 - [API keys: placement, routing & the recommended setup](#api-keys-placement-routing--the-recommended-setup)
 - [Free-tier health monitor (failover & recovery)](#free-tier-health-monitor-failover--recovery)
+- [Fleet Gateway — one endpoint, every provider](#fleet-gateway--one-endpoint-every-provider)
+- [Logs tab — a universal event log](#logs-tab--a-universal-event-log)
 - [Configuration (environment variables)](#configuration-environment-variables)
 - [The shared-memory vault](#the-shared-memory-vault)
 - [Local (self-hosted) models](#local-self-hosted-models)
@@ -82,6 +84,11 @@ config exists. Ones you don't have installed appear as provisionable personas.
   recovers**. See [below](#free-tier-health-monitor-failover--recovery).
 - **Free-tier limits panel** — an at-a-glance, approximate "how much can I use
   this for free" reference under the routing table.
+- **Fleet Gateway** — one OpenAI-compatible endpoint in front of every free
+  provider, with automatic cross-provider cascade on rate-limits. See
+  [below](#fleet-gateway--one-endpoint-every-provider).
+- **Universal Logs tab** — a live, time-ordered record of everything Mission
+  Control does (settings, health, failovers, gateway, agent activity, vault).
 - **Antigravity IDE** — a browser-rendered VS Code-style workspace: multi-file
   tabs, a vault explorer with search, an agent manager, a `Ctrl+K` palette, etc.
 - **Live system terminal** + **OpenClaw System Operations Console** — real host
@@ -442,6 +449,55 @@ Tune the cadence with `MC_HEALTH_INTERVAL_MIN` (see below).
 
 ---
 
+## Fleet Gateway — one endpoint, every provider
+
+A single OpenAI-compatible endpoint in front of **every configured free
+provider**. Point any agent/tool's base URL at it; each request is routed to a
+primary (an explicit model, the calling agent's preferred model, or `auto`) and
+**cascades across providers on a rate-limit/error**, with a short per-provider
+cooldown — so a single call rarely fails. This is the piece that puts Mission
+Control *in the inference path* (opt-in) and makes the routing table live.
+
+- **Base URL:** `http://127.0.0.1:4317/api/gateway/v1`
+- **Auth:** use your **gateway token** (Settings → Fleet Gateway, copyable) as the
+  API key. Upstream provider keys stay server-side in `~/.mission-control`.
+- **Routing:**
+  - `model: "auto"` → the fleet picks the best available free model.
+  - `model: "groq/llama-3.3-70b-versatile"` (or any catalog id) → that first, then cascade.
+  - Header `X-MC-Agent: pi` → use **that agent's preferred** model as primary — the routing table goes live.
+- Streams responses through; `X-MC-Served-By` / `X-MC-Attempts` headers report what served and how deep it cascaded.
+
+```bash
+curl http://127.0.0.1:4317/api/gateway/v1/chat/completions \
+  -H "Authorization: Bearer <your gateway token>" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"auto","messages":[{"role":"user","content":"hi"}]}'
+# routed across Cerebras / NIM / Groq / Cloudflare / OpenRouter / Mistral / GitHub / OpenCode Zen
+```
+
+Inspired by FreeLLMAPI, but native: no second service, no database — in-memory
+cooldowns + your existing `~/.mission-control` store. (A single-provider
+[OpenRouter cascade](#reliable-free-openrouter-access-cascade-proxy) variant also
+lives at `/api/route/openrouter/v1`.)
+
+> [!NOTE]
+> The gateway only helps an agent **whose base URL points at it** — see
+> [control plane vs. inference path](#how-it-works-under-the-hood--control-plane-vs-inference-path).
+
+---
+
+## Logs tab — a universal event log
+
+Everything Mission Control does is appended, **in order**, to one log
+(`~/.mission-control/events.log`, JSONL) and shown live in the **Logs** tab:
+server start, settings/routing/key changes, health sweeps, failovers and
+recoveries, every gateway request (and its cascade), agent activity, and vault
+edits. Filter by **source** (`system`, `settings`, `agent`, `health`, `gateway`,
+`vault`) or **level**, search, and clear. Secrets are never logged — only key and
+route **names**. Backed by `GET /api/logs` (+ `DELETE` to clear).
+
+---
+
 ## Configuration (environment variables)
 
 All optional — copy `.env.example` to `.env` to override (`.env` is gitignored):
@@ -561,15 +617,20 @@ app/
   meeting/page.tsx        team meeting boardroom
   sessions/page.tsx       unified session history
   memory/page.tsx         vault: activity feed + shared knowledge editor
-  settings/page.tsx       model routing (preferred/effective) + API keys + live health
+  settings/page.tsx       model routing (preferred/effective) + API keys + gateway + live health
+  logs/page.tsx           live universal event log (the Logs tab)
   api/
     agents, agents/[id], launch, sessions, memory, settings, system, vault, meeting
     health/route.ts       GET last health state · POST run a sweep now
-    route/openrouter/…    OpenAI-compatible proxy: cascades free models past 429s
+    gateway/[...path]      Fleet Gateway — all-provider OpenAI-compatible endpoint
+    route/openrouter/…    single-provider OpenRouter cascade proxy
+    logs/route.ts          GET universal log (filters) · DELETE clear
 lib/
   registry.ts             agent definitions (identity, detection, launch, install)
-  settings.ts             provider catalog, routing (preferred + effective), key persistence
+  settings.ts             provider catalog, routing (preferred + effective), keys, gateway token
   health.ts               provider probes, auto-failover/revert, scheduler  ← failover engine
+  gateway.ts              multi-provider cascade gateway (adapters + cooldown routing)
+  logbook.ts              universal event log — append/read events.log
   detect / system / meeting / sessions / memory / launch / format / types / paths / voices
 instrumentation.ts        Next.js boot hook — starts the 6h health scheduler
 components/

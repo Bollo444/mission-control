@@ -1,6 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
+import crypto from "node:crypto";
 import { MC_CONFIG_DIR, MC_SETTINGS_FILE, VAULT_DIR } from "./paths";
+import { logEvent } from "./logbook";
 
 export interface RouteRule {
   provider: string;
@@ -15,6 +17,8 @@ export interface Settings {
    *  what the fleet auto-reverts an agent to once its model is healthy again. */
   routingPreferred: Record<string, RouteRule>;
   apiKeys: Record<string, string>; // provider key name -> value (never sent raw to client)
+  /** Mission Control's own Fleet Gateway access token (shown to you — not a third-party secret). */
+  gatewayToken?: string;
   updatedAt: string;
 }
 
@@ -280,10 +284,27 @@ export function writeSettings(next: Partial<Settings>): Settings {
     merged.routingPreferred = { ...merged.routingPreferred, ...next.routingPreferred };
   if (next.apiKeys) merged.apiKeys = { ...merged.apiKeys, ...next.apiKeys };
   if (next.vaultDir) merged.vaultDir = next.vaultDir;
+  if (next.gatewayToken) merged.gatewayToken = next.gatewayToken;
   merged.updatedAt = new Date().toISOString();
   fs.mkdirSync(MC_CONFIG_DIR, { recursive: true });
   fs.writeFileSync(MC_SETTINGS_FILE, JSON.stringify(merged, null, 2), "utf8");
+  const changed: string[] = [];
+  if (next.routing) changed.push(`routing[${Object.keys(next.routing).join(",")}]`);
+  if (next.routingPreferred) changed.push(`preferred[${Object.keys(next.routingPreferred).join(",")}]`);
+  if (next.apiKeys) changed.push(`keys[${Object.keys(next.apiKeys).join(",")}]`); // names only, never values
+  if (next.vaultDir) changed.push("vaultDir");
+  if (next.gatewayToken) changed.push("gatewayToken");
+  logEvent({ source: "settings", level: "info", event: "settings updated", detail: changed.join(" · ") || "—" });
   return merged;
+}
+
+/** Mission Control's own gateway access token — generated + persisted on first use. */
+export function getGatewayToken(): string {
+  const s = readSettings();
+  if (s.gatewayToken && s.gatewayToken.length >= 16) return s.gatewayToken;
+  const tok = "mcg_" + crypto.randomBytes(24).toString("hex");
+  writeSettings({ gatewayToken: tok });
+  return tok;
 }
 
 /**
@@ -318,6 +339,7 @@ export function publicSettings(s: Settings) {
     routing: s.routing,
     routingPreferred: s.routingPreferred,
     keyStatus,
+    gatewayToken: s.gatewayToken ?? "",
     updatedAt: s.updatedAt,
     providers: PROVIDERS.map((p) => ({ ...p, freeLimit: FREE_LIMITS[p.id] })),
   };

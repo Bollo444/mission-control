@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { VAULT_DIR } from "./paths";
 import { AGENTS, getAgent } from "./registry";
+import { logEvent } from "./logbook";
 
 /*
   The Obsidian vault is the single source of shared memory. Layout:
@@ -147,6 +148,7 @@ export function readAgentMemory(id: string): string {
 export function writeAgentMemory(id: string, content: string): void {
   ensureVault();
   write(AGENT_FILE(id), content);
+  logEvent({ source: "vault", level: "info", event: "agent note saved", detail: getAgent(id)?.name ?? id });
 }
 
 export function readSharedKnowledge(): string {
@@ -157,6 +159,7 @@ export function readSharedKnowledge(): string {
 export function writeSharedKnowledge(content: string): void {
   ensureVault();
   write(SHARED_FILE(), content);
+  logEvent({ source: "vault", level: "info", event: "shared knowledge saved" });
 }
 
 export function appendActivity(entry: Omit<ActivityEntry, "ts">): ActivityEntry {
@@ -179,6 +182,13 @@ export function appendActivity(entry: Omit<ActivityEntry, "ts">): ActivityEntry 
     next = `${head}\n${line}${tail}`;
   }
   write(file, next);
+  logEvent({
+    source: "agent",
+    level: "info",
+    event: full.action,
+    detail: full.detail,
+    meta: { agentId: full.agentId, agentName: full.agentName },
+  });
   return full;
 }
 
@@ -274,6 +284,7 @@ export function writeVaultFile(rel: string, content: string): boolean {
   try {
     fs.mkdirSync(path.dirname(full), { recursive: true });
     fs.writeFileSync(full, content, "utf8");
+    logEvent({ source: "vault", level: "info", event: "file saved", detail: rel.replace(/^[/\\]+/, "") });
     return true;
   } catch {
     return false;

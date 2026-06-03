@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
-import { readSettings, writeSettings, publicSettings } from "@/lib/settings";
+import { readSettings, writeSettings, publicSettings, getGatewayToken } from "@/lib/settings";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  getGatewayToken(); // ensure the gateway token exists so the UI can display it
   return NextResponse.json(publicSettings(readSettings()));
 }
 

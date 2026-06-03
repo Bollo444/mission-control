@@ -76,6 +76,8 @@ export interface PublicSettings {
   /** The user's chosen default per agent — what the fleet auto-reverts to. */
   routingPreferred: Record<string, RouteRule>;
   keyStatus: Record<string, boolean>;
+  /** Mission Control's Fleet Gateway access token (its own token, shown to you). */
+  gatewayToken: string;
   updatedAt: string;
   providers: Provider[];
 }
@@ -107,6 +109,25 @@ export interface HealthState {
   intervalMinutes: number;
   providers: Record<string, ProviderHealth>;
   actions: HealthAction[]; // newest first
+}
+
+// ---- Universal logbook (the Logs tab) ----
+
+export type LogLevel = "info" | "success" | "warn" | "error";
+
+export interface LogEvent {
+  ts: string;
+  source: string;
+  level: LogLevel;
+  event: string;
+  detail?: string;
+  meta?: Record<string, unknown>;
+}
+
+export interface LogsResp {
+  events: LogEvent[];
+  sources: string[];
+  generatedAt: string;
 }
 
 export interface AgentDetail extends Omit<AgentSummary, "installable"> {
