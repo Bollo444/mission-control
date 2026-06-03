@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Mission Control — AI agent fleet console + free-LLM gateway</title>
+<meta name="description" content="Local command center for AI coding agents: a unified fleet console + an OpenAI-compatible free-LLM gateway with auto-failover and full observability. No database, no cloud." />
+<meta property="og:title" content="Mission Control" />
+<meta property="og:description" content="A local command center for AI coding agents + a resilient free-LLM gateway." />
+<meta name="theme-color" content="#0b0d10" />
+<style>
+  :root{
+    --bg:#0b0d10; --bg2:#0e1117; --surface:#11151c; --surface2:#161b24;
+    --line:#1e2530; --ink:#f2f5f9; --ink2:#c3cad6; --ink3:#9aa3b2; --ink4:#6b7280;
+    --teal:#46e0d0; --blue:#6ea8fe; --purple:#9d8cff; --green:#5cd6a0; --amber:#e0b341; --pink:#f06a7a;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:radial-gradient(1200px 600px at 12% -10%, rgba(70,224,208,.08), transparent 60%), var(--bg);
+    color:var(--ink2);font:16px/1.6 ui-sans-serif,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+  a{color:var(--teal);text-decoration:none}
+  .wrap{max-width:1040px;margin:0 auto;padding:0 24px}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+
+  /* nav */
+  nav{display:flex;align-items:center;justify-content:space-between;padding:18px 0}
+  .brand{display:flex;align-items:center;gap:10px;color:var(--ink);font-weight:700}
+  .brand .mk{width:30px;height:30px;border-radius:9px;background:rgba(70,224,208,.12);border:1px solid rgba(70,224,208,.4);display:grid;place-items:center}
+  .navlinks a{color:var(--ink3);margin-left:22px;font-size:14px}
+  .navlinks a:hover{color:var(--ink)}
+
+  /* hero */
+  .hero{text-align:center;padding:54px 0 30px}
+  .hero img{width:100%;max-width:880px;height:auto;border-radius:16px;border:1px solid var(--line)}
+  .eyebrow{color:var(--teal);font-size:12px;letter-spacing:4px;font-weight:700;text-transform:uppercase}
+  h1{color:var(--ink);font-size:clamp(30px,5vw,50px);line-height:1.1;margin:14px 0 10px;letter-spacing:-.5px}
+  .lede{font-size:clamp(16px,2.2vw,20px);color:var(--ink2);max-width:680px;margin:0 auto 26px}
+  .cta{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+  .btn{display:inline-flex;align-items:center;gap:8px;padding:12px 20px;border-radius:11px;font-weight:600;font-size:15px;border:1px solid var(--line)}
+  .btn.primary{background:var(--teal);color:#06121f;border-color:var(--teal)}
+  .btn.primary:hover{filter:brightness(1.08)}
+  .btn.ghost{color:var(--ink2)}
+  .btn.ghost:hover{border-color:var(--ink4);color:var(--ink)}
+
+  /* sections */
+  section{padding:42px 0}
+  .h2{color:var(--ink);font-size:13px;letter-spacing:3px;text-transform:uppercase;font-weight:700;text-align:center;color:var(--ink4)}
+  .sub{text-align:center;color:var(--ink2);max-width:640px;margin:8px auto 0}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-top:28px}
+  .card{background:linear-gradient(180deg,var(--surface),var(--bg2));border:1px solid var(--line);border-radius:14px;padding:20px}
+  .card .ic{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;font-size:18px;margin-bottom:12px}
+  .card h3{color:var(--ink);margin:0 0 6px;font-size:16px}
+  .card p{margin:0;font-size:14px;color:var(--ink3)}
+
+  /* providers */
+  .providers{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:22px}
+  .chip{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:7px 14px;font-size:13px;color:var(--ink2)}
+  .chip b{color:var(--ink)}
+
+  /* code */
+  .code{background:#0a0c10;border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin:22px auto 0;max-width:680px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13.5px;color:var(--ink2);overflow:auto}
+  .code .c{color:var(--ink4)}
+  .code .g{color:var(--green)}
+
+  /* fleet dots */
+  .fleet{display:flex;gap:8px;justify-content:center;margin-top:18px}
+  .fleet span{width:9px;height:9px;border-radius:999px}
+
+  footer{border-top:1px solid var(--line);padding:30px 0 50px;color:var(--ink4);font-size:13px;text-align:center}
+  footer a{color:var(--ink3)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <nav>
+    <div class="brand"><span class="mk"><svg width="16" height="16" viewBox="0 0 32 32"><circle cx="16" cy="16" r="9" fill="none" stroke="#46e0d0" stroke-width="3"/><circle cx="16" cy="16" r="3.2" fill="#46e0d0"/></svg></span> Mission Control</div>
+    <div class="navlinks">
+      <a href="#features">Features</a>
+      <a href="#start">Quick start</a>
+      <a href="https://github.com/Bollo444/mission-control">GitHub</a>
+    </div>
+  </nav>
+
+  <header class="hero">
+    <img src="./banner.svg" alt="Mission Control — AI agent fleet console + free-LLM gateway" />
+    <div style="height:30px"></div>
+    <div class="eyebrow">Local control plane</div>
+    <h1>Command your AI coding agents.<br/>Never get rate-limited.</h1>
+    <p class="lede">A single local dashboard that unifies your AI coding agents — with an OpenAI-compatible <b>free-LLM gateway</b> that cascades across providers, a 6-hour health monitor with auto-failover, and full observability. No database, no cloud.</p>
+    <div class="cta">
+      <a class="btn primary" href="https://github.com/Bollo444/mission-control">★ View on GitHub</a>
+      <a class="btn ghost" href="https://github.com/Bollo444/mission-control#quick-start">Quick start →</a>
+    </div>
+    <div class="fleet">
+      <span style="background:#46e0d0"></span><span style="background:#6ea8fe"></span><span style="background:#9d8cff"></span>
+      <span style="background:#5cd6a0"></span><span style="background:#e0b341"></span><span style="background:#f06a7a"></span>
+      <span style="background:#e879c7"></span><span style="background:#c7a86b"></span><span style="background:#aab1c2"></span>
+    </div>
+  </header>
+
+  <section id="features">
+    <div class="h2">What it does</div>
+    <p class="sub">It reads your agents' real configs, routes models, probes provider availability, and launches them — all from one dark, telemetry-driven control plane.</p>
+    <div class="grid">
+      <div class="card"><div class="ic" style="background:rgba(70,224,208,.14);color:var(--teal)">◎</div><h3>Agent fleet console</h3><p>Detects which AI coding agents you have installed, their versions and sessions, with a per-agent control page, a shared Obsidian memory vault, and a team-meeting boardroom.</p></div>
+      <div class="card"><div class="ic" style="background:rgba(245,162,90,.14);color:#f5a25a">⇄</div><h3>Free-LLM gateway</h3><p>One OpenAI-compatible endpoint in front of every free provider. Point a tool at it and requests cascade across providers on rate-limits — so a single call rarely fails.</p></div>
+      <div class="card"><div class="ic" style="background:rgba(92,214,160,.14);color:var(--green)">↻</div><h3>Auto-failover & recovery</h3><p>A 6-hour health monitor probes each provider; if an agent's free model drops, it's re-routed to a healthy one and reverted when it returns. Hands-off.</p></div>
+      <div class="card"><div class="ic" style="background:rgba(110,168,254,.14);color:var(--blue)">▤</div><h3>Universal logs</h3><p>A live, time-ordered record of everything Mission Control does — settings, health sweeps, failovers, every gateway request — in its own tab.</p></div>
+      <div class="card"><div class="ic" style="background:rgba(157,140,255,.14);color:var(--purple)">▦</div><h3>Live budgets & analytics</h3><p>Per-provider RPM/RPD/TPM/TPD counters with live limits (read from provider headers / OpenRouter credits), success rate, latency, and 24h/7d/30d analytics.</p></div>
+      <div class="card"><div class="ic" style="background:rgba(240,106,122,.14);color:var(--pink)">⌂</div><h3>Local & private</h3><p>Runs on your machine — keys stay in your home folder (optionally encrypted at rest), nothing in the cloud. Reach it anywhere behind an authenticating tunnel.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="h2">Free providers, out of the box</div>
+    <p class="sub">Every agent ships on a free model. Add one no-card key and you're chatting.</p>
+    <div class="providers">
+      <span class="chip"><b>Cloudflare</b> Workers AI</span>
+      <span class="chip"><b>NVIDIA</b> NIM</span>
+      <span class="chip"><b>Groq</b></span>
+      <span class="chip"><b>Cerebras</b></span>
+      <span class="chip"><b>OpenRouter</b></span>
+      <span class="chip"><b>Mistral</b></span>
+      <span class="chip"><b>GitHub</b> Models</span>
+      <span class="chip"><b>OpenCode</b> Zen</span>
+      <span class="chip">+ Local (LM Studio / Ollama)</span>
+    </div>
+  </section>
+
+  <section id="start">
+    <div class="h2">Get started</div>
+    <p class="sub">Node 18.18+ and a modern browser. Runs on Windows, macOS, or Linux — x64 or ARM.</p>
+    <div class="code">
+<span class="c"># clone + run</span><br/>
+<span class="g">git</span> clone https://github.com/Bollo444/mission-control.git<br/>
+<span class="g">cd</span> mission-control<br/>
+<span class="g">npm</span> install<br/>
+<span class="g">npm</span> run dev          <span class="c"># http://localhost:4317</span>
+    </div>
+    <p class="sub" style="margin-top:18px">Then add one free key in Settings (Cloudflare / NIM / Groq / Cerebras need no card) and start chatting.</p>
+    <div class="cta" style="margin-top:18px"><a class="btn primary" href="https://github.com/Bollo444/mission-control">Read the full README</a></div>
+  </section>
+
+</div>
+<footer>
+  <div class="wrap">
+    Mission Control · MIT · built local-first · <a href="https://github.com/Bollo444/mission-control">github.com/Bollo444/mission-control</a>
+  </div>
+</footer>
+</body>
+</html>

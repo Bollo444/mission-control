@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 320" width="1280" height="320" role="img" aria-label="Mission Control — AI agent fleet console + free-LLM gateway">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b0d10"/>
+      <stop offset="1" stop-color="#0e1117"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.1" cy="0.5" r="0.7">
+      <stop offset="0" stop-color="#46e0d0" stop-opacity="0.10"/>
+      <stop offset="1" stop-color="#46e0d0" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="grid" width="80" height="80" patternUnits="userSpaceOnUse">
+      <path d="M80 0H0V80" fill="none" stroke="#46e0d0" stroke-opacity="0.05"/>
+    </pattern>
+  </defs>
+
+  <rect width="1280" height="320" fill="url(#bg)"/>
+  <rect width="1280" height="320" fill="url(#grid)"/>
+  <rect width="1280" height="320" fill="url(#glow)"/>
+
+  <g fill="none" stroke="#46e0d0">
+    <circle cx="1168" cy="160" r="72" stroke-opacity="0.10"/>
+    <circle cx="1168" cy="160" r="126" stroke-opacity="0.07"/>
+    <circle cx="1168" cy="160" r="182" stroke-opacity="0.05"/>
+  </g>
+  <line x1="1168" y1="160" x2="1168" y2="8" stroke="#46e0d0" stroke-opacity="0.10"/>
+  <circle cx="1168" cy="160" r="3.5" fill="#46e0d0" fill-opacity="0.5"/>
+  <circle cx="1240" cy="160" r="4" fill="#6ea8fe" fill-opacity="0.7"/>
+  <circle cx="1168" cy="34" r="4" fill="#5cd6a0" fill-opacity="0.7"/>
+
+  <circle cx="60" cy="40" r="5" fill="#5cd6a0"/>
+  <text x="74" y="45" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="13" fill="#8a93a6">online</text>
+
+  <rect x="64" y="112" width="96" height="96" rx="24" fill="#46e0d0" fill-opacity="0.12" stroke="#46e0d0" stroke-opacity="0.45" stroke-width="1.5"/>
+  <circle cx="112" cy="160" r="27" fill="none" stroke="#46e0d0" stroke-width="5"/>
+  <circle cx="112" cy="160" r="9" fill="#46e0d0"/>
+
+  <text x="200" y="118" font-family="ui-sans-serif,-apple-system,Segoe UI,Roboto,sans-serif" font-size="13" letter-spacing="5" font-weight="700" fill="#46e0d0">LOCAL CONTROL PLANE</text>
+  <text x="198" y="174" font-family="ui-sans-serif,-apple-system,Segoe UI,Roboto,sans-serif" font-size="58" font-weight="800" letter-spacing="0.5" fill="#f2f5f9">Mission Control</text>
+  <text x="200" y="210" font-family="ui-sans-serif,-apple-system,Segoe UI,Roboto,sans-serif" font-size="21" fill="#aab1c2">AI agent fleet console · free-LLM gateway with auto-failover</text>
+
+  <g>
+    <circle cx="206" cy="246" r="6" fill="#46e0d0"/>
+    <circle cx="233" cy="246" r="6" fill="#6ea8fe"/>
+    <circle cx="260" cy="246" r="6" fill="#9d8cff"/>
+    <circle cx="287" cy="246" r="6" fill="#5cd6a0"/>
+    <circle cx="314" cy="246" r="6" fill="#f5b75a"/>
+    <circle cx="341" cy="246" r="6" fill="#f06a7a"/>
+    <circle cx="368" cy="246" r="6" fill="#e879c7"/>
+    <circle cx="395" cy="246" r="6" fill="#c7a86b"/>
+    <circle cx="422" cy="246" r="6" fill="#aab1c2"/>
+    <text x="442" y="251" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="14" fill="#6b7280">9 agents · 14 providers</text>
+  </g>
+</svg>
