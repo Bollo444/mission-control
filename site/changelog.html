@@ -4,9 +4,9 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Mission Control — Build log &amp; changelog</title>
-<meta name="description" content="A detailed, timestamped build log of Mission Control: every commit, grouped by working session, for the AI agent fleet console + free-LLM gateway." />
+<meta name="description" content="A detailed build log of Mission Control: every commit, grouped by working session, for the AI agent fleet console + free-LLM gateway." />
 <meta property="og:title" content="Mission Control — Build log" />
-<meta property="og:description" content="Every commit, timestamped and grouped by session." />
+<meta property="og:description" content="Every commit, grouped by session." />
 <meta name="theme-color" content="#0b0d10" />
 <style>
   :root{
@@ -55,8 +55,8 @@
 
   /* commit timeline */
   .commits{list-style:none;margin:14px 0 0;padding:0}
-  .commit,.ops{display:grid;grid-template-columns:54px 1fr;gap:14px;align-items:start}
-  .ctime{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;color:var(--ink4);text-align:right;padding-top:14px;white-space:nowrap}
+  .commit,.ops{display:grid;grid-template-columns:84px 1fr;gap:14px;align-items:start}
+  .ctime{font-family:ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:11.5px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;color:var(--ink4);text-align:right;padding-top:15px;white-space:nowrap}
   .cbody{position:relative;border-left:2px solid var(--line);padding:11px 0 13px 22px}
   .commit .cbody::before,.ops .cbody::before{content:"";position:absolute;left:-7px;top:15px;width:12px;height:12px;border-radius:999px;background:var(--bg);border:2px solid var(--dot,var(--teal))}
   .cbody h3{color:var(--ink);font-size:15.5px;margin:0 0 5px;font-weight:600;line-height:1.4}
@@ -68,7 +68,7 @@
 
   .ops .cbody{border-left-style:dashed}
   .ops .cbody::before{background:var(--dot,var(--teal))}
-  .ops .ctime{color:var(--ink4);font-size:11px;padding-top:14px}
+  .ops .ctime{color:var(--ink4)}
   .ops ul{margin:7px 0 0;padding-left:18px}
   .ops li{font-size:13.5px;color:var(--ink3);margin:4px 0}
   .ops li b{color:var(--ink2);font-weight:600}
@@ -95,7 +95,7 @@
   <header class="page">
     <div class="eyebrow">Build log</div>
     <h1>Changelog</h1>
-    <p class="lede">A detailed, timestamped record of how Mission Control was built — every commit, grouped by working session. Newest first; times are local (EDT, UTC&minus;04:00).</p>
+    <p class="lede">A detailed record of how Mission Control was built — every commit, grouped by working session. Newest first.</p>
     <div class="stat">3 sessions · 22 commits · 2026-05-31 → 2026-06-03</div>
     <div class="legend">
       <a href="#s3"><span class="d" style="background:var(--teal)"></span>Session 3 · Jun 3 · launch</a>
@@ -109,21 +109,21 @@
     <div class="shead">
       <div class="spill">Session 3 · 2026-06-03 · Wednesday</div>
       <h2>Gateway phases, branding &amp; public launch</h2>
-      <p class="smeta">11 commits · 11:43 → 21:57 EDT · ~10h</p>
+      <p class="smeta">11 commits · late morning to evening</p>
       <p class="sdesc">The gateway grew analytics, budgets and live limits; the project got its branding, docs and a public landing page — and went live on the web.</p>
     </div>
     <ul class="commits">
 
       <li class="commit">
-        <div class="ctime">21:57</div>
+        <div class="ctime">Evening</div>
         <div class="cbody">
           <h3>Changelog, first cut<a class="sha" href="https://github.com/Bollo444/mission-control/commit/113521e">113521e</a><span class="tagnew">latest</span></h3>
-          <p>Reconstructed the release history into a Keep-a-Changelog <code>CHANGELOG.md</code> and a branded changelog page, linked from the landing nav/footer and the README. <em>(Expanded the same session into this detailed, timestamped build log.)</em></p>
+          <p>Reconstructed the release history into a Keep-a-Changelog <code>CHANGELOG.md</code> and a branded changelog page, linked from the landing nav/footer and the README. <em>(Expanded the same session into this detailed build log.)</em></p>
         </div>
       </li>
 
       <li class="commit">
-        <div class="ctime">17:57</div>
+        <div class="ctime">Afternoon</div>
         <div class="cbody">
           <h3>Public landing page + deploy guide<a class="sha" href="https://github.com/Bollo444/mission-control/commit/3b841d6">3b841d6</a></h3>
           <p>Added a self-contained marketing page (<code>site/index.html</code> + <code>banner.svg</code>) in the app's branding with CTAs to the repo, plus <code>site/DEPLOY.md</code> for hosting it on a VPS with Caddy (automatic HTTPS). No private URLs included.</p>
@@ -131,7 +131,7 @@
       </li>
 
       <li class="commit">
-        <div class="ctime">15:01</div>
+        <div class="ctime">Afternoon</div>
         <div class="cbody">
           <h3>Zero-cost defaults — every agent on a free model<a class="sha" href="https://github.com/Bollo444/mission-control/commit/d77b011">d77b011</a></h3>
           <p>Moved the three remaining paid defaults onto free providers so a fresh clone runs every agent free: <code>claude → Cerebras gpt-oss-120b</code>, <code>hermes → NVIDIA NIM qwen3-coder-480b</code>, <code>antigravity → Groq llama-3.3-70b</code>. Affects only the defaults a new clone starts from — saved user choices are never overwritten.</p>
@@ -139,7 +139,7 @@
       </li>
 
       <li class="commit">
-        <div class="ctime">14:52</div>
+        <div class="ctime">Afternoon</div>
         <div class="cbody">
           <h3>Live per-provider rate limits<a class="sha" href="https://github.com/Bollo444/mission-control/commit/22f6c9c">22f6c9c</a></h3>
           <p><code>lib/livelimits.ts</code> persists real limits. The health sweep reads OpenRouter <code>/credits</code> (≥ $10 purchased unlocks 1,000 req/day, else 50); the gateway captures <code>x-ratelimit-*</code> headers (e.g. Groq) for real remaining counts. Budget gauges now show "used / limit · live · N left", falling back to the labeled estimate otherwise. Verified OpenRouter at 1,000/day and Groq's headers live.</p>
@@ -147,7 +147,7 @@
       </li>
 
       <li class="commit">
-        <div class="ctime">14:27</div>
+        <div class="ctime">Afternoon</div>
         <div class="cbody">
           <h3>Docs: maintainer "how I run it" note<a class="sha" href="https://github.com/Bollo444/mission-control/commit/7ac9eae">7ac9eae</a></h3>
           <p>Added a brief note at the very top of the README on how the maintainer runs it day-to-day — with private URLs and email deliberately kept out.</p>
@@ -155,7 +155,7 @@
       </li>
 
       <li class="commit">
-        <div class="ctime">14:23</div>
+        <div class="ctime">Afternoon</div>
         <div class="cbody">
           <h3>Docs: cloud-deployment compatibility map<a class="sha" href="https://github.com/Bollo444/mission-control/commit/a9351a0">a9351a0</a></h3>
           <p>Added a map explaining why a stateful, terminal-spawning control plane doesn't fit Vercel / serverless platforms — and what does (an always-on VPS or box).</p>
@@ -163,7 +163,7 @@
       </li>
 
       <li class="commit">
-        <div class="ctime">14:13</div>
+        <div class="ctime">Afternoon</div>
         <div class="cbody">
           <h3>Docs: real clone URL in Quick start<a class="sha" href="https://github.com/Bollo444/mission-control/commit/311454c">311454c</a></h3>
           <p>Replaced the placeholder with the actual <code>github.com/Bollo444/mission-control</code> clone URL.</p>
@@ -171,7 +171,7 @@
       </li>
 
       <li class="commit">
-        <div class="ctime">13:51</div>
+        <div class="ctime">Midday</div>
         <div class="cbody">
           <h3>Branding: banner, icon &amp; refreshed title<a class="sha" href="https://github.com/Bollo444/mission-control/commit/7941729">7941729</a></h3>
           <p>Added <code>assets/banner.svg</code> (README hero) and <code>assets/icon.svg</code> in the dark / signal-teal / ◎ identity, with the nine-color fleet spectrum and a telemetry motif. The README now leads with the banner and the new title.</p>
@@ -179,15 +179,15 @@
       </li>
 
       <li class="commit">
-        <div class="ctime">12:18</div>
+        <div class="ctime">Midday</div>
         <div class="cbody">
           <h3>Gateway analytics, tool-aware routing, streaming token capture<a class="sha" href="https://github.com/Bollo444/mission-control/commit/d1f361e">d1f361e</a></h3>
-          <p>Added 31-day per-provider history and <code>GET /api/analytics?window=today|7d|30d</code>, surfaced in a new <b>Gateway</b> tab with a window toggle and per-provider bars. Tool-call requests now prefer tool-capable models. Streaming responses inject <code>stream_options.include_usage</code> and scan the SSE tail for <code>total_tokens</code>, so TPD counts streamed output too. <em>(Same window: the OpenCode CLI was pointed at the gateway — default model <code>missioncontrol/auto</code>.)</em></p>
+          <p>Added 31-day per-provider history and <code>GET /api/analytics?window=today|7d|30d</code>, surfaced in a new <b>Gateway</b> tab with a window toggle and per-provider bars. Tool-call requests now prefer tool-capable models. Streaming responses inject <code>stream_options.include_usage</code> and scan the SSE tail for <code>total_tokens</code>, so TPD counts streamed output too. <em>(Same session: the OpenCode CLI was pointed at the gateway — default model <code>missioncontrol/auto</code>.)</em></p>
         </div>
       </li>
 
       <li class="commit">
-        <div class="ctime">12:04</div>
+        <div class="ctime">Midday</div>
         <div class="cbody">
           <h3>Gateway phase 2/3 — budgets, sticky sessions, vision, encryption<a class="sha" href="https://github.com/Bollo444/mission-control/commit/b36fe29">b36fe29</a></h3>
           <p>Usage ledger (<code>lib/usage.ts</code>): rolling RPM/RPD/TPM/TPD plus success-rate and latency per provider, with the gateway pre-skipping over-limit providers. <b>Sticky sessions</b> keep a conversation on one model ~30 min. <b>Vision routing</b> sends image requests only to vision-capable models. <b>Opt-in AES-256-GCM key encryption</b> at rest (<code>MC_ENCRYPTION_KEY</code>), non-breaking when unset. Settings gained budget gauges and an encryption-at-rest badge.</p>
@@ -195,7 +195,7 @@
       </li>
 
       <li class="commit">
-        <div class="ctime">11:43</div>
+        <div class="ctime">Morning</div>
         <div class="cbody">
           <h3>Fleet Gateway (all-provider cascade) + universal Logs tab<a class="sha" href="https://github.com/Bollo444/mission-control/commit/28dbbba">28dbbba</a></h3>
           <p>The big one. One OpenAI-compatible endpoint (<code>lib/gateway.ts</code>) in front of every free provider, routing by explicit model, <code>auto</code>, or the calling agent's preferred model via an <code>X-MC-Agent</code> header — making the routing table <b>live</b>. Cross-provider cascade on 429/5xx with cooldown, streaming, <code>X-MC-Served-By</code>/<code>X-MC-Attempts</code> headers, token auth. Plus an append-only JSONL logbook and a live <b>Logs</b> tab with filters, search and clear — secrets never logged.</p>
@@ -203,7 +203,7 @@
       </li>
 
       <li class="ops">
-        <div class="ctime">ops</div>
+        <div class="ctime">Ops</div>
         <div class="cbody">
           <h3>Beyond the commits — operations &amp; launch</h3>
           <ul>
@@ -227,13 +227,13 @@
     <div class="shead">
       <div class="spill">Session 2 · 2026-06-02 · Tuesday</div>
       <h2>Providers, health monitor &amp; cascade proxy</h2>
-      <p class="smeta">4 commits · 12:17 → 13:19 EDT · ~1h</p>
-      <p class="sdesc">A tight, focused hour: the free-provider catalog, the self-healing health monitor, the OpenRouter cascade proxy, and the docs that explain what the dashboard does and doesn't touch.</p>
+      <p class="smeta">4 commits · one focused midday session</p>
+      <p class="sdesc">A tight, focused session: the free-provider catalog, the self-healing health monitor, the OpenRouter cascade proxy, and the docs that explain what the dashboard does and doesn't touch.</p>
     </div>
     <ul class="commits">
 
       <li class="commit">
-        <div class="ctime">13:19</div>
+        <div class="ctime">Midday</div>
         <div class="cbody">
           <h3>Docs: control plane vs. inference path<a class="sha" href="https://github.com/Bollo444/mission-control/commit/6ddb91a">6ddb91a</a></h3>
           <p>Added a highlighted "How it works under the hood" callout (with a switchboard analogy): Mission Control records intent and monitors health but does <b>not</b> intercept agents' LLM calls — wiring an agent to a model is a machine-local edit to that agent's own config, outside the repo, with no effect on people who clone it.</p>
@@ -241,7 +241,7 @@
       </li>
 
       <li class="commit">
-        <div class="ctime">12:59</div>
+        <div class="ctime">Midday</div>
         <div class="cbody">
           <h3>OpenRouter free-model cascade proxy<a class="sha" href="https://github.com/Bollo444/mission-control/commit/5407a0a">5407a0a</a></h3>
           <p>An OpenAI-compatible proxy at <code>/api/route/openrouter/v1</code> that tries the requested model then cascades through every free model in chunks of three, returning the first that isn't throttled (the native fallback caps at 3). Reads the key from <code>~/.mission-control</code>, streams the upstream through, and reports cascade depth via <code>X-MC-OR-Fallback-Set</code>. Verified live against a throttled <code>qwen3-coder:free</code>.</p>
@@ -249,7 +249,7 @@
       </li>
 
       <li class="commit">
-        <div class="ctime">12:33</div>
+        <div class="ctime">Midday</div>
         <div class="cbody">
           <h3>Cross-platform launch + explicit meeting start<a class="sha" href="https://github.com/Bollo444/mission-control/commit/879453d">879453d</a></h3>
           <p><code>lib/launch.ts</code> now opens a real terminal on macOS (Terminal.app) and Linux (first available emulator) as well as Windows; IDE-open no longer hardcodes <code>cmd.exe</code>. The boardroom no longer auto-convenes — added a "Convene the fleet" gate. README gained the Windows/macOS/Linux platform matrix and a pre-install checklist.</p>
@@ -257,7 +257,7 @@
       </li>
 
       <li class="commit">
-        <div class="ctime">12:17</div>
+        <div class="ctime">Midday</div>
         <div class="cbody">
           <h3>Free-provider catalog + 6-hour health monitor<a class="sha" href="https://github.com/Bollo444/mission-control/commit/ea605a6">ea605a6</a></h3>
           <p>Added OpenCode Zen, Groq, Cerebras, GitHub Models, Cloudflare Workers AI, NVIDIA NIM and OpenRouter's full free tier — every model id verified live. Split per-agent routing into <b>preferred</b> vs <b>effective</b>. Built the health monitor (<code>lib/health.ts</code>): per-provider probes with auto-failover to a healthy free model and auto-revert on recovery (429s transient), a boot-time 6h scheduler, and Settings status dots, "Check now", a limits panel and a failover badge.</p>
@@ -272,13 +272,13 @@
     <div class="shead">
       <div class="spill">Session 1 · 2026-05-31 · Saturday</div>
       <h2>Initial fleet console</h2>
-      <p class="smeta">7 commits · 14:24 → 22:28 EDT · ~8h</p>
+      <p class="smeta">7 commits · afternoon into the evening</p>
       <p class="sdesc">From an empty repo to a nine-agent console with a browser IDE, terminals, a boardroom and a memory vault — all nine agents bound to their real CLIs and resolving ready.</p>
     </div>
     <ul class="commits">
 
       <li class="commit">
-        <div class="ctime">22:28</div>
+        <div class="ctime">Evening</div>
         <div class="cbody">
           <h3>IDE gutter fix + snappier timings<a class="sha" href="https://github.com/Bollo444/mission-control/commit/f95e3db">f95e3db</a></h3>
           <p>Stopped the IDE textarea soft-wrapping and synced the gutter scroll so line numbers align 1:1 with code. Tightened animation timings throughout (entrances 0.5–0.6s → ~0.3–0.38s, card stagger 40ms → 22ms, CPU sample 140ms → 90ms).</p>
@@ -286,7 +286,7 @@
       </li>
 
       <li class="commit">
-        <div class="ctime">21:06</div>
+        <div class="ctime">Evening</div>
         <div class="cbody">
           <h3>Color swap, hover glow, live overview &amp; per-agent terminals<a class="sha" href="https://github.com/Bollo444/mission-control/commit/7ad0bef">7ad0bef</a></h3>
           <p>Swapped Hermes ↔ OpenCode accents (Hermes amber, OpenCode violet) across the registry, transitions and vault. Added accent hover-glow, containment fixes and edge-proximity auto-scroll on the agent list. Gave each agent page a scoped FleetTerminal, and built OverviewMetrics — live CPU/mem/disk gauges, a fleet-readiness bar and a 24h activity sparkline.</p>
@@ -294,7 +294,7 @@
       </li>
 
       <li class="commit">
-        <div class="ctime">20:11</div>
+        <div class="ctime">Evening</div>
         <div class="cbody">
           <h3>Fleet 9/9 — Pi &amp; OpenClaw bound to real CLIs<a class="sha" href="https://github.com/Bollo444/mission-control/commit/8333db5">8333db5</a></h3>
           <p>Installed <code>@earendil-works/pi-coding-agent</code> (bin <code>pi</code>) and <code>openclaw@latest</code>, wiring each to its real config/paths/tools. Renamed "Pi · PyAgents" → "Pi" and migrated its vault note. All nine agents now resolve as ready.</p>
@@ -302,7 +302,7 @@
       </li>
 
       <li class="commit">
-        <div class="ctime">19:28</div>
+        <div class="ctime">Evening</div>
         <div class="cbody">
           <h3>Robust transitions, memory swarm viz &amp; meeting voices<a class="sha" href="https://github.com/Bollo444/mission-control/commit/9adb5c9">9adb5c9</a></h3>
           <p>Made the themed color-sweep overlay fire on every tab switch regardless of async load. Added the MemorySwarm visualization (Neural / Orbit / Stream, with a per-page toggle). Gave the boardroom Web Speech TTS with distinct per-agent voices and word-by-word reveal synced to speech (Voices toggle; user messages not read aloud).</p>
@@ -310,7 +310,7 @@
       </li>
 
       <li class="commit">
-        <div class="ctime">18:19</div>
+        <div class="ctime">Evening</div>
         <div class="cbody">
           <h3>UI overhaul: fixed-viewport layout &amp; per-agent motion<a class="sha" href="https://github.com/Bollo444/mission-control/commit/42b3106">42b3106</a></h3>
           <p>Locked the app to the viewport (only inner panels scroll) via a Screen primitive + fixed Shell. Added dramatic per-agent entrance animations replayed on every tab switch (9 themed keyframes, reduced-motion aware). AgentMetrics gained a distinct default preset per agent plus user toggle/reorder, persisted to localStorage.</p>
@@ -318,7 +318,7 @@
       </li>
 
       <li class="commit">
-        <div class="ctime">15:46</div>
+        <div class="ctime">Afternoon</div>
         <div class="cbody">
           <h3>Real agent CLIs + free-model routing<a class="sha" href="https://github.com/Bollo444/mission-control/commit/e67c8a2">e67c8a2</a></h3>
           <p>Installed Hermes via Nous Research <code>hermes-agent</code> and switched Kilo to the official <code>@kilocode/cli</code>. Added Nous + Kilo to the catalog (free tier), flagged Mistral/OpenRouter/Local as free, and pulled in OpenRouter's <code>:free</code> models. Made routing interchangeable — any agent can use any provider's free models — with "free" badges in Settings.</p>
@@ -326,7 +326,7 @@
       </li>
 
       <li class="commit">
-        <div class="ctime">14:24</div>
+        <div class="ctime">Afternoon</div>
         <div class="cbody">
           <h3>Initial commit — Mission Control fleet console<a class="sha" href="https://github.com/Bollo444/mission-control/commit/59417a9">59417a9</a></h3>
           <p>Scaffolded the unified local dashboard for nine AI coding agents (Claude, Hermes, Pi, OpenCode, Antigravity, OpenClaw, jcode, Vibe, Kilo) on Next.js 15 / React 19 / TypeScript / Tailwind v4, no database. Shipped the fleet overview, per-agent control pages, a browser IDE, a real interactive terminal, a system-ops console, a team-meeting boardroom and an Obsidian shared-memory vault.</p>
@@ -336,7 +336,7 @@
     </ul>
   </section>
 
-  <p class="note">Maintained alongside the code in <code>CHANGELOG.md</code>. Source list: <code>git log --date=format-local:'%Y-%m-%d %H:%M' --pretty=format:'%h | %ad | %s'</code></p>
+  <p class="note">Maintained alongside the code in <code>CHANGELOG.md</code>. Source list: <code>git log --date=short --pretty=format:'%h | %ad | %s'</code></p>
 
 </div>
 <footer>
