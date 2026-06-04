@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Mission Control — Changelog</title>
-<meta name="description" content="Release history for Mission Control: the AI agent fleet console and free-LLM gateway. Every milestone, derived from the project's Git history." />
-<meta property="og:title" content="Mission Control — Changelog" />
-<meta property="og:description" content="Release history for the AI agent fleet console + free-LLM gateway." />
+<title>Mission Control — Build log &amp; changelog</title>
+<meta name="description" content="A detailed, timestamped build log of Mission Control: every commit, grouped by working session, for the AI agent fleet console + free-LLM gateway." />
+<meta property="og:title" content="Mission Control — Build log" />
+<meta property="og:description" content="Every commit, timestamped and grouped by session." />
 <meta name="theme-color" content="#0b0d10" />
 <style>
   :root{
@@ -19,7 +19,7 @@
   body{margin:0;background:radial-gradient(1200px 600px at 12% -10%, rgba(70,224,208,.08), transparent 60%), var(--bg);
     color:var(--ink2);font:16px/1.6 ui-sans-serif,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
   a{color:var(--teal);text-decoration:none}
-  .wrap{max-width:920px;margin:0 auto;padding:0 24px}
+  .wrap{max-width:880px;margin:0 auto;padding:0 24px}
   .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
 
   /* nav */
@@ -32,40 +32,50 @@
   .navlinks a.active{color:var(--teal)}
 
   /* header */
-  header.page{padding:46px 0 8px;text-align:center}
+  header.page{padding:46px 0 6px;text-align:center}
   .eyebrow{color:var(--teal);font-size:12px;letter-spacing:4px;font-weight:700;text-transform:uppercase}
   h1{color:var(--ink);font-size:clamp(28px,5vw,44px);line-height:1.1;margin:12px 0 10px;letter-spacing:-.5px}
-  .lede{font-size:clamp(15px,2.2vw,18px);color:var(--ink2);max-width:620px;margin:0 auto}
+  .lede{font-size:clamp(15px,2.2vw,18px);color:var(--ink2);max-width:640px;margin:0 auto}
+  .stat{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;color:var(--ink4);margin-top:14px}
 
-  /* timeline */
-  .timeline{position:relative;margin:46px 0 10px;padding-left:30px}
-  .timeline::before{content:"";position:absolute;left:7px;top:6px;bottom:6px;width:2px;
-    background:linear-gradient(180deg,var(--teal),rgba(70,224,208,.15) 40%,var(--line))}
-  .rel{position:relative;margin-bottom:42px}
-  .rel::before{content:"";position:absolute;left:-30px;top:5px;width:16px;height:16px;border-radius:999px;
-    background:var(--bg);border:2px solid var(--dot,var(--teal));box-shadow:0 0 0 4px rgba(70,224,208,.06)}
-  .rel .when{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--ink4);letter-spacing:.5px}
-  .rel h2{color:var(--ink);font-size:21px;margin:4px 0 2px;letter-spacing:-.2px}
-  .rel .tag{display:inline-block;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;
-    color:var(--dot,var(--teal));background:color-mix(in srgb,var(--dot,var(--teal)) 12%,transparent);
-    border:1px solid color-mix(in srgb,var(--dot,var(--teal)) 35%,transparent);border-radius:999px;padding:3px 10px;margin-top:8px}
+  /* session legend / jump */
+  .legend{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:22px 0 6px}
+  .legend a{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--surface);
+    border-radius:999px;padding:7px 14px;font-size:13px;color:var(--ink2)}
+  .legend a:hover{border-color:var(--ink4);color:var(--ink)}
+  .legend .d{width:9px;height:9px;border-radius:999px}
 
-  .group{margin-top:16px}
-  .group .k{font-size:12px;letter-spacing:2px;text-transform:uppercase;font-weight:700;color:var(--ink3);margin-bottom:8px}
-  .group .k.added{color:var(--green)} .group .k.changed{color:var(--blue)}
-  .group .k.fixed{color:var(--amber)} .group .k.docs{color:var(--purple)}
-  ul{list-style:none;margin:0;padding:0}
-  li{position:relative;padding:5px 0 5px 20px;font-size:14.5px;color:var(--ink2)}
-  li::before{content:"";position:absolute;left:2px;top:13px;width:6px;height:6px;border-radius:999px;background:var(--ink4)}
-  li b{color:var(--ink);font-weight:600}
-  li code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;color:var(--ink3);
-    background:var(--surface);border:1px solid var(--line);border-radius:5px;padding:1px 5px}
-  .sha{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;color:var(--ink4)}
-  .sha a{color:var(--ink4)} .sha a:hover{color:var(--teal)}
+  /* sessions */
+  .session{margin:34px 0 4px;scroll-margin-top:18px}
+  .shead{padding:10px 0 2px}
+  .spill{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;letter-spacing:.4px;color:var(--dot,var(--teal))}
+  .shead h2{color:var(--ink);font-size:22px;margin:6px 0 4px;letter-spacing:-.2px}
+  .shead .smeta{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;color:var(--ink4);margin:0 0 4px}
+  .shead .sdesc{font-size:14px;color:var(--ink3);margin:6px 0 0;max-width:660px}
 
-  .note{max-width:920px;margin:8px auto 0;color:var(--ink4);font-size:13px;border-top:1px solid var(--line);padding-top:20px}
+  /* commit timeline */
+  .commits{list-style:none;margin:14px 0 0;padding:0}
+  .commit,.ops{display:grid;grid-template-columns:54px 1fr;gap:14px;align-items:start}
+  .ctime{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;color:var(--ink4);text-align:right;padding-top:14px;white-space:nowrap}
+  .cbody{position:relative;border-left:2px solid var(--line);padding:11px 0 13px 22px}
+  .commit .cbody::before,.ops .cbody::before{content:"";position:absolute;left:-7px;top:15px;width:12px;height:12px;border-radius:999px;background:var(--bg);border:2px solid var(--dot,var(--teal))}
+  .cbody h3{color:var(--ink);font-size:15.5px;margin:0 0 5px;font-weight:600;line-height:1.4}
+  .cbody p{margin:0;font-size:14px;color:var(--ink3)}
+  .cbody code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;color:var(--ink3);background:var(--surface);border:1px solid var(--line);border-radius:5px;padding:1px 5px}
+  .sha{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;color:var(--ink4);border:1px solid var(--line);border-radius:6px;padding:1px 7px;margin-left:6px;white-space:nowrap}
+  a.sha:hover{color:var(--teal);border-color:var(--ink4)}
+  .tagnew{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--dot,var(--teal));margin-left:6px;vertical-align:1px}
+
+  .ops .cbody{border-left-style:dashed}
+  .ops .cbody::before{background:var(--dot,var(--teal))}
+  .ops .ctime{color:var(--ink4);font-size:11px;padding-top:14px}
+  .ops ul{margin:7px 0 0;padding-left:18px}
+  .ops li{font-size:13.5px;color:var(--ink3);margin:4px 0}
+  .ops li b{color:var(--ink2);font-weight:600}
+
+  .note{color:var(--ink4);font-size:13px;border-top:1px solid var(--line);padding-top:20px;margin-top:34px}
   .note code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--ink3)}
-  footer{border-top:1px solid var(--line);padding:30px 0 50px;color:var(--ink4);font-size:13px;text-align:center;margin-top:30px}
+  footer{border-top:1px solid var(--line);padding:30px 0 50px;color:var(--ink4);font-size:13px;text-align:center;margin-top:26px}
   footer a{color:var(--ink3)}
 </style>
 </head>
@@ -83,116 +93,255 @@
   </nav>
 
   <header class="page">
-    <div class="eyebrow">Release history</div>
+    <div class="eyebrow">Build log</div>
     <h1>Changelog</h1>
-    <p class="lede">Every milestone in Mission Control's build, derived from the project's Git history. Newest first.</p>
+    <p class="lede">A detailed, timestamped record of how Mission Control was built — every commit, grouped by working session. Newest first; times are local (EDT, UTC&minus;04:00).</p>
+    <div class="stat">3 sessions · 22 commits · 2026-05-31 → 2026-06-03</div>
+    <div class="legend">
+      <a href="#s3"><span class="d" style="background:var(--teal)"></span>Session 3 · Jun 3 · launch</a>
+      <a href="#s2"><span class="d" style="background:var(--amber)"></span>Session 2 · Jun 2 · gateway</a>
+      <a href="#s1"><span class="d" style="background:var(--purple)"></span>Session 1 · May 31 · console</a>
+    </div>
   </header>
 
-  <div class="timeline">
+  <!-- ===================== SESSION 3 ===================== -->
+  <section class="session" id="s3" style="--dot:var(--teal)">
+    <div class="shead">
+      <div class="spill">Session 3 · 2026-06-03 · Wednesday</div>
+      <h2>Gateway phases, branding &amp; public launch</h2>
+      <p class="smeta">11 commits · 11:43 → 21:57 EDT · ~10h</p>
+      <p class="sdesc">The gateway grew analytics, budgets and live limits; the project got its branding, docs and a public landing page — and went live on the web.</p>
+    </div>
+    <ul class="commits">
 
-    <!-- ===== Milestone 3 ===== -->
-    <article class="rel" style="--dot:var(--teal)">
-      <div class="when">2026-06-03</div>
-      <h2>Public launch &amp; live limits</h2>
-      <span class="tag">Latest</span>
+      <li class="commit">
+        <div class="ctime">21:57</div>
+        <div class="cbody">
+          <h3>Changelog, first cut<a class="sha" href="https://github.com/Bollo444/mission-control/commit/113521e">113521e</a><span class="tagnew">latest</span></h3>
+          <p>Reconstructed the release history into a Keep-a-Changelog <code>CHANGELOG.md</code> and a branded changelog page, linked from the landing nav/footer and the README. <em>(Expanded the same session into this detailed, timestamped build log.)</em></p>
+        </div>
+      </li>
 
-      <div class="group">
-        <div class="k added">Added</div>
-        <ul>
-          <li><b>Static public landing page</b> in the Mission Control branding, with a Caddy / VPS deploy guide — auto-HTTPS, no private URLs. <span class="sha"><a href="https://github.com/Bollo444/mission-control/commit/3b841d6">3b841d6</a></span></li>
-          <li><b>Branding</b>: README hero banner and app icon in the dark / signal-teal / ◎ identity, with the nine-color fleet spectrum. <span class="sha"><a href="https://github.com/Bollo444/mission-control/commit/7941729">7941729</a></span></li>
-          <li><b>Live per-provider rate limits</b> — OpenRouter reads <code>/credits</code> (≥ $10 purchased unlocks 1,000 free req/day, else 50); the gateway captures <code>x-ratelimit-*</code> headers so providers like Groq show real remaining counts. Gauges read "used / limit · live · N left". <span class="sha"><a href="https://github.com/Bollo444/mission-control/commit/22f6c9c">22f6c9c</a></span></li>
-          <li><b>Gateway analytics tab</b> with today / 7d / 30d windows — per-provider volume, success rate, latency and tokens. <span class="sha"><a href="https://github.com/Bollo444/mission-control/commit/d1f361e">d1f361e</a></span></li>
-          <li><b>Tool-aware routing</b> and <b>streaming token accounting</b> so TPD counts streamed responses too. <span class="sha"><a href="https://github.com/Bollo444/mission-control/commit/d1f361e">d1f361e</a></span></li>
-        </ul>
-      </div>
-      <div class="group">
-        <div class="k changed">Changed</div>
-        <ul>
-          <li><b>Every agent now defaults to a free model</b> so a fresh clone runs at zero cost (<code>claude→Cerebras</code>, <code>hermes→NVIDIA NIM</code>, <code>antigravity→Groq</code>; the other six were already free). Saved user choices are never overwritten. <span class="sha"><a href="https://github.com/Bollo444/mission-control/commit/d77b011">d77b011</a></span></li>
-        </ul>
-      </div>
-      <div class="group">
-        <div class="k docs">Docs</div>
-        <ul>
-          <li>Cloud-deployment compatibility map (why Vercel / serverless won't fit). <span class="sha"><a href="https://github.com/Bollo444/mission-control/commit/a9351a0">a9351a0</a></span></li>
-          <li>Maintainer "how I run it" note; real clone URL in Quick start. <span class="sha"><a href="https://github.com/Bollo444/mission-control/commit/7ac9eae">7ac9eae</a></span> <span class="sha"><a href="https://github.com/Bollo444/mission-control/commit/311454c">311454c</a></span></li>
-        </ul>
-      </div>
-    </article>
+      <li class="commit">
+        <div class="ctime">17:57</div>
+        <div class="cbody">
+          <h3>Public landing page + deploy guide<a class="sha" href="https://github.com/Bollo444/mission-control/commit/3b841d6">3b841d6</a></h3>
+          <p>Added a self-contained marketing page (<code>site/index.html</code> + <code>banner.svg</code>) in the app's branding with CTAs to the repo, plus <code>site/DEPLOY.md</code> for hosting it on a VPS with Caddy (automatic HTTPS). No private URLs included.</p>
+        </div>
+      </li>
 
-    <!-- ===== Milestone 2 ===== -->
-    <article class="rel" style="--dot:var(--amber)">
-      <div class="when">2026-06-02 → 06-03</div>
-      <h2>Free-LLM gateway &amp; resilience</h2>
+      <li class="commit">
+        <div class="ctime">15:01</div>
+        <div class="cbody">
+          <h3>Zero-cost defaults — every agent on a free model<a class="sha" href="https://github.com/Bollo444/mission-control/commit/d77b011">d77b011</a></h3>
+          <p>Moved the three remaining paid defaults onto free providers so a fresh clone runs every agent free: <code>claude → Cerebras gpt-oss-120b</code>, <code>hermes → NVIDIA NIM qwen3-coder-480b</code>, <code>antigravity → Groq llama-3.3-70b</code>. Affects only the defaults a new clone starts from — saved user choices are never overwritten.</p>
+        </div>
+      </li>
 
-      <div class="group">
-        <div class="k added">Added</div>
-        <ul>
-          <li><b>Fleet Gateway</b> — one OpenAI-compatible endpoint in front of every free provider (Cerebras, NVIDIA NIM, Groq, Cloudflare Workers AI, Mistral, GitHub Models, OpenRouter, OpenCode Zen, Local), with cross-provider cascade on 429/5xx, per-provider cooldown, streaming, token auth, and per-agent routing via an <code>X-MC-Agent</code> header. <span class="sha"><a href="https://github.com/Bollo444/mission-control/commit/28dbbba">28dbbba</a></span></li>
-          <li><b>Universal Logs tab</b> — an append-only, time-ordered record of everything Mission Control does: startup, settings / key / routing changes, health sweeps, failovers, every gateway request, agent activity and vault edits. Secrets are never logged. <span class="sha"><a href="https://github.com/Bollo444/mission-control/commit/28dbbba">28dbbba</a></span></li>
-          <li><b>Usage ledger</b> — rolling RPM/RPD/TPM/TPD counters plus success-rate and latency per provider; the gateway pre-skips providers over a known limit. <span class="sha"><a href="https://github.com/Bollo444/mission-control/commit/b36fe29">b36fe29</a></span></li>
-          <li><b>Sticky sessions</b> (a conversation stays on one model ~30 min) and <b>vision routing</b> (image requests → vision-capable models only). <span class="sha"><a href="https://github.com/Bollo444/mission-control/commit/b36fe29">b36fe29</a></span></li>
-          <li><b>Opt-in encryption at rest</b> — when <code>MC_ENCRYPTION_KEY</code> is set, provider keys are AES-256-GCM encrypted in settings; non-breaking when unset. <span class="sha"><a href="https://github.com/Bollo444/mission-control/commit/b36fe29">b36fe29</a></span></li>
-          <li><b>OpenRouter free-model cascade proxy</b> that cascades past throttled free models. <span class="sha"><a href="https://github.com/Bollo444/mission-control/commit/5407a0a">5407a0a</a></span></li>
-          <li><b>6-hour health monitor</b> with auto-failover to a healthy free model and auto-revert when the preferred recovers; 429s treated as transient. <span class="sha"><a href="https://github.com/Bollo444/mission-control/commit/ea605a6">ea605a6</a></span></li>
-          <li><b>Free-provider catalog</b> — OpenCode Zen, Groq, Cerebras, GitHub Models, Cloudflare Workers AI, NVIDIA NIM, plus OpenRouter's full free tier; every model id verified live. <span class="sha"><a href="https://github.com/Bollo444/mission-control/commit/ea605a6">ea605a6</a></span></li>
-        </ul>
-      </div>
-      <div class="group">
-        <div class="k changed">Changed</div>
-        <ul>
-          <li>Per-agent routing split into <b>preferred</b> (your choice) vs <b>effective</b> (live), so failover can auto-revert. <span class="sha"><a href="https://github.com/Bollo444/mission-control/commit/ea605a6">ea605a6</a></span></li>
-          <li><b>Cross-platform agent launch</b> — opens a real terminal on macOS and Linux as well as Windows. <span class="sha"><a href="https://github.com/Bollo444/mission-control/commit/879453d">879453d</a></span></li>
-          <li>The <b>team meeting no longer auto-convenes</b> — added a "Convene the fleet" start gate. <span class="sha"><a href="https://github.com/Bollo444/mission-control/commit/879453d">879453d</a></span></li>
-        </ul>
-      </div>
-      <div class="group">
-        <div class="k docs">Docs</div>
-        <ul>
-          <li>"How it works under the hood" — the <b>control plane vs. inference path</b> distinction. <span class="sha"><a href="https://github.com/Bollo444/mission-control/commit/6ddb91a">6ddb91a</a></span></li>
-          <li>"Platform support" matrix (Windows / macOS / Linux, x64 or ARM64, Node 18.18+). <span class="sha"><a href="https://github.com/Bollo444/mission-control/commit/879453d">879453d</a></span></li>
-        </ul>
-      </div>
-    </article>
+      <li class="commit">
+        <div class="ctime">14:52</div>
+        <div class="cbody">
+          <h3>Live per-provider rate limits<a class="sha" href="https://github.com/Bollo444/mission-control/commit/22f6c9c">22f6c9c</a></h3>
+          <p><code>lib/livelimits.ts</code> persists real limits. The health sweep reads OpenRouter <code>/credits</code> (≥ $10 purchased unlocks 1,000 req/day, else 50); the gateway captures <code>x-ratelimit-*</code> headers (e.g. Groq) for real remaining counts. Budget gauges now show "used / limit · live · N left", falling back to the labeled estimate otherwise. Verified OpenRouter at 1,000/day and Groq's headers live.</p>
+        </div>
+      </li>
 
-    <!-- ===== Milestone 1 ===== -->
-    <article class="rel" style="--dot:var(--purple)">
-      <div class="when">2026-05-31</div>
+      <li class="commit">
+        <div class="ctime">14:27</div>
+        <div class="cbody">
+          <h3>Docs: maintainer "how I run it" note<a class="sha" href="https://github.com/Bollo444/mission-control/commit/7ac9eae">7ac9eae</a></h3>
+          <p>Added a brief note at the very top of the README on how the maintainer runs it day-to-day — with private URLs and email deliberately kept out.</p>
+        </div>
+      </li>
+
+      <li class="commit">
+        <div class="ctime">14:23</div>
+        <div class="cbody">
+          <h3>Docs: cloud-deployment compatibility map<a class="sha" href="https://github.com/Bollo444/mission-control/commit/a9351a0">a9351a0</a></h3>
+          <p>Added a map explaining why a stateful, terminal-spawning control plane doesn't fit Vercel / serverless platforms — and what does (an always-on VPS or box).</p>
+        </div>
+      </li>
+
+      <li class="commit">
+        <div class="ctime">14:13</div>
+        <div class="cbody">
+          <h3>Docs: real clone URL in Quick start<a class="sha" href="https://github.com/Bollo444/mission-control/commit/311454c">311454c</a></h3>
+          <p>Replaced the placeholder with the actual <code>github.com/Bollo444/mission-control</code> clone URL.</p>
+        </div>
+      </li>
+
+      <li class="commit">
+        <div class="ctime">13:51</div>
+        <div class="cbody">
+          <h3>Branding: banner, icon &amp; refreshed title<a class="sha" href="https://github.com/Bollo444/mission-control/commit/7941729">7941729</a></h3>
+          <p>Added <code>assets/banner.svg</code> (README hero) and <code>assets/icon.svg</code> in the dark / signal-teal / ◎ identity, with the nine-color fleet spectrum and a telemetry motif. The README now leads with the banner and the new title.</p>
+        </div>
+      </li>
+
+      <li class="commit">
+        <div class="ctime">12:18</div>
+        <div class="cbody">
+          <h3>Gateway analytics, tool-aware routing, streaming token capture<a class="sha" href="https://github.com/Bollo444/mission-control/commit/d1f361e">d1f361e</a></h3>
+          <p>Added 31-day per-provider history and <code>GET /api/analytics?window=today|7d|30d</code>, surfaced in a new <b>Gateway</b> tab with a window toggle and per-provider bars. Tool-call requests now prefer tool-capable models. Streaming responses inject <code>stream_options.include_usage</code> and scan the SSE tail for <code>total_tokens</code>, so TPD counts streamed output too. <em>(Same window: the OpenCode CLI was pointed at the gateway — default model <code>missioncontrol/auto</code>.)</em></p>
+        </div>
+      </li>
+
+      <li class="commit">
+        <div class="ctime">12:04</div>
+        <div class="cbody">
+          <h3>Gateway phase 2/3 — budgets, sticky sessions, vision, encryption<a class="sha" href="https://github.com/Bollo444/mission-control/commit/b36fe29">b36fe29</a></h3>
+          <p>Usage ledger (<code>lib/usage.ts</code>): rolling RPM/RPD/TPM/TPD plus success-rate and latency per provider, with the gateway pre-skipping over-limit providers. <b>Sticky sessions</b> keep a conversation on one model ~30 min. <b>Vision routing</b> sends image requests only to vision-capable models. <b>Opt-in AES-256-GCM key encryption</b> at rest (<code>MC_ENCRYPTION_KEY</code>), non-breaking when unset. Settings gained budget gauges and an encryption-at-rest badge.</p>
+        </div>
+      </li>
+
+      <li class="commit">
+        <div class="ctime">11:43</div>
+        <div class="cbody">
+          <h3>Fleet Gateway (all-provider cascade) + universal Logs tab<a class="sha" href="https://github.com/Bollo444/mission-control/commit/28dbbba">28dbbba</a></h3>
+          <p>The big one. One OpenAI-compatible endpoint (<code>lib/gateway.ts</code>) in front of every free provider, routing by explicit model, <code>auto</code>, or the calling agent's preferred model via an <code>X-MC-Agent</code> header — making the routing table <b>live</b>. Cross-provider cascade on 429/5xx with cooldown, streaming, <code>X-MC-Served-By</code>/<code>X-MC-Attempts</code> headers, token auth. Plus an append-only JSONL logbook and a live <b>Logs</b> tab with filters, search and clear — secrets never logged.</p>
+        </div>
+      </li>
+
+      <li class="ops">
+        <div class="ctime">ops</div>
+        <div class="cbody">
+          <h3>Beyond the commits — operations &amp; launch</h3>
+          <ul>
+            <li>Pushed the repository <b>public</b> to <code>github.com/Bollo444/mission-control</code>.</li>
+            <li>Set the GitHub <b>About</b> panel — description, topics and homepage.</li>
+            <li>Verified <b>all nine agent CLIs are installed</b> locally (fleet 9/9 ready).</li>
+            <li>Pointed the <b>OpenCode CLI at the Fleet Gateway</b> to activate live routing.</li>
+            <li>Confirmed <b>OpenRouter</b> is on the <b>1,000 req/day</b> free tier.</li>
+            <li><b>Deployed the landing page</b> to the VPS behind Caddy (auto-HTTPS) via a Cloudflare tunnel.</li>
+            <li>Kept the private dashboard <b>locked behind Cloudflare Access</b>.</li>
+            <li>Published this <b>public changelog</b> at <code>/changelog</code>.</li>
+          </ul>
+        </div>
+      </li>
+
+    </ul>
+  </section>
+
+  <!-- ===================== SESSION 2 ===================== -->
+  <section class="session" id="s2" style="--dot:var(--amber)">
+    <div class="shead">
+      <div class="spill">Session 2 · 2026-06-02 · Tuesday</div>
+      <h2>Providers, health monitor &amp; cascade proxy</h2>
+      <p class="smeta">4 commits · 12:17 → 13:19 EDT · ~1h</p>
+      <p class="sdesc">A tight, focused hour: the free-provider catalog, the self-healing health monitor, the OpenRouter cascade proxy, and the docs that explain what the dashboard does and doesn't touch.</p>
+    </div>
+    <ul class="commits">
+
+      <li class="commit">
+        <div class="ctime">13:19</div>
+        <div class="cbody">
+          <h3>Docs: control plane vs. inference path<a class="sha" href="https://github.com/Bollo444/mission-control/commit/6ddb91a">6ddb91a</a></h3>
+          <p>Added a highlighted "How it works under the hood" callout (with a switchboard analogy): Mission Control records intent and monitors health but does <b>not</b> intercept agents' LLM calls — wiring an agent to a model is a machine-local edit to that agent's own config, outside the repo, with no effect on people who clone it.</p>
+        </div>
+      </li>
+
+      <li class="commit">
+        <div class="ctime">12:59</div>
+        <div class="cbody">
+          <h3>OpenRouter free-model cascade proxy<a class="sha" href="https://github.com/Bollo444/mission-control/commit/5407a0a">5407a0a</a></h3>
+          <p>An OpenAI-compatible proxy at <code>/api/route/openrouter/v1</code> that tries the requested model then cascades through every free model in chunks of three, returning the first that isn't throttled (the native fallback caps at 3). Reads the key from <code>~/.mission-control</code>, streams the upstream through, and reports cascade depth via <code>X-MC-OR-Fallback-Set</code>. Verified live against a throttled <code>qwen3-coder:free</code>.</p>
+        </div>
+      </li>
+
+      <li class="commit">
+        <div class="ctime">12:33</div>
+        <div class="cbody">
+          <h3>Cross-platform launch + explicit meeting start<a class="sha" href="https://github.com/Bollo444/mission-control/commit/879453d">879453d</a></h3>
+          <p><code>lib/launch.ts</code> now opens a real terminal on macOS (Terminal.app) and Linux (first available emulator) as well as Windows; IDE-open no longer hardcodes <code>cmd.exe</code>. The boardroom no longer auto-convenes — added a "Convene the fleet" gate. README gained the Windows/macOS/Linux platform matrix and a pre-install checklist.</p>
+        </div>
+      </li>
+
+      <li class="commit">
+        <div class="ctime">12:17</div>
+        <div class="cbody">
+          <h3>Free-provider catalog + 6-hour health monitor<a class="sha" href="https://github.com/Bollo444/mission-control/commit/ea605a6">ea605a6</a></h3>
+          <p>Added OpenCode Zen, Groq, Cerebras, GitHub Models, Cloudflare Workers AI, NVIDIA NIM and OpenRouter's full free tier — every model id verified live. Split per-agent routing into <b>preferred</b> vs <b>effective</b>. Built the health monitor (<code>lib/health.ts</code>): per-provider probes with auto-failover to a healthy free model and auto-revert on recovery (429s transient), a boot-time 6h scheduler, and Settings status dots, "Check now", a limits panel and a failover badge.</p>
+        </div>
+      </li>
+
+    </ul>
+  </section>
+
+  <!-- ===================== SESSION 1 ===================== -->
+  <section class="session" id="s1" style="--dot:var(--purple)">
+    <div class="shead">
+      <div class="spill">Session 1 · 2026-05-31 · Saturday</div>
       <h2>Initial fleet console</h2>
+      <p class="smeta">7 commits · 14:24 → 22:28 EDT · ~8h</p>
+      <p class="sdesc">From an empty repo to a nine-agent console with a browser IDE, terminals, a boardroom and a memory vault — all nine agents bound to their real CLIs and resolving ready.</p>
+    </div>
+    <ul class="commits">
 
-      <div class="group">
-        <div class="k added">Added</div>
-        <ul>
-          <li><b>Unified local dashboard for nine AI coding agents</b> (Claude, Hermes, Pi, OpenCode, Antigravity, OpenClaw, jcode, Vibe, Kilo): fleet overview, per-agent control, a browser IDE, an interactive terminal, a system-ops console, a team-meeting boardroom and an Obsidian shared-memory vault. Next.js 15 / React 19 / TS / Tailwind v4, no database. <span class="sha"><a href="https://github.com/Bollo444/mission-control/commit/59417a9">59417a9</a></span></li>
-          <li><b>Free-model providers</b> (Nous, Kilo) and <b>cross-agent routing</b> so any agent can use any provider's free models. <span class="sha"><a href="https://github.com/Bollo444/mission-control/commit/e67c8a2">e67c8a2</a></span></li>
-          <li><b>Live overview</b> — CPU / memory / disk gauges, fleet-readiness bar, 24h activity sparkline; per-agent scoped terminals. <span class="sha"><a href="https://github.com/Bollo444/mission-control/commit/7ad0bef">7ad0bef</a></span></li>
-          <li><b>Memory vault visualizations</b> (List / Neural / Orbit / Stream) and a boardroom with distinct per-agent text-to-speech voices. <span class="sha"><a href="https://github.com/Bollo444/mission-control/commit/9adb5c9">9adb5c9</a></span></li>
-        </ul>
-      </div>
-      <div class="group">
-        <div class="k changed">Changed</div>
-        <ul>
-          <li>Bound the agents to their <b>real npm CLIs so all nine resolve ready (9/9)</b> — Hermes, Kilo, Pi and OpenClaw. <span class="sha"><a href="https://github.com/Bollo444/mission-control/commit/8333db5">8333db5</a></span></li>
-          <li><b>Fixed-viewport layout</b> with per-agent route transitions and customizable, persisted metric presets. <span class="sha"><a href="https://github.com/Bollo444/mission-control/commit/42b3106">42b3106</a></span></li>
-        </ul>
-      </div>
-      <div class="group">
-        <div class="k fixed">Fixed</div>
-        <ul>
-          <li>IDE line-number / gutter alignment and snappier load / animation timings. <span class="sha"><a href="https://github.com/Bollo444/mission-control/commit/f95e3db">f95e3db</a></span></li>
-        </ul>
-      </div>
-    </article>
+      <li class="commit">
+        <div class="ctime">22:28</div>
+        <div class="cbody">
+          <h3>IDE gutter fix + snappier timings<a class="sha" href="https://github.com/Bollo444/mission-control/commit/f95e3db">f95e3db</a></h3>
+          <p>Stopped the IDE textarea soft-wrapping and synced the gutter scroll so line numbers align 1:1 with code. Tightened animation timings throughout (entrances 0.5–0.6s → ~0.3–0.38s, card stagger 40ms → 22ms, CPU sample 140ms → 90ms).</p>
+        </div>
+      </li>
 
-  </div>
+      <li class="commit">
+        <div class="ctime">21:06</div>
+        <div class="cbody">
+          <h3>Color swap, hover glow, live overview &amp; per-agent terminals<a class="sha" href="https://github.com/Bollo444/mission-control/commit/7ad0bef">7ad0bef</a></h3>
+          <p>Swapped Hermes ↔ OpenCode accents (Hermes amber, OpenCode violet) across the registry, transitions and vault. Added accent hover-glow, containment fixes and edge-proximity auto-scroll on the agent list. Gave each agent page a scoped FleetTerminal, and built OverviewMetrics — live CPU/mem/disk gauges, a fleet-readiness bar and a 24h activity sparkline.</p>
+        </div>
+      </li>
 
-  <p class="note">Maintained alongside the code in <code>CHANGELOG.md</code>. Source list regenerated with <code>git log --pretty=format:"%h %ad %s" --date=short</code>.</p>
+      <li class="commit">
+        <div class="ctime">20:11</div>
+        <div class="cbody">
+          <h3>Fleet 9/9 — Pi &amp; OpenClaw bound to real CLIs<a class="sha" href="https://github.com/Bollo444/mission-control/commit/8333db5">8333db5</a></h3>
+          <p>Installed <code>@earendil-works/pi-coding-agent</code> (bin <code>pi</code>) and <code>openclaw@latest</code>, wiring each to its real config/paths/tools. Renamed "Pi · PyAgents" → "Pi" and migrated its vault note. All nine agents now resolve as ready.</p>
+        </div>
+      </li>
+
+      <li class="commit">
+        <div class="ctime">19:28</div>
+        <div class="cbody">
+          <h3>Robust transitions, memory swarm viz &amp; meeting voices<a class="sha" href="https://github.com/Bollo444/mission-control/commit/9adb5c9">9adb5c9</a></h3>
+          <p>Made the themed color-sweep overlay fire on every tab switch regardless of async load. Added the MemorySwarm visualization (Neural / Orbit / Stream, with a per-page toggle). Gave the boardroom Web Speech TTS with distinct per-agent voices and word-by-word reveal synced to speech (Voices toggle; user messages not read aloud).</p>
+        </div>
+      </li>
+
+      <li class="commit">
+        <div class="ctime">18:19</div>
+        <div class="cbody">
+          <h3>UI overhaul: fixed-viewport layout &amp; per-agent motion<a class="sha" href="https://github.com/Bollo444/mission-control/commit/42b3106">42b3106</a></h3>
+          <p>Locked the app to the viewport (only inner panels scroll) via a Screen primitive + fixed Shell. Added dramatic per-agent entrance animations replayed on every tab switch (9 themed keyframes, reduced-motion aware). AgentMetrics gained a distinct default preset per agent plus user toggle/reorder, persisted to localStorage.</p>
+        </div>
+      </li>
+
+      <li class="commit">
+        <div class="ctime">15:46</div>
+        <div class="cbody">
+          <h3>Real agent CLIs + free-model routing<a class="sha" href="https://github.com/Bollo444/mission-control/commit/e67c8a2">e67c8a2</a></h3>
+          <p>Installed Hermes via Nous Research <code>hermes-agent</code> and switched Kilo to the official <code>@kilocode/cli</code>. Added Nous + Kilo to the catalog (free tier), flagged Mistral/OpenRouter/Local as free, and pulled in OpenRouter's <code>:free</code> models. Made routing interchangeable — any agent can use any provider's free models — with "free" badges in Settings.</p>
+        </div>
+      </li>
+
+      <li class="commit">
+        <div class="ctime">14:24</div>
+        <div class="cbody">
+          <h3>Initial commit — Mission Control fleet console<a class="sha" href="https://github.com/Bollo444/mission-control/commit/59417a9">59417a9</a></h3>
+          <p>Scaffolded the unified local dashboard for nine AI coding agents (Claude, Hermes, Pi, OpenCode, Antigravity, OpenClaw, jcode, Vibe, Kilo) on Next.js 15 / React 19 / TypeScript / Tailwind v4, no database. Shipped the fleet overview, per-agent control pages, a browser IDE, a real interactive terminal, a system-ops console, a team-meeting boardroom and an Obsidian shared-memory vault.</p>
+        </div>
+      </li>
+
+    </ul>
+  </section>
+
+  <p class="note">Maintained alongside the code in <code>CHANGELOG.md</code>. Source list: <code>git log --date=format-local:'%Y-%m-%d %H:%M' --pretty=format:'%h | %ad | %s'</code></p>
 
 </div>
 <footer>
   <div class="wrap">
-    Mission Control · MIT · built local-first · <a href="https://github.com/Bollo444/mission-control">github.com/Bollo444/mission-control</a>
+    Mission Control · MIT · built local-first · <a href="./index.html">Home</a> · <a href="https://github.com/Bollo444/mission-control">github.com/Bollo444/mission-control</a>
   </div>
 </footer>
 </body>

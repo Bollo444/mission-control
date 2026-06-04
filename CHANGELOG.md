@@ -1,133 +1,223 @@
-# Changelog
+# Mission Control — build log & changelog
 
-All notable changes to **Mission Control** are recorded here. Entries are grouped
-into dated milestones and derived from the project's Git history; the short hash
-after each line links to the commit on GitHub.
+A detailed, timestamped record of the project's development: **every commit**,
+grouped by working session and shown newest-first. Times are local
+(America/New_York, UTC−04:00 / EDT). Each short hash links to the commit on GitHub.
 
-The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
-This project is run local-first and is not published as versioned releases, so
-milestones are named by date and theme rather than semantic version numbers.
+**3 sessions · 22 commits · 2026-05-31 → 2026-06-03**
+_Latest revision: 2026-06-03 — the changelog was expanded into this detailed,
+per-commit timestamped build log._
 
----
-
-## 2026-06-03 — Public launch & live limits
-
-### Added
-- **Static public landing page** (`site/`) in the Mission Control branding, with a
-  Caddy / VPS deploy guide (`site/DEPLOY.md`) — auto-HTTPS, no private URLs. `3b841d6`
-- **Branding**: README hero banner and app icon in the dark / signal-teal / ◎
-  identity, with the nine-color fleet spectrum and a telemetry motif. `7941729`
-- **Live per-provider rate limits** — OpenRouter reads `/credits` (≥ $10 purchased
-  unlocks 1,000 free req/day, else 50); the gateway captures
-  `x-ratelimit-limit-requests` / `-remaining-requests` / `-limit-tokens` from each
-  response so providers that report them (e.g. Groq) show real remaining counts.
-  Budget gauges now read the effective live-or-static limit and show "used / limit ·
-  live · N left". `22f6c9c`
-- **Gateway analytics tab** with today / 7d / 30d windows — per-provider volume,
-  success rate, latency and tokens (31-day daily history). `d1f361e`
-- **Tool-aware routing** (tool-call requests prefer tool-capable models) and
-  **streaming token accounting** (TPD now counts streamed responses via injected
-  `stream_options.include_usage`). `d1f361e`
-
-### Changed
-- **Every agent now defaults to a free model** so a fresh clone runs at zero cost:
-  `claude → Cerebras gpt-oss-120b`, `hermes → NVIDIA NIM qwen3-coder-480b`,
-  `antigravity → Groq llama-3.3-70b` (the other six were already free). Defaults
-  are spread so each free provider lights up at least one agent; saved user choices
-  are never overwritten. `d77b011`
-
-### Docs
-- Cloud-deployment compatibility map explaining why Vercel / serverless won't fit a
-  stateful, terminal-spawning control plane. `a9351a0`
-- Brief maintainer "how I run it" note at the top of the README. `7ac9eae`
-- Quick start now uses the real clone URL. `311454c`
+| Session | Date | Commits | Span (first → last commit) | Theme |
+|:--:|---|:--:|---|---|
+| 3 | 2026-06-03 (Wed) | 11 | 11:43 → 21:57 · ~10h | Gateway phases, branding & public launch |
+| 2 | 2026-06-02 (Tue) | 4 | 12:17 → 13:19 · ~1h | Providers, health monitor & cascade proxy |
+| 1 | 2026-05-31 (Sat) | 7 | 14:24 → 22:28 · ~8h | Initial fleet console |
 
 ---
 
-## 2026-06-02 → 06-03 — Free-LLM gateway & resilience
+## Session 3 — 2026-06-03 · Gateway phases, branding & public launch
+**11 commits · 11:43 → 21:57 EDT.** The gateway grew analytics, budgets and live
+limits; the project got its branding, docs and a public landing page, and went
+live on the web.
 
-### Added
-- **Fleet Gateway** (`lib/gateway.ts`, `/api/gateway/[...path]`) — one
-  OpenAI-compatible endpoint in front of every configured free provider (Cerebras,
-  NVIDIA NIM, Groq, Cloudflare Workers AI, Mistral, GitHub Models, OpenRouter,
-  OpenCode Zen, Local). Cross-provider cascade on 429/5xx with per-provider
-  cooldown, streaming pass-through, token authentication, and per-agent routing via
-  an `X-MC-Agent` header (this makes the routing table _live_ for agents pointed at
-  the gateway). `28dbbba`
-- **Universal Logs tab** (`lib/logbook.ts`, `app/logs`) — an append-only,
-  time-ordered JSONL record of everything Mission Control does: server start,
-  settings / routing / key changes, health sweeps, failover & recovery, every
-  gateway request and cascade, agent activity, and vault edits. Secrets are never
-  logged (names only). `28dbbba`
-- **Usage ledger** (`lib/usage.ts`, `lib/limits.ts`) — rolling RPM/RPD/TPM/TPD
-  counters plus success-rate and latency aggregates per provider; the gateway
-  pre-skips providers already over a known limit. `b36fe29`
-- **Sticky sessions** — a conversation stays on one model for ~30 min (`X-MC-Session`
-  header or auto-derived from the messages) to avoid context drift. `b36fe29`
-- **Vision routing** — image requests are routed only to vision-capable free
-  models. `b36fe29`
-- **Opt-in encryption at rest** (`lib/secretbox.ts`) — when `MC_ENCRYPTION_KEY` is
-  set, provider keys are AES-256-GCM encrypted in `settings.json` and decrypted in
-  memory; fully non-breaking when unset. `b36fe29`
-- **OpenRouter free-model cascade proxy** (`/api/route/openrouter/v1`) — tries the
-  requested model then cascades through the free catalog in chunks of three,
-  returning the first that isn't throttled. `5407a0a`
-- **6-hour health monitor** (`lib/health.ts`, `instrumentation.ts`) — per-provider
-  availability probes with auto-failover to a healthy free model and auto-revert
-  when the preferred model recovers; 429s treated as transient (never a false
-  failover). `ea605a6`
-- **Free-provider catalog** — OpenCode Zen, Groq, Cerebras, GitHub Models,
-  Cloudflare Workers AI, NVIDIA NIM, plus OpenRouter's full free tier; every model
-  id verified against live provider lists. `ea605a6`
+### 21:57 · [`113521e`](https://github.com/Bollo444/mission-control/commit/113521e) — Changelog, first cut
+Reconstructed the release history into a Keep-a-Changelog `CHANGELOG.md` and a
+branded `site/changelog.html` timeline, linked from the landing nav/footer and
+the README. _(Superseded the same session by this detailed, timestamped build
+log.)_
 
-### Changed
-- Per-agent routing split into **preferred** (your choice) vs **effective** (live),
-  so failover can auto-revert to the originally chosen model. `ea605a6`
-- **Cross-platform agent launch** — opens a real, visible terminal on macOS
-  (Terminal.app) and Linux (first available emulator) as well as Windows; IDE-open
-  no longer hardcodes `cmd.exe`. `879453d`
-- The **team meeting no longer auto-convenes** on tab load — added a "Convene the
-  fleet" start gate. `879453d`
+### 17:57 · [`3b841d6`](https://github.com/Bollo444/mission-control/commit/3b841d6) — Public landing page + deploy guide
+Added a self-contained marketing page (`site/index.html` + `banner.svg`) in the
+app's branding with CTAs to the repo, plus `site/DEPLOY.md` for hosting it on a
+VPS with Caddy (automatic HTTPS). No private URLs included.
 
-### Docs
-- "How it works under the hood" callout — **control plane vs. inference path**: the
-  dashboard records intent and monitors health but does not intercept agents' LLM
-  calls unless an agent is explicitly pointed at the gateway. `6ddb91a`
-- "Platform support — do I qualify?" matrix (Windows / macOS / Linux, x64 or ARM64,
-  Node 18.18+). `879453d`
+### 15:01 · [`d77b011`](https://github.com/Bollo444/mission-control/commit/d77b011) — Zero-cost defaults (every agent on a free model)
+Moved the three remaining paid defaults onto free providers so a fresh clone
+runs every agent free, spread so each provider lights up at least one agent:
+`claude → Cerebras gpt-oss-120b`, `hermes → NVIDIA NIM qwen3-coder-480b`,
+`antigravity → Groq llama-3.3-70b`. Affects only the defaults a new clone starts
+from — saved user choices are never overwritten.
+
+### 14:52 · [`22f6c9c`](https://github.com/Bollo444/mission-control/commit/22f6c9c) — Live per-provider rate limits
+`lib/livelimits.ts` persists real limits to `~/.mission-control/livelimits.json`.
+The health sweep reads OpenRouter `/credits` (≥ $10 purchased unlocks 1,000 free
+req/day, else 50); the gateway captures `x-ratelimit-limit-requests` /
+`-remaining-requests` / `-limit-tokens` from each response (e.g. Groq) for real
+remaining counts. Budget gauges now show "used / limit · live · N left", falling
+back to the labeled estimate where a provider doesn't report. Verified OpenRouter
+at 1,000/day (from $15 credits) and Groq's headers live.
+
+### 14:27 · [`7ac9eae`](https://github.com/Bollo444/mission-control/commit/7ac9eae) — Docs: maintainer "how I run it" note
+Added a brief note at the very top of the README describing how the maintainer
+runs it day-to-day — with private URLs and email deliberately kept out.
+
+### 14:23 · [`a9351a0`](https://github.com/Bollo444/mission-control/commit/a9351a0) — Docs: cloud-deployment compatibility map
+Added a map explaining why a stateful, terminal-spawning control plane doesn't
+fit Vercel / serverless platforms, and what does (an always-on VPS or box).
+
+### 14:13 · [`311454c`](https://github.com/Bollo444/mission-control/commit/311454c) — Docs: real clone URL in Quick start
+Replaced the placeholder with the actual `github.com/Bollo444/mission-control`
+clone URL.
+
+### 13:51 · [`7941729`](https://github.com/Bollo444/mission-control/commit/7941729) — Branding: banner, icon & refreshed title
+Added `assets/banner.svg` (README hero) and `assets/icon.svg` in the dark /
+signal-teal / ◎ identity, with the nine-color fleet spectrum and a telemetry
+motif. The README now leads with the banner and the title "Mission Control — AI
+agent fleet console + free-LLM gateway."
+
+### 12:18 · [`d1f361e`](https://github.com/Bollo444/mission-control/commit/d1f361e) — Gateway analytics, tool-aware routing, streaming token capture
+Added 31-day per-provider history and `GET /api/analytics?window=today|7d|30d`,
+surfaced in a new **Gateway** tab with a window toggle and per-provider bars.
+Tool-call requests now prefer tool-capable models. Streaming responses inject
+`stream_options.include_usage` and a pass-through scans the SSE tail for
+`total_tokens`, so TPD counts streamed output too. _(Same window: the OpenCode
+CLI was pointed at the gateway via `~/.config/opencode/opencode.json`, default
+model `missioncontrol/auto`.)_
+
+### 12:04 · [`b36fe29`](https://github.com/Bollo444/mission-control/commit/b36fe29) — Gateway phase 2/3: budgets, sticky sessions, vision, encryption
+Usage ledger (`lib/usage.ts` + `lib/limits.ts`): rolling RPM/RPD/TPM/TPD plus
+success-rate and latency per provider, with the gateway pre-skipping providers
+already over a known limit. **Sticky sessions** keep a conversation on one model
+~30 min (`X-MC-Session`). **Vision routing** sends image requests only to
+vision-capable models. **Opt-in AES-256-GCM key encryption** at rest
+(`lib/secretbox.ts`, `MC_ENCRYPTION_KEY`), fully non-breaking when unset.
+Settings gained budget gauges, success/latency, and an encryption-at-rest badge.
+
+### 11:43 · [`28dbbba`](https://github.com/Bollo444/mission-control/commit/28dbbba) — Fleet Gateway (all-provider cascade) + universal Logs tab
+The big one. Built the native gateway (`lib/gateway.ts`,
+`app/api/gateway/[...path]`): one OpenAI-compatible endpoint in front of every
+free provider, routing by explicit model, `auto`, or the calling agent's
+preferred model via an `X-MC-Agent` header — which makes the routing table
+**live**. Cross-provider cascade on 429/5xx with per-provider cooldown, streaming
+pass-through, `X-MC-Served-By` / `X-MC-Attempts` headers, and token auth (token
+surfaced + copyable in Settings). Added the append-only JSONL logbook
+(`lib/logbook.ts` → `events.log`) and a live **Logs** tab with source/level
+filters, search and clear — secrets never logged (names only).
+
+#### Beyond the commits — operations & launch (2026-06-03)
+_Real milestones from this session that live outside Git:_
+- Pushed the repository **public** to `github.com/Bollo444/mission-control`.
+- Set the GitHub **About** panel — description, topics, and homepage
+  (`mc.decouvertquatrieme.online`).
+- Verified **all nine agent CLIs are installed** locally (fleet 9/9 ready).
+- Pointed the **OpenCode CLI at the Fleet Gateway** to activate live routing.
+- Confirmed the **OpenRouter** account is on the **1,000 req/day** free tier
+  ($15 lifetime credits).
+- **Deployed the landing page** to the Contabo VPS behind Caddy (auto-HTTPS) and
+  published it at **https://mc.decouvertquatrieme.online** through the Cloudflare
+  tunnel.
+- Kept the private dashboard **locked behind Cloudflare Access** (single-account).
+- Published the **public changelog** at `/changelog` (clean URL via Caddy
+  `try_files`).
 
 ---
 
-## 2026-05-31 — Initial fleet console
+## Session 2 — 2026-06-02 · Providers, health monitor & cascade proxy
+**4 commits · 12:17 → 13:19 EDT.** A tight, focused hour: the free-provider
+catalog, the self-healing health monitor, the OpenRouter cascade proxy, and the
+docs that explain what the dashboard does and doesn't touch.
 
-### Added
-- **Unified local dashboard for nine AI coding agents** (Claude, Hermes, Pi,
-  OpenCode, Antigravity, OpenClaw, jcode, Vibe, Kilo): fleet overview, per-agent
-  mission control, a browser Antigravity IDE, an interactive system terminal, an
-  OpenClaw system-operations console, a team-meeting boardroom, and an Obsidian
-  shared-memory vault. Next.js 15 / React 19 / TypeScript / Tailwind v4, no
-  database. `59417a9`
-- **Free-model providers** (Nous Research, Kilo) and **cross-agent routing** so any
-  agent can use any provider's free models, with "free" badges in Settings.
-  `e67c8a2`
-- **Live overview** — CPU / memory / disk gauges, a fleet-readiness bar and a 24h
-  activity sparkline; each agent page gained a scoped terminal ready for prompting.
-  `7ad0bef`
-- **Memory vault visualizations** (List / Neural / Orbit / Stream) and a
-  team-meeting boardroom with distinct per-agent text-to-speech voices. `9adb5c9`
+### 13:19 · [`6ddb91a`](https://github.com/Bollo444/mission-control/commit/6ddb91a) — Docs: control plane vs. inference path
+Added a highlighted "How it works under the hood" callout (with a seating-chart /
+switchboard analogy) clarifying that Mission Control records intent and monitors
+health but does **not** intercept agents' LLM calls — wiring an agent to a model
+or the cascade proxy is a machine-local edit to that agent's own config, outside
+the repo, with no effect on people who clone it.
 
-### Changed
-- Bound the agents to their **real npm CLIs so all nine resolve ready (9/9)**:
-  Hermes (`hermes-agent`), Kilo (`@kilocode/cli`), Pi
-  (`@earendil-works/pi-coding-agent`), OpenClaw (`openclaw`). `8333db5`, `e67c8a2`
-- **Fixed-viewport layout** with dramatic per-agent route transitions and
-  customizable, persisted metric presets. `42b3106`, `9adb5c9`
+### 12:59 · [`5407a0a`](https://github.com/Bollo444/mission-control/commit/5407a0a) — OpenRouter free-model cascade proxy
+Added an OpenAI-compatible proxy at `/api/route/openrouter/v1` that tries the
+requested model then cascades through every free model in chunks of three,
+returning the first that isn't throttled (OpenRouter's native `models[]` fallback
+caps at 3). Reads the key from `~/.mission-control`, streams the upstream through,
+and reports cascade depth via the `X-MC-OR-Fallback-Set` header. Verified live: a
+throttled `qwen3-coder:free` request was transparently served by the next live
+free model.
 
-### Fixed
-- IDE line-number / gutter alignment (no soft-wrap, synced scroll) and snappier
-  load / animation timings throughout. `f95e3db`
+### 12:33 · [`879453d`](https://github.com/Bollo444/mission-control/commit/879453d) — Cross-platform launch + explicit meeting start
+`lib/launch.ts` now opens a real, visible terminal on macOS (Terminal.app via
+AppleScript) and Linux (first available of x-terminal-emulator, gnome-terminal,
+konsole, xfce4-terminal, kitty, alacritty, xterm) as well as Windows, falling
+back to a detached shell; IDE-open no longer hardcodes `cmd.exe`. The boardroom no
+longer auto-convenes on tab load — added a "Convene the fleet" gate. README gained
+the Windows/macOS/Linux platform matrix and a pre-install checklist.
+
+### 12:17 · [`ea605a6`](https://github.com/Bollo444/mission-control/commit/ea605a6) — Free-provider catalog + 6-hour health monitor
+Added OpenCode Zen, Groq, Cerebras, GitHub Models, Cloudflare Workers AI, NVIDIA
+NIM and OpenRouter's full free tier — every model id verified against live
+provider lists. Split per-agent routing into **preferred** (your choice) vs
+**effective** (live). Built the health monitor (`lib/health.ts`): per-provider
+probes with auto-failover to a healthy free model and auto-revert when the
+preferred recovers (429s treated as transient); a boot-time 6h scheduler
+(`instrumentation.ts`); `app/api/health`; and Settings status dots, "Check now",
+a free-tier limits panel and a failover badge. Shipped a comprehensive README and
+`.env.example`.
 
 ---
 
-_This changelog is maintained alongside the code. To regenerate the source list,
-run `git log --pretty=format:"%h %ad %s" --date=short`._
+## Session 1 — 2026-05-31 · Initial fleet console
+**7 commits · 14:24 → 22:28 EDT.** From an empty repo to a nine-agent console
+with a browser IDE, terminals, a boardroom and a memory vault — all nine agents
+bound to their real CLIs and resolving ready.
+
+### 22:28 · [`f95e3db`](https://github.com/Bollo444/mission-control/commit/f95e3db) — IDE gutter fix + snappier timings
+Stopped the IDE textarea soft-wrapping (`wrap=off`, `whitespace-pre`) and synced
+the gutter scroll so line numbers align 1:1 with code. Tightened animation timings
+throughout: entrances 0.5–0.6s → ~0.3–0.38s, route sweeps → ~0.42s, card stagger
+40ms → 22ms, overview gauges 700ms → 500ms, CPU sample 140ms → 90ms.
+
+### 21:06 · [`7ad0bef`](https://github.com/Bollo444/mission-control/commit/7ad0bef) — Color swap, hover glow, live overview & per-agent terminals
+Swapped Hermes ↔ OpenCode accents (Hermes amber, OpenCode violet) across the
+registry, transitions and vault. Added tasteful accent hover-glow, containment
+fixes (overflow-hidden + truncate), and edge-proximity auto-scroll on the agent
+list (rAF, cached rect, refs not state). Gave each agent page a scoped
+FleetTerminal, and built OverviewMetrics — live CPU/mem/disk gauges, a
+fleet-readiness bar and a 24h activity sparkline.
+
+### 20:11 · [`8333db5`](https://github.com/Bollo444/mission-control/commit/8333db5) — Fleet 9/9: Pi & OpenClaw bound to real CLIs
+Installed `@earendil-works/pi-coding-agent` (bin `pi` 0.78.0) and `openclaw@latest`
+(bin `openclaw`), wiring each to its real config/paths/tools. Renamed
+"Pi · PyAgents" → "Pi" and migrated its vault note. Flagged that the real OpenClaw
+is a personal-assistant gateway vs the fleet's system-ops persona. All nine agents
+now resolve as ready.
+
+### 19:28 · [`9adb5c9`](https://github.com/Bollo444/mission-control/commit/9adb5c9) — Robust transitions, memory swarm viz & meeting voices
+Made the themed color-sweep overlay fire on every tab switch regardless of async
+load. Added the MemorySwarm visualization (Neural / Orbit / Stream expressions +
+pop-to-open detail, with a List|Neural|Orbit|Stream toggle on the vault, view
+persisted). Gave the boardroom Web Speech TTS with distinct per-agent
+voices/accents and word-by-word reveal synced to speech boundaries (Voices
+toggle; user messages not read aloud).
+
+### 18:19 · [`42b3106`](https://github.com/Bollo444/mission-control/commit/42b3106) — UI overhaul: fixed-viewport layout & per-agent motion
+Locked the app to the viewport (no document scroll; only inner panels scroll) via
+a Screen primitive + fixed Shell with a scrollable agent nav. Added dramatic
+per-agent entrance animations replayed on every tab switch (RouteTransition + 9
+themed keyframes, reduced-motion aware). AgentMetrics gained a distinct default
+preset per agent plus user toggle/reorder, persisted to localStorage.
+
+### 15:46 · [`e67c8a2`](https://github.com/Bollo444/mission-control/commit/e67c8a2) — Real agent CLIs + free-model routing
+Installed Hermes via Nous Research `hermes-agent` and switched Kilo from the VS
+Code extension to the official `@kilocode/cli`. Added Nous + Kilo to the provider
+catalog (free tier), flagged Mistral/OpenRouter/Local as free, and pulled in
+OpenRouter's `:free` models. Made routing interchangeable — any agent can use any
+provider's free models — with sensible defaults (Hermes→Nous, OpenClaw→Kilo).
+Added "free" badges in Settings.
+
+### 14:24 · [`59417a9`](https://github.com/Bollo444/mission-control/commit/59417a9) — Initial commit: Mission Control fleet console
+Scaffolded the unified local dashboard for nine AI coding agents (Claude, Hermes,
+Pi, OpenCode, Antigravity, OpenClaw, jcode, Vibe, Kilo) on Next.js 15 / React 19 /
+TypeScript / Tailwind v4, with no database. Shipped the fleet overview, per-agent
+mission-control pages, a browser Antigravity IDE, a real interactive system
+terminal, an OpenClaw system-operations console, a team-meeting boardroom (Claude
+chair + jcode co-chair), and an Obsidian shared-memory vault.
+
+---
+
+### Maintaining this log
+Going forward, add a new dated entry per commit (or per session) at the top of the
+matching session, newest-first. To list raw commits with their timestamps:
+
+```bash
+git log --date=format-local:'%Y-%m-%d %H:%M' --pretty=format:'%h | %ad | %s'
+```
