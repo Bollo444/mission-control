@@ -51,6 +51,7 @@ and direct calls to the model providers you choose.
 - [Deployment (always-on)](#deployment-always-on)
 - [Architecture](#architecture)
 - [Tech stack](#tech-stack)
+- [Changelog](CHANGELOG.md) — release history
 - [License](#license)
 
 ---
