@@ -328,33 +328,36 @@ export function buildMeeting(report: SystemReport): MeetingResp {
   const c = deriveCtx(report);
   __tid = 0;
   const turns: MeetingTurn[] = [];
+  const spoke = new Set<string>();
+  const say = (id: string, phase: MeetingTurn["phase"], text: string) => {
+    turns.push(turn(id, phase, text));
+    spoke.add(id);
+  };
 
-  // 1) Co-chairs open: Claude frames synthesis, jcode frames the dispatch plan.
-  turns.push(turn("claude", "open", PERSONAS.claude.status(c)));
-  turns.push(turn("jcode", "open", jcodeOpen(c)));
+  // 1) Convene — the chair frames the agenda from the live state (one opener,
+  //    not a full status round).
+  say("claude", "open", opener(c));
 
-  // 2) Status round — the specialists (both co-chairs are running the meeting).
-  for (const id of ORDER.filter((x) => x !== "claude" && x !== "jcode")) {
-    turns.push(turn(id, "status", PERSONAS[id].status(c)));
+  // 2) Discussion — the 2-3 most pressing live issues, each as a short thread
+  //    where agents answer each other by name. Only the relevant voices engage.
+  const firing = TOPICS.filter((t) => t.id !== "proactive" && t.fires(c)).sort(
+    (a, b) => b.weight(c) - a.weight(c)
+  );
+  const chosen = (firing.length ? firing : [TOPICS.find((t) => t.id === "proactive")!]).slice(0, 3);
+  const decisions: { action: string; owner: string }[] = [];
+  for (const t of chosen) {
+    for (const line of t.thread(c)) say(line.id, "reply", line.text);
+    const d = t.decision(c);
+    if (d) decisions.push(d);
   }
 
-  // 3) Concerns — only those that actually fire, capped to keep it tight.
-  const concerns = ORDER.map((id) => ({ id, text: PERSONAS[id].concern(c) }))
-    .filter((x): x is { id: string; text: string } => Boolean(x.text))
-    .slice(0, 5);
-  for (const { id, text } of concerns) turns.push(turn(id, "concern", text));
+  // 3) A few voices not yet heard chime in — brief and varied, never a full round.
+  const unheard = ORDER.filter((id) => !spoke.has(id));
+  for (const id of shuffle(unheard).slice(0, 3)) say(id, "reply", checkIn(id, c));
 
-  // 4) Suggestions / where to go next — every agent contributes one.
-  for (const id of ORDER) turns.push(turn(id, "suggestion", PERSONAS[id].suggestion(c)));
-
-  // 5) A few open questions to the room + user.
-  const questions = ORDER.map((id) => ({ id, text: PERSONAS[id].question(c) }))
-    .filter((x): x is { id: string; text: string } => Boolean(x.text));
-  for (const { id, text } of shuffle(questions).slice(0, 3)) turns.push(turn(id, "question", text));
-
-  // 6) Co-chairs close: Claude sets the priorities/why, jcode assigns owners in parallel.
-  turns.push(turn("claude", "close", chairDecision(c)));
-  turns.push(turn("jcode", "close", cochairDispatch(c)));
+  // 4) Close — the chairs land the decision: a crisp summary, not a re-run.
+  say("claude", "close", chairClose(c, decisions));
+  say("jcode", "close", cochairClose(decisions));
 
   const metrics: MeetingMetric[] = [
     { label: "agents live", value: `${c.ready}/${c.total}`, tone: c.ready >= c.total / 2 ? "ok" : "warn" },
@@ -374,37 +377,205 @@ export function buildMeeting(report: SystemReport): MeetingResp {
   return { generatedAt: new Date().toISOString(), metrics, roster, turns };
 }
 
-/** jcode's co-chair opener — it owns delegation & parallel dispatch. */
-function jcodeOpen(c: Ctx): string {
+/* ---- Topic-driven discussion ----------------------------------------- *
+ * Each topic fires on a live condition and returns a short thread where    *
+ * agents answer each other by name, grounded in the system numbers. The    *
+ * meeting picks the 2-3 highest-weight firing topics, so the room works     *
+ * the real issues instead of every agent reciting its lens in turn.        *
+ * ---------------------------------------------------------------------- */
+
+interface Topic {
+  id: string;
+  fires: (c: Ctx) => boolean;
+  weight: (c: Ctx) => number;
+  thread: (c: Ctx) => { id: string; text: string }[];
+  decision: (c: Ctx) => { action: string; owner: string } | null;
+}
+
+const TOPICS: Topic[] = [
+  {
+    id: "provision",
+    fires: (c) => c.offline > 0,
+    weight: (c) => 50 + c.offline * 6,
+    thread: (c) => [
+      {
+        id: "jcode",
+        text: `Before we fan anything out — we're ${c.ready}/${c.total} actually live. ${list(c.offlineNames)} ${c.offline === 1 ? "is" : "are"} dark, so there's nowhere to dispatch half the work.`,
+      },
+      {
+        id: "opencode",
+        text: pick([
+          `That's the routing side too, jcode — with ${c.offline} offline, redundancy is theoretical; failover has nothing to fall back to.`,
+          `Same problem from where I sit: an offline agent is a route that 404s. Provision first, optimise cost second.`,
+        ]),
+      },
+      {
+        id: "kilo",
+        text: `And it stays bespoke until we fix it — give me one provisioning convention and the next agent is a template, not a project.`,
+      },
+    ],
+    decision: (c) => ({ action: `provision ${c.offlineNames[0] ?? "an offline agent"}`, owner: "OpenClaw (wiring)" }),
+  },
+  {
+    id: "memory",
+    fires: (c) => staleVault(c),
+    weight: () => 42,
+    thread: (c) => [
+      {
+        id: "jcode",
+        text: `Heads-up before we delegate: shared memory's stale — last write ${c.lastActivity ? relTime(c.lastActivity) : "never"}. Dispatch off stale context and you just parallelise the mistakes.`,
+      },
+      {
+        id: "antigravity",
+        text: `Agreed — the workspace is only as smart as what's written into it. I'll keep every note one keystroke from the editor so updating it isn't a chore.`,
+      },
+      {
+        id: "pi",
+        text: `Then let's instrument it — one digest per action and "stale" becomes a number we watch, not a feeling.`,
+      },
+    ],
+    decision: () => ({ action: "resume one-line vault digests after each action", owner: "jcode" }),
+  },
+  {
+    id: "throughput",
+    fires: (c) => c.idleReady.length > 0,
+    weight: (c) => 30 + c.idleReady.length * 4,
+    thread: (c) => [
+      {
+        id: "hermes",
+        text: `${list(c.idleReady)} ${c.idleReady.length === 1 ? "is" : "are"} live but idle — that's capacity we're paying for in standby and not turning into runs.`,
+      },
+      {
+        id: "jcode",
+        text: `Then it's unassigned, not idle. Hand me one real task and I'll route it to ${c.idleReady[0]} and track the thread.`,
+      },
+      {
+        id: "claude",
+        text: pick([
+          `Draft the run, Hermes — define done-criteria so it finishes unattended and we review the diff, not the keystrokes.`,
+          `Pick something repeatable so it earns its keep every night, not once. Then hand it to dispatch.`,
+        ]),
+      },
+    ],
+    decision: (c) => ({ action: `put ${c.idleReady[0]} on a real task`, owner: "Hermes (drafts the run)" }),
+  },
+  {
+    id: "disk",
+    fires: (c) => c.disk != null && c.disk >= 80,
+    weight: (c) => 60 + ((c.disk ?? 80) - 80),
+    thread: (c) => [
+      {
+        id: "openclaw",
+        text: `Machine-health flag: disk's at ${c.disk}%. I should reclaim temp and caches before it starts dragging write performance — restore-point first, reversible.`,
+      },
+      {
+        id: "pi",
+        text: `Baseline it before and after, OpenClaw, so we can prove the reclaim actually moved the number.`,
+      },
+      {
+        id: "openclaw",
+        text: `Will do — I'll propose the exact commands for you to approve. Nothing destructive runs on its own.`,
+      },
+    ],
+    decision: (c) => ({ action: `reclaim disk (at ${c.disk}%) from temp & caches`, owner: "OpenClaw (machine health)" }),
+  },
+  {
+    id: "resources",
+    fires: (c) => c.cpu >= 80 || c.mem >= 85,
+    weight: (c) => 40 + Math.max(c.cpu - 80, c.mem - 85, 0),
+    thread: (c) => [
+      {
+        id: "pi",
+        text: `Headroom's tight — CPU ${c.cpu}%, mem ${c.mem}% on a ${c.cores}-core host. We're closer to the wall than I'd like.`,
+      },
+      {
+        id: "vibe",
+        text: `That one's mine to feel — local-model work needs room to breathe, and at ${c.mem}% it won't.`,
+      },
+      {
+        id: "openclaw",
+        text: `Point me at it — I'll audit startup apps and resident services for headroom, reversibly, proposed for sign-off.`,
+      },
+    ],
+    decision: () => ({ action: "free resource headroom", owner: "Pi (measures) → OpenClaw (tunes)" }),
+  },
+  {
+    id: "telemetry",
+    fires: (c) => c.activity < 5,
+    weight: () => 34,
+    thread: (c) => [
+      {
+        id: "pi",
+        text: `We've got almost no telemetry — ${c.activity} activity ${c.activity === 1 ? "entry" : "entries"} total. We're steering on vibes, not data.`,
+      },
+      {
+        id: "opencode",
+        text: `Same blind spot on cost — you can't optimise a route you never logged.`,
+      },
+      {
+        id: "kilo",
+        text: `Make it a convention then: log one metric per action and next month is measurable by default.`,
+      },
+    ],
+    decision: () => ({ action: "log one metric per action", owner: "Pi" }),
+  },
+  {
+    // Fallback when the fleet is basically healthy — keeps the room useful.
+    id: "proactive",
+    fires: () => true,
+    weight: () => 5,
+    thread: (c) => [
+      {
+        id: "claude",
+        text: `Nothing's on fire — ${c.ready}/${c.total} live, vault ${staleVault(c) ? "a little stale" : "fresh"}. So the real question is where we push next.`,
+      },
+      {
+        id: "hermes",
+        text: pick([
+          `Put the quiet to work: a nightly unattended pass — lint, dep-check, vault digest — so value lands while no one's watching.`,
+          `Let me schedule a recurring background run; the fleet should produce something every night, not just when prompted.`,
+        ]),
+      },
+      {
+        id: "kilo",
+        text: `Whatever we pick, encode it as a convention so it runs itself next time instead of becoming a one-off.`,
+      },
+    ],
+    decision: () => ({ action: "ship one diff-first improvement", owner: "OpenClaw" }),
+  },
+];
+
+function opener(c: Ctx): string {
+  if (c.offline > c.ready)
+    return pick([
+      `All-hands. We're only ${c.ready}/${c.total} actually live — let's fix what we can reach, then steer.`,
+      `Quick all-hands. Most of the roster's dark (${c.ready}/${c.total} up). I'll keep this tight and we triage the rest.`,
+    ]);
+  if (staleVault(c))
+    return `All-hands — ${c.ready}/${c.total} live, ${c.sessions} sessions on record, but the vault's gone quiet (last touch ${c.lastActivity ? relTime(c.lastActivity) : "never"}). That's our first thread.`;
   return pick([
-    `Co-chairing delegation. ${c.ready} agents live to dispatch to, ${c.offline} dark — I'll fan independent work across the live ones in parallel and track every thread in the vault.`,
-    `On dispatch: ${c.ready}/${c.total} available for parallel assignment. I route each leg to whoever's strongest and keep shared memory authoritative as we go.`,
+    `All-hands. ${c.ready}/${c.total} live, ${c.sessions} sessions on record, CPU ${c.cpu}% / mem ${c.mem}%. Let's keep it to what actually needs us.`,
+    `Room's convened — ${c.ready}/${c.total} up, host looks ${c.cpu < 70 && c.mem < 80 ? "healthy" : "tight"}. Two or three real items, then we dispatch.`,
   ]);
 }
 
-/** Shared close. Claude owns the decision/why; jcode owns owners + parallel dispatch. */
-function priorities(c: Ctx): { action: string; owner: string }[] {
-  const out: { action: string; owner: string }[] = [];
-  if (c.offline > 0) out.push({ action: `provision ${c.offlineNames[0] ?? "an offline agent"}`, owner: "OpenClaw (wiring)" });
-  if (staleVault(c)) out.push({ action: "resume one-line vault digests after each action", owner: "jcode" });
-  if (c.idleReady.length) out.push({ action: `put ${c.idleReady[0]} on a real task`, owner: "Hermes (drafts the run)" });
-  if (c.disk != null && c.disk >= 80) out.push({ action: `reclaim disk (at ${c.disk}%) from temp & caches`, owner: "OpenClaw (machine health)" });
-  if (c.cpu >= 80 || c.mem >= 85) out.push({ action: "instrument resource headroom", owner: "Pi (measures) → OpenClaw (tunes)" });
-  if (out.length === 0) out.push({ action: "ship one diff-first cleanup", owner: "OpenClaw" });
-  return out;
+/** A brief, in-character chime-in from an agent that hasn't spoken yet. */
+function checkIn(id: string, c: Ctx): string {
+  return PERSONAS[id]?.suggestion(c) ?? "";
 }
 
-function chairDecision(c: Ctx): string {
-  const items = priorities(c).slice(0, 3);
-  return `Decision: priorities are ${items
-    .map((p, i) => `(${i + 1}) ${p.action}`)
-    .join("; ")}. jcode, take dispatch — I'll write the rationale to Shared Knowledge so next meeting starts here.`;
+function chairClose(c: Ctx, decisions: { action: string; owner: string }[]): string {
+  if (decisions.length === 0)
+    return `So we're steady — nothing urgent to fight. I'll note that we held the line and we pick the thread back up next round.`;
+  const items = decisions.slice(0, 3).map((d, i) => `(${i + 1}) ${d.action}`).join("; ");
+  return `Decision — priorities are ${items}. jcode's got dispatch; I'll write the rationale to Shared Knowledge so next round starts from here.`;
 }
 
-function cochairDispatch(c: Ctx): string {
-  const items = priorities(c).slice(0, 3);
-  const assignments = items.map((p, i) => `(${i + 1}) ${p.action} → ${p.owner}`).join("; ");
-  return `On it — dispatching in parallel: ${assignments}. I'll track each thread in the vault and flag blockers back to the chair.`;
+function cochairClose(decisions: { action: string; owner: string }[]): string {
+  if (decisions.length === 0)
+    return `Nothing to fan out — I'll keep shared memory current and flag the moment anything drifts.`;
+  const items = decisions.slice(0, 3).map((d, i) => `(${i + 1}) ${d.action} → ${d.owner}`).join("; ");
+  return `On it — dispatching in parallel: ${items}. I'll track each thread in the vault and bounce blockers back to the chair.`;
 }
 
 function shuffle<T>(arr: T[]): T[] {
