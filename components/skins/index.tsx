@@ -26,6 +26,7 @@ const META: Record<string, { mood: string; type: Skin["type"]; ide?: boolean; co
   jcode: { mood: "Swarm", type: "mono" },
   vibe: { mood: "Resonance", type: "sans" },
   kilo: { mood: "Blueprint", type: "mono" },
+  sentinel: { mood: "Vigil", type: "mono" },
 };
 
 const FALLBACK_BG = BACKGROUNDS.claude;

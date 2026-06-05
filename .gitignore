@@ -33,3 +33,8 @@ Thumbs.db
 
 # the shared-memory vault is personal and lives in $HOME, never in the repo
 /MissionControlVault/
+
+# Sentinel — local security-agent workspace (754 cyber skills + swarm runtime +
+# its own keys). Personal & heavy; never publish to the repo.
+/sentinel/
+/secswarm/

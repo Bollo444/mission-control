@@ -105,7 +105,7 @@ export default function SettingsPage() {
             </p>
           </div>
           <div className="divide-y">
-            {agents.map((a) => {
+            {agents.filter((a) => a.id !== "sentinel").map((a) => {
               const route = routing[a.id] ?? { provider: "anthropic", model: "" };
               const prov = providers.find((p) => p.id === route.provider);
               const eff = data.routing[a.id];

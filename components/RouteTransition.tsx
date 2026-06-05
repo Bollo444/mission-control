@@ -24,6 +24,7 @@ const AGENTS: Record<string, Trans> = {
   jcode: { enter: "mc-enter-zoom", sweep: "mc-sweep-diag", accent: "#46e0d0" },
   vibe: { enter: "mc-enter-pulse", sweep: "mc-sweep-iris", accent: "#f06a7a" },
   kilo: { enter: "mc-enter-fold", sweep: "mc-sweep-up", accent: "#c0c6d4" },
+  sentinel: { enter: "mc-enter-iris", sweep: "mc-sweep-diag", accent: "#d65db1" },
 };
 
 const ROUTES: Record<string, Trans> = {

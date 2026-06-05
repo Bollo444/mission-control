@@ -1,4 +1,4 @@
-import { home } from "./paths";
+import { home, repo } from "./paths";
 
 export type AgentKind = "cli" | "ide" | "framework";
 export type ConfigFormat = "toml" | "json" | "dir" | "none";
@@ -54,6 +54,12 @@ export interface AgentDef {
   homepage?: string;
   docsNote?: string;
 }
+
+/** Launcher for the local Sentinel security swarm (workspace under ./sentinel). */
+const SENTINEL_LAUNCHER =
+  process.platform === "win32"
+    ? repo("sentinel", "run-sentinel.cmd")
+    : repo("sentinel", "run-sentinel.sh");
 
 export const AGENTS: AgentDef[] = [
   {
@@ -325,6 +331,40 @@ export const AGENTS: AgentDef[] = [
     install: { manager: "npm", command: "npm install -g @kilocode/cli", docs: "https://kilo.ai/cli" },
     homepage: "https://kilo.ai",
     tools: ["CLI agent", "Free models (500+)", "Custom modes", "MCP", "VS Code / JetBrains"],
+  },
+
+  // --- Local security swarm (gitignored workspace under ./sentinel) ---
+  {
+    id: "sentinel",
+    name: "Sentinel",
+    tagline:
+      "Local security operator — 754 cyber-skill playbooks; recon → vuln → hunt → IR → malware → reporting, on free models.",
+    kind: "cli",
+    accent: "#d65db1",
+    glyph: "⬡",
+    primary: false,
+    binPaths: [SENTINEL_LAUNCHER],
+    configPaths: [repo("sentinel", ".claude", "skills")],
+    configFormat: "dir",
+    sessionFormat: "none",
+    launch: {
+      cmd:
+        process.platform === "win32"
+          ? `"${SENTINEL_LAUNCHER}"`
+          : `bash "${SENTINEL_LAUNCHER}"`,
+      args: [],
+      askCwd: false,
+    },
+    tools: [
+      "Recon & OSINT",
+      "Vulnerability assessment",
+      "Threat hunting",
+      "Incident response",
+      "Malware analysis",
+      "754 skill playbooks",
+    ],
+    docsNote:
+      "A local, gitignored security swarm under ./sentinel (a fresh OpenSwarm fork + 754 Anthropic cybersecurity skills, free model via LiteLLM). Launch runs ./sentinel/run-sentinel.cmd. Setup is local — see sentinel/README.local.md. Authorized targets only.",
   },
 ];
 
