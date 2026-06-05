@@ -3,6 +3,11 @@ import {
   listVaultTree,
   readVaultFile,
   writeVaultFile,
+  searchVault,
+  createVaultFile,
+  createVaultFolder,
+  renameVaultEntry,
+  deleteVaultEntry,
   VAULT_DIR,
 } from "@/lib/memory";
 
@@ -17,19 +22,47 @@ export async function GET(req: Request) {
     if (!f) return NextResponse.json({ error: "Not found" }, { status: 404 });
     return NextResponse.json(f);
   }
+  const search = url.searchParams.get("search");
+  if (search != null) {
+    return NextResponse.json({ query: search, hits: searchVault(search) });
+  }
   return NextResponse.json({ vaultDir: VAULT_DIR, tree: listVaultTree() });
 }
 
 export async function POST(req: Request) {
-  let body: { path?: string; content?: string };
+  let body: { op?: string; path?: string; content?: string; to?: string };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ ok: false, message: "Invalid body" }, { status: 400 });
   }
-  if (!body.path || body.content == null) {
-    return NextResponse.json({ ok: false, message: "Missing path/content" }, { status: 400 });
+
+  const op = body.op ?? "save";
+  const rel = body.path;
+  if (!rel) return NextResponse.json({ ok: false, message: "Missing path" }, { status: 400 });
+
+  let ok = false;
+  switch (op) {
+    case "save":
+      if (body.content == null)
+        return NextResponse.json({ ok: false, message: "Missing content" }, { status: 400 });
+      ok = writeVaultFile(rel, body.content);
+      break;
+    case "create":
+      ok = createVaultFile(rel, body.content ?? "");
+      break;
+    case "createFolder":
+      ok = createVaultFolder(rel);
+      break;
+    case "rename":
+      if (!body.to) return NextResponse.json({ ok: false, message: "Missing to" }, { status: 400 });
+      ok = renameVaultEntry(rel, body.to);
+      break;
+    case "delete":
+      ok = deleteVaultEntry(rel);
+      break;
+    default:
+      return NextResponse.json({ ok: false, message: `Unknown op: ${op}` }, { status: 400 });
   }
-  const ok = writeVaultFile(body.path, body.content);
   return NextResponse.json({ ok }, { status: ok ? 200 : 400 });
 }

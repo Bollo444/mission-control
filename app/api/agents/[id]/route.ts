@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getAgent } from "@/lib/registry";
 import { getAgentStatus } from "@/lib/detect";
 import { listSessions } from "@/lib/sessions";
-import { readAgentMemory } from "@/lib/memory";
+import { readAgentMemory, getAgentBehavior } from "@/lib/memory";
 import { readSettings } from "@/lib/settings";
 
 export const runtime = "nodejs";
@@ -19,6 +19,7 @@ export async function GET(
   const [status] = await Promise.all([getAgentStatus(def)]);
   const sessions = listSessions(def, 25);
   const memory = readAgentMemory(id);
+  const behavior = getAgentBehavior(id);
   const settings = readSettings();
 
   return NextResponse.json({
@@ -37,5 +38,8 @@ export async function GET(
     status,
     sessions,
     memory,
+    role: behavior.role ?? null,
+    lens: behavior.lens ?? null,
+    directive: behavior.directive ?? null,
   });
 }

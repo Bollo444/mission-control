@@ -291,4 +291,153 @@ export function writeVaultFile(rel: string, content: string): boolean {
   }
 }
 
+// ---- Agent behavior, derived from the agent's own note ----
+// The note is the editable source of truth: frontmatter `role:`/`lens:` and a
+// free-form `## Directive` section override the built-in persona.
+
+export interface AgentBehavior {
+  role?: string;
+  lens?: string;
+  directive?: string;
+}
+
+function isPlaceholder(s: string): boolean {
+  const t = s.trim();
+  return !t || /^_[^]*_$/.test(t) || /^\(.*\)$/.test(t);
+}
+
+export function getAgentBehavior(id: string): AgentBehavior {
+  const raw = read(AGENT_FILE(id));
+  if (!raw) return {};
+  const out: AgentBehavior = {};
+  const fm = raw.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  if (fm) {
+    const role = fm[1].match(/^role:\s*(.+)$/m);
+    const lens = fm[1].match(/^lens:\s*(.+)$/m);
+    if (role) out.role = role[1].trim().replace(/^["']|["']$/g, "");
+    if (lens) out.lens = lens[1].trim().replace(/^["']|["']$/g, "");
+  }
+  const dir = raw.match(/^##\s+Directive\s*\r?\n([\s\S]*?)(?=\r?\n##\s|\r?\n---\s*\r?\n|$)/m);
+  if (dir && !isPlaceholder(dir[1])) out.directive = dir[1].trim();
+  return out;
+}
+
+/** Set (or insert) the `## Directive` section of an agent's note. */
+export function setAgentDirective(id: string, directive: string): boolean {
+  let cur = readAgentMemory(id);
+  if (!cur) return false;
+  const body = directive.trim();
+  if (/^##\s+Directive\s*$/m.test(cur)) {
+    cur = cur.replace(
+      /(^##\s+Directive\s*\r?\n)([\s\S]*?)(?=\r?\n##\s|\r?\n---\s*\r?\n|$)/m,
+      `$1${body}\n`
+    );
+  } else {
+    // Insert right after the blockquote tagline, else append.
+    const withQuote = cur.replace(/(^>[^\n]*\r?\n)/m, `$1\n## Directive\n${body}\n`);
+    cur = withQuote !== cur ? withQuote : `${cur.trimEnd()}\n\n## Directive\n${body}\n`;
+  }
+  const ok = write2(AGENT_FILE(id), cur);
+  if (ok) logEvent({ source: "vault", level: "info", event: "directive updated", detail: getAgent(id)?.name ?? id });
+  return ok;
+}
+
+// ---- Vault file operations (create / folder / rename / delete) ----
+
+function write2(file: string, content: string): boolean {
+  try {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, content, "utf8");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function createVaultFile(rel: string, content = ""): boolean {
+  const full = resolveInVault(rel);
+  if (!full || fs.existsSync(full)) return false;
+  const ok = write2(full, content);
+  if (ok) logEvent({ source: "vault", level: "info", event: "file created", detail: rel.replace(/^[/\\]+/, "") });
+  return ok;
+}
+
+export function createVaultFolder(rel: string): boolean {
+  const full = resolveInVault(rel);
+  if (!full || full === VAULT_ROOT() || fs.existsSync(full)) return false;
+  try {
+    fs.mkdirSync(full, { recursive: true });
+    logEvent({ source: "vault", level: "info", event: "folder created", detail: rel.replace(/^[/\\]+/, "") });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function renameVaultEntry(from: string, to: string): boolean {
+  const a = resolveInVault(from);
+  const b = resolveInVault(to);
+  if (!a || !b || a === VAULT_ROOT() || !fs.existsSync(a) || fs.existsSync(b)) return false;
+  try {
+    fs.mkdirSync(path.dirname(b), { recursive: true });
+    fs.renameSync(a, b);
+    logEvent({ source: "vault", level: "info", event: "renamed", detail: `${from} → ${to}` });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function deleteVaultEntry(rel: string): boolean {
+  const full = resolveInVault(rel);
+  if (!full || full === VAULT_ROOT()) return false;
+  try {
+    fs.rmSync(full, { recursive: true, force: true });
+    logEvent({ source: "vault", level: "warn", event: "deleted", detail: rel.replace(/^[/\\]+/, "") });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// ---- Vault content search (multi-file) ----
+
+export interface VaultSearchHit {
+  path: string;
+  line: number;
+  text: string;
+}
+
+export function searchVault(query: string, limit = 80): VaultSearchHit[] {
+  ensureVault();
+  const q = query.trim().toLowerCase();
+  if (q.length < 2) return [];
+  const root = VAULT_ROOT();
+  const hits: VaultSearchHit[] = [];
+  for (const node of listVaultTree()) {
+    if (node.dir) continue;
+    if (hits.length >= limit) break;
+    const full = path.join(root, node.path.split("/").join(path.sep));
+    let content: string;
+    try {
+      if (fs.statSync(full).size > 512 * 1024) continue; // skip large/binary
+      content = fs.readFileSync(full, "utf8");
+    } catch {
+      continue;
+    }
+    const lines = content.split("\n");
+    for (let i = 0; i < lines.length && hits.length < limit; i++) {
+      if (lines[i].toLowerCase().includes(q)) {
+        hits.push({ path: node.path, line: i + 1, text: lines[i].trim().slice(0, 200) });
+      }
+    }
+  }
+  return hits;
+}
+
+/** The vault-relative note path for an agent (used by the self-edit hook). */
+export function agentNotePath(id: string): string {
+  return `Agents/${agentNoteName(id)}.md`;
+}
+
 export { VAULT_DIR };

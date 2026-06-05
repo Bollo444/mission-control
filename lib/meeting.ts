@@ -1,4 +1,5 @@
 import { getAgent } from "./registry";
+import { getAgentBehavior } from "./memory";
 import { relTime } from "./format";
 import type {
   MeetingMetric,
@@ -300,11 +301,14 @@ const ORDER = ["claude", "hermes", "pi", "opencode", "antigravity", "openclaw", 
 function meta(id: string) {
   const a = getAgent(id);
   const p = PERSONAS[id];
+  // The agent's own vault note is the source of truth for its role — edit the
+  // note (in the IDE or via the self-edit hook) and the meeting reflects it.
+  const role = getAgentBehavior(id).role ?? p?.role ?? "Agent";
   return {
     name: a?.name ?? id,
     accent: a?.accent ?? "#46e0d0",
     glyph: a?.glyph ?? "◆",
-    role: p?.role ?? "Agent",
+    role,
   };
 }
 

@@ -138,6 +138,10 @@ export interface AgentDetail extends Omit<AgentSummary, "installable"> {
   route: RouteRule | null;
   sessions: SessionMeta[];
   memory: string;
+  /** Behavior derived from the agent's own note (editable in the IDE / via the self-edit hook). */
+  role?: string | null;
+  lens?: string | null;
+  directive?: string | null;
 }
 
 export interface NavAgent {

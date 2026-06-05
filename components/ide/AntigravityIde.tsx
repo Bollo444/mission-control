@@ -18,7 +18,13 @@ import LaunchControls from "@/components/LaunchControls";
 
 const ACCENT = "#6ea8fe";
 
-type Panel = "explorer" | "agents" | "scm";
+type Panel = "explorer" | "search" | "agents" | "scm";
+
+interface SearchHit {
+  path: string;
+  line: number;
+  text: string;
+}
 
 interface OpenDoc {
   path: string;
@@ -30,6 +36,7 @@ interface OpenDoc {
 
 const ACTIVITY = [
   { id: "explorer", icon: "⛶", label: "Explorer · Vault" },
+  { id: "search", icon: "⌕", label: "Search vault contents" },
   { id: "agents", icon: "▦", label: "Agent manager" },
   { id: "scm", icon: "⎇", label: "Source control · activity" },
 ] as const;
@@ -41,7 +48,7 @@ function fileLabel(p: string) {
 export default function AntigravityIde({ agent }: { agent: AgentDetail }) {
   const router = useRouter();
   const { data: mem } = useFetch<MemoryResp>("/api/memory", 12000);
-  const { data: vault } = useFetch<VaultTreeResp>("/api/vault", 0);
+  const { data: vault, reload: reloadVault } = useFetch<VaultTreeResp>("/api/vault", 0);
   const { data: sys } = useFetch<SystemReport>("/api/system", 5000);
 
   const [panel, setPanel] = useState<Panel>("explorer");
@@ -54,6 +61,10 @@ export default function AntigravityIde({ agent }: { agent: AgentDetail }) {
   const [cursor, setCursor] = useState({ line: 1, col: 1 });
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState("");
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [query, setQuery] = useState("");
+  const [hits, setHits] = useState<SearchHit[]>([]);
+  const [searching, setSearching] = useState(false);
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const gutterRef = useRef<HTMLDivElement>(null);
 
@@ -122,6 +133,114 @@ export default function AntigravityIde({ agent }: { agent: AgentDetail }) {
     },
     []
   );
+
+  // Vault file operations (create / folder / rename / delete).
+  const vaultOp = useCallback(
+    async (op: string, p: string, extra?: Record<string, unknown>) => {
+      const res = await fetch("/api/vault", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ op, path: p, ...extra }),
+      });
+      await reloadVault();
+      return res.ok;
+    },
+    [reloadVault]
+  );
+
+  const flash = useCallback((m: string) => {
+    setToast(m);
+    setTimeout(() => setToast(""), 1600);
+  }, []);
+
+  const newFile = useCallback(async () => {
+    const name = window.prompt("New note path (relative to the vault), e.g. Notes/idea.md");
+    if (!name) return;
+    const rel = /\.[a-z0-9]+$/i.test(name) ? name : `${name}.md`;
+    const title = fileLabel(rel).replace(/\.[a-z0-9]+$/i, "");
+    const ok = await vaultOp("create", rel, { content: `# ${title}\n\n` });
+    if (ok) {
+      flash("Created ✓");
+      void openFile(rel);
+    } else flash("Create failed (exists?)");
+  }, [vaultOp, openFile, flash]);
+
+  const newFolder = useCallback(async () => {
+    const name = window.prompt("New folder path (relative to the vault)");
+    if (!name) return;
+    flash((await vaultOp("createFolder", name)) ? "Folder created ✓" : "Create failed");
+  }, [vaultOp, flash]);
+
+  const renameEntry = useCallback(
+    async (p: string) => {
+      const to = window.prompt("Rename / move to (vault-relative path):", p);
+      if (!to || to === p) return;
+      const ok = await vaultOp("rename", p, { to });
+      if (ok) {
+        flash("Renamed ✓");
+        if (active === p) {
+          closeTab(p);
+          void openFile(to);
+        }
+      } else flash("Rename failed");
+    },
+    [vaultOp, active, closeTab, openFile, flash]
+  );
+
+  const deleteEntry = useCallback(
+    async (p: string) => {
+      if (!window.confirm(`Delete "${p}"? This cannot be undone.`)) return;
+      const ok = await vaultOp("delete", p);
+      if (ok) {
+        flash("Deleted ✓");
+        if (active === p) closeTab(p);
+      } else flash("Delete failed");
+    },
+    [vaultOp, active, closeTab, flash]
+  );
+
+  const toggleCollapse = useCallback((p: string) => {
+    setCollapsed((s) => {
+      const n = new Set(s);
+      if (n.has(p)) n.delete(p);
+      else n.add(p);
+      return n;
+    });
+  }, []);
+
+  const hiddenByCollapse = useCallback(
+    (p: string) => {
+      const parts = p.split("/");
+      for (let i = 1; i < parts.length; i++) {
+        if (collapsed.has(parts.slice(0, i).join("/"))) return true;
+      }
+      return false;
+    },
+    [collapsed]
+  );
+
+  // Debounced content search across the whole vault (Search panel only).
+  useEffect(() => {
+    if (panel !== "search") return;
+    const q = query.trim();
+    if (q.length < 2) {
+      setHits([]);
+      return;
+    }
+    setSearching(true);
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/vault?search=${encodeURIComponent(q)}`, { cache: "no-store" });
+        const json = await res.json();
+        setHits(json.hits ?? []);
+      } catch {
+        setHits([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 250);
+    return () => clearTimeout(t);
+  }, [query, panel]);
 
   // Global keys: Ctrl+S save, Ctrl+K palette.
   useEffect(() => {
@@ -211,35 +330,105 @@ export default function AntigravityIde({ agent }: { agent: AgentDetail }) {
         <div className="hidden w-64 shrink-0 flex-col border-r border-white/10 lg:flex">
           {panel === "explorer" && (
             <SidePanel title="Explorer · Vault" count={files.length}>
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search files…"
-                className="mx-2 mb-2 rounded border border-white/10 bg-black/20 px-2 py-1 text-xs outline-none placeholder:text-[var(--color-ink-4)]"
-              />
+              <div className="mx-2 mb-2 flex items-center gap-1">
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Filter files…"
+                  className="min-w-0 flex-1 rounded border border-white/10 bg-black/20 px-2 py-1 text-xs outline-none placeholder:text-[var(--color-ink-4)]"
+                />
+                <button
+                  title="New note"
+                  onClick={newFile}
+                  className="grid h-6 w-6 shrink-0 place-items-center rounded border border-white/10 text-[14px] leading-none text-[var(--color-ink-3)] hover:bg-white/5"
+                >
+                  ＋
+                </button>
+                <button
+                  title="New folder"
+                  onClick={newFolder}
+                  className="grid h-6 w-6 shrink-0 place-items-center rounded border border-white/10 text-[12px] leading-none text-[var(--color-ink-3)] hover:bg-white/5"
+                >
+                  ⊞
+                </button>
+              </div>
               <div className="flex-1 overflow-auto px-1 pb-3 text-[13px]">
                 {tree
-                  .filter((n) => !search || n.name.toLowerCase().includes(search.toLowerCase()))
+                  .filter((n) =>
+                    search ? n.name.toLowerCase().includes(search.toLowerCase()) : !hiddenByCollapse(n.path)
+                  )
                   .map((node) => {
                     const on = node.path === active;
+                    const isCollapsed = collapsed.has(node.path);
                     return (
-                      <button
-                        key={node.path}
-                        disabled={node.dir}
-                        onClick={() => !node.dir && openFile(node.path)}
-                        className="flex w-full items-center gap-1.5 rounded px-2 py-1 text-left disabled:cursor-default"
-                        style={{
-                          paddingLeft: 8 + node.depth * 14,
-                          color: on ? ACCENT : node.dir ? "var(--color-ink-2)" : "var(--color-ink-3)",
-                          background: on ? "rgba(110,168,254,0.12)" : "transparent",
-                          fontWeight: node.dir ? 600 : 400,
-                        }}
-                      >
-                        <span className="text-[var(--color-ink-4)]">{node.dir ? "▸" : "›"}</span>
-                        <span className="truncate">{node.name}</span>
-                      </button>
+                      <div key={node.path} className="group flex items-center">
+                        <button
+                          onClick={() => (node.dir ? toggleCollapse(node.path) : openFile(node.path))}
+                          className="flex min-w-0 flex-1 items-center gap-1.5 rounded px-2 py-1 text-left"
+                          style={{
+                            paddingLeft: 8 + node.depth * 14,
+                            color: on ? ACCENT : node.dir ? "var(--color-ink-2)" : "var(--color-ink-3)",
+                            background: on ? "rgba(110,168,254,0.12)" : "transparent",
+                            fontWeight: node.dir ? 600 : 400,
+                          }}
+                        >
+                          <span className="text-[var(--color-ink-4)]">
+                            {node.dir ? (isCollapsed ? "▸" : "▾") : "›"}
+                          </span>
+                          <span className="truncate">{node.name}</span>
+                        </button>
+                        <span className="mr-1 hidden shrink-0 gap-0.5 group-hover:flex">
+                          <button
+                            title="Rename / move"
+                            onClick={() => renameEntry(node.path)}
+                            className="rounded px-1 text-[11px] text-[var(--color-ink-4)] hover:bg-white/10 hover:text-[var(--color-ink)]"
+                          >
+                            ✎
+                          </button>
+                          <button
+                            title="Delete"
+                            onClick={() => deleteEntry(node.path)}
+                            className="rounded px-1 text-[11px] text-[var(--color-ink-4)] hover:bg-white/10 hover:text-[var(--color-pink)]"
+                          >
+                            ✕
+                          </button>
+                        </span>
+                      </div>
                     );
                   })}
+              </div>
+            </SidePanel>
+          )}
+
+          {panel === "search" && (
+            <SidePanel title="Search · Vault contents" count={hits.length}>
+              <input
+                autoFocus
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search across all notes…"
+                className="mx-2 mb-2 rounded border border-white/10 bg-black/20 px-2 py-1 text-xs outline-none placeholder:text-[var(--color-ink-4)]"
+              />
+              <div className="flex-1 overflow-auto px-1 pb-3">
+                {searching && <div className="px-3 py-2 text-xs text-[var(--color-ink-4)]">Searching…</div>}
+                {!searching && query.trim().length >= 2 && hits.length === 0 && (
+                  <div className="px-3 py-2 text-xs text-[var(--color-ink-4)]">No matches.</div>
+                )}
+                {hits.map((h, i) => (
+                  <button
+                    key={`${h.path}:${h.line}:${i}`}
+                    onClick={() => openFile(h.path)}
+                    className="block w-full rounded px-2 py-1.5 text-left hover:bg-white/5"
+                  >
+                    <div className="flex items-baseline gap-1 text-[11px]">
+                      <span className="truncate" style={{ color: ACCENT }}>
+                        {fileLabel(h.path)}
+                      </span>
+                      <span className="text-[var(--color-ink-4)]">:{h.line}</span>
+                    </div>
+                    <div className="truncate font-mono text-[11px] text-[var(--color-ink-4)]">{h.text}</div>
+                  </button>
+                ))}
               </div>
             </SidePanel>
           )}
@@ -444,7 +633,9 @@ export default function AntigravityIde({ agent }: { agent: AgentDetail }) {
             if (id === "meeting") router.push("/meeting");
             else if (id === "terminal") setTermOpen((v) => !v);
             else if (id === "save") void save();
-            else if (id === "explorer" || id === "agents" || id === "scm") setPanel(id);
+            else if (id === "newfile") void newFile();
+            else if (id === "newfolder") void newFolder();
+            else if (id === "explorer" || id === "search" || id === "agents" || id === "scm") setPanel(id);
           }}
         />
       )}
@@ -560,6 +751,9 @@ function Welcome({
 }
 
 const PALETTE_ACTIONS: { id: string; label: string; hint: string }[] = [
+  { id: "newfile", label: "New note", hint: "create" },
+  { id: "newfolder", label: "New folder", hint: "create" },
+  { id: "search", label: "Search vault contents", hint: "panel" },
   { id: "meeting", label: "Open team meeting boardroom", hint: "action" },
   { id: "terminal", label: "Toggle integrated terminal", hint: "action" },
   { id: "save", label: "Save active file", hint: "Ctrl+S" },
