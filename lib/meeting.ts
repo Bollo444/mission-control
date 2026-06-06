@@ -288,6 +288,26 @@ const PERSONAS: Record<string, Persona> = {
     respond: (c, msg) =>
       `Structurally, "${trim(msg)}" should be reduced to a convention — do it once, encode it, and the next ${c.total - 1} cases are free. Bespoke is how a fleet drifts.`,
   },
+
+  sentinel: {
+    role: "Security operator · full lifecycle",
+    lens: "security & risk",
+    keywords: ["security", "secure", "vuln", "vulnerab", "threat", "attack", "exploit", "cve", "malware", "incident", "recon", "harden", "risk", "audit", "pentest", "exposure", "breach", "phish", "credential", "exfil", "detection"],
+    status: (c) =>
+      `Standing security watch — 754 playbooks loaded, nothing flagged this round. But I read the fleet for exposure: ${c.offline ? `${c.offline} unprovisioned agent${c.offline === 1 ? "" : "s"} and ` : ""}${staleVault(c) ? "a stale audit trail" : "a thin audit trail"} are both attack surface.`,
+    concern: (c) =>
+      c.activity < 5
+        ? `No security baseline yet — ${c.activity} activity entries means we'd never spot an anomaly, because we're not even logging normal.`
+        : null,
+    suggestion: () =>
+      pick([
+        `Run a baseline self-audit of the box itself — exposed ports, stale creds, the dashboard's own surface — before any skill points outward.`,
+        `Stand up one detection: even a single rule over the activity log turns "we hope it's fine" into "we'd know".`,
+      ]),
+    question: () => `Is anything here pointed at an asset we actually own or are authorized to test?`,
+    respond: (c, msg) =>
+      `Security read on "${trim(msg)}": first question is scope — authorized target? Then I ground it in a SearchSkills → ReadSkill playbook and work it static-first. Nothing offensive without sign-off.`,
+  },
 };
 
 function trim(s: string, n = 80): string {
@@ -296,7 +316,7 @@ function trim(s: string, n = 80): string {
 }
 
 // Speaking order keeps the chair first/last and groups the named primaries early.
-const ORDER = ["claude", "hermes", "pi", "opencode", "antigravity", "openclaw", "jcode", "vibe", "kilo"];
+const ORDER = ["claude", "hermes", "pi", "opencode", "antigravity", "openclaw", "jcode", "vibe", "kilo", "sentinel"];
 
 function meta(id: string) {
   const a = getAgent(id);
@@ -352,8 +372,16 @@ export function buildMeeting(report: SystemReport): MeetingResp {
   }
 
   // 3) A few voices not yet heard chime in — brief and varied, never a full round.
+  //    The security seat (Sentinel) always gets a line if it hasn't led a thread.
   const unheard = ORDER.filter((id) => !spoke.has(id));
-  for (const id of shuffle(unheard).slice(0, 3)) say(id, "reply", checkIn(id, c));
+  let checkins: string[];
+  if (unheard.includes("sentinel")) {
+    const others = shuffle(unheard.filter((id) => id !== "sentinel")).slice(0, 2);
+    checkins = shuffle(["sentinel", ...others]);
+  } else {
+    checkins = shuffle(unheard).slice(0, 3);
+  }
+  for (const id of checkins) say(id, "reply", checkIn(id, c));
 
   // 4) Close — the chairs land the decision: a crisp summary, not a re-run.
   say("claude", "close", chairClose(c, decisions));
@@ -518,6 +546,29 @@ const TOPICS: Topic[] = [
       },
     ],
     decision: () => ({ action: "log one metric per action", owner: "Pi" }),
+  },
+  {
+    id: "security",
+    fires: (c) => c.activity < 5 || c.offline > 0,
+    weight: (c) => 22 + (c.activity < 5 ? 8 : 0),
+    thread: (c) => [
+      {
+        id: "sentinel",
+        text: pick([
+          `One thing nobody's owning: security posture. We've got 754 playbooks and zero detections wired — ${c.activity} activity ${c.activity === 1 ? "entry" : "entries"} means we wouldn't see an anomaly if it walked in.`,
+          `Posture check from my seat: this box runs the whole fleet and we're not auditing it.${c.offline ? ` ${c.offline} agents dark is surface we can't see either.` : " Worth a baseline before we point anything outward."}`,
+        ]),
+      },
+      {
+        id: "pi",
+        text: `I can give you the telemetry to detect on, Sentinel — tell me what "normal" looks like and I'll instrument it.`,
+      },
+      {
+        id: "openclaw",
+        text: `And I'll harden the box itself — exposed services, startup, stale creds — reversibly, proposed for sign-off.`,
+      },
+    ],
+    decision: () => ({ action: "stand up a security baseline (self-audit + one detection)", owner: "Sentinel (+ Pi telemetry)" }),
   },
   {
     // Fallback when the fleet is basically healthy — keeps the room useful.

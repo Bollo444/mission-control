@@ -70,7 +70,20 @@ export default function Shell({
 }) {
   const pathname = usePathname();
   const [clock, setClock] = useState("");
+  const [open, setOpen] = useState(true);
   const agentNavRef = useEdgeAutoScroll<HTMLElement>();
+
+  // Default: sidebar open on desktop, collapsed on mobile.
+  useEffect(() => {
+    setOpen(window.matchMedia("(min-width: 768px)").matches);
+  }, []);
+
+  // On mobile, navigating to a page closes the drawer.
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches) {
+      setOpen(false);
+    }
+  }, [pathname]);
 
   useEffect(() => {
     const t = setInterval(
@@ -83,27 +96,62 @@ export default function Shell({
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <aside className="hidden h-screen w-[264px] shrink-0 flex-col border-r px-4 py-5 md:flex">
-        <Link href="/" className="mb-6 flex items-center gap-3 px-2">
-          <span
-            className="grid h-9 w-9 place-items-center rounded-xl text-base font-bold"
-            style={{
-              background: hexA("#46e0d0", 0.14),
-              color: "var(--color-signal)",
-              boxShadow: `inset 0 0 0 1px ${hexA("#46e0d0", 0.3)}`,
-            }}
+      {/* Floating opener — visible whenever the sidebar is hidden (desktop or mobile). */}
+      {!open && (
+        <button
+          onClick={() => setOpen(true)}
+          aria-label="Show sidebar"
+          title="Show sidebar"
+          className="fixed left-3 top-3 z-[60] grid h-10 w-10 place-items-center rounded-xl border bg-[var(--color-surface)] text-lg text-[var(--color-ink-2)] shadow-lg transition-colors hover:bg-[var(--color-surface-3)]"
+        >
+          ☰
+        </button>
+      )}
+
+      {/* Mobile backdrop — tap to dismiss the drawer. */}
+      {open && (
+        <div
+          onClick={() => setOpen(false)}
+          aria-hidden
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm md:hidden"
+        />
+      )}
+
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 flex w-[270px] max-w-[85vw] shrink-0 flex-col border-r bg-[var(--color-bg)] px-4 py-5 transition-transform duration-200 ${
+          open ? "translate-x-0 md:static md:z-auto md:max-w-none" : "-translate-x-full"
+        }`}
+      >
+        <div className="mb-6 flex items-center justify-between gap-2 px-2">
+          <Link href="/" className="flex min-w-0 items-center gap-3">
+            <span
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-base font-bold"
+              style={{
+                background: hexA("#46e0d0", 0.14),
+                color: "var(--color-signal)",
+                boxShadow: `inset 0 0 0 1px ${hexA("#46e0d0", 0.3)}`,
+              }}
+            >
+              ◎
+            </span>
+            <div className="min-w-0 leading-tight">
+              <div className="truncate text-sm font-semibold tracking-tight">
+                Mission Control
+              </div>
+              <div className="truncate text-[11px] text-[var(--color-ink-4)]">
+                agent fleet console
+              </div>
+            </div>
+          </Link>
+          <button
+            onClick={() => setOpen(false)}
+            aria-label="Hide sidebar"
+            title="Hide sidebar"
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-lg text-[var(--color-ink-4)] transition-colors hover:bg-[var(--color-surface-3)] hover:text-[var(--color-ink)]"
           >
-            ◎
-          </span>
-          <div className="leading-tight">
-            <div className="text-sm font-semibold tracking-tight">
-              Mission Control
-            </div>
-            <div className="text-[11px] text-[var(--color-ink-4)]">
-              agent fleet console
-            </div>
-          </div>
-        </Link>
+            ‹
+          </button>
+        </div>
 
         <nav className="flex flex-col gap-1">
           <NavLink href="/" active={pathname === "/"}>
@@ -153,13 +201,12 @@ export default function Shell({
         <div className="mt-6 mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--color-ink-4)]">
           Coding Agents
         </div>
-        <nav ref={agentNavRef} className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
+        <nav
+          ref={agentNavRef}
+          className="-mr-1 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto pr-1"
+        >
           {nav.map((a) => (
-            <AgentNav
-              key={a.id}
-              a={a}
-              active={pathname === `/agents/${a.id}`}
-            />
+            <AgentNav key={a.id} a={a} active={pathname === `/agents/${a.id}`} />
           ))}
         </nav>
 

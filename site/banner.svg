@@ -48,6 +48,7 @@
     <circle cx="368" cy="246" r="6" fill="#e879c7"/>
     <circle cx="395" cy="246" r="6" fill="#c7a86b"/>
     <circle cx="422" cy="246" r="6" fill="#aab1c2"/>
-    <text x="442" y="251" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="14" fill="#6b7280">9 agents · 14 providers</text>
+    <circle cx="449" cy="246" r="6" fill="#d65db1"/>
+    <text x="469" y="251" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="14" fill="#6b7280">10 agents · 14 providers</text>
   </g>
 </svg>

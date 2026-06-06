@@ -178,7 +178,7 @@ export default function MeetingPage() {
           </div>
           <h1 className="text-2xl font-semibold tracking-tight">Team Meeting</h1>
           <p className="mt-1 max-w-2xl text-sm text-[var(--color-ink-3)]">
-            All nine agents convene around the live fleet metrics — status, concerns, and where to steer next.
+            The whole fleet convenes around the live system metrics — status, concerns, and where to steer next.
             Every line is generated from the real system state. Speak to the room any time.
           </p>
         </div>
@@ -305,7 +305,7 @@ export default function MeetingPage() {
         <aside className="flex flex-col gap-4 overflow-y-auto">
           <div className="mc-panel p-4">
             <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--color-ink-4)]">
-              Around the table · {meta?.roster.length ?? 9}
+              Around the table · {meta?.roster.length ?? 10}
             </h2>
             <div className="flex flex-col gap-1.5">
               {(meta?.roster ?? []).map((r) => (
