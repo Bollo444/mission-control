@@ -26,6 +26,9 @@ export interface Settings {
   apiKeys: Record<string, string>; // provider key name -> value (never sent raw to client)
   /** Mission Control's own Fleet Gateway access token (shown to you — not a third-party secret). */
   gatewayToken?: string;
+  /** Claude Code's 3 Anthropic slots — each maps to a provider/model in the catalog.
+   *  Claude sends haiku/sonnet/opus; the Anthropic bridge routes to whatever you pick here. */
+  anthropicSlots?: { haiku: RouteRule; sonnet: RouteRule; opus: RouteRule };
   updatedAt: string;
 }
 
@@ -262,11 +265,20 @@ const DEFAULT_ROUTING: Record<string, RouteRule> = {
   kilo: { provider: "cloudflare", model: "@cf/meta/llama-3.3-70b-instruct-fp8-fast" },
 };
 
+/** Default Anthropic slot mappings — Claude Code's haiku/sonnet/opus each route
+ *  to a free-tier model. Adjustable live from the Settings dashboard. */
+const DEFAULT_ANTHROPIC_SLOTS: NonNullable<Settings["anthropicSlots"]> = {
+  haiku: { provider: "groq", model: "llama-3.1-8b-instant" },
+  sonnet: { provider: "nim", model: "qwen/qwen3-coder-480b-a35b-instruct" },
+  opus: { provider: "cerebras", model: "gpt-oss-120b" },
+};
+
 const DEFAULTS: Settings = {
   vaultDir: VAULT_DIR,
   routing: DEFAULT_ROUTING,
   routingPreferred: DEFAULT_ROUTING,
   apiKeys: {},
+  anthropicSlots: DEFAULT_ANTHROPIC_SLOTS,
   updatedAt: new Date(0).toISOString(),
 };
 
@@ -285,6 +297,7 @@ export function readSettings(): Settings {
         ...(parsed.routingPreferred ?? parsed.routing ?? {}),
       },
       apiKeys: mapValues({ ...DEFAULTS.apiKeys, ...(parsed.apiKeys ?? {}) }, decryptSecret),
+      anthropicSlots: { ...DEFAULT_ANTHROPIC_SLOTS, ...(parsed.anthropicSlots ?? {}) },
     };
   } catch {
     return { ...DEFAULTS };
@@ -299,6 +312,7 @@ export function writeSettings(next: Partial<Settings>): Settings {
   if (next.apiKeys) merged.apiKeys = { ...merged.apiKeys, ...next.apiKeys };
   if (next.vaultDir) merged.vaultDir = next.vaultDir;
   if (next.gatewayToken) merged.gatewayToken = next.gatewayToken;
+  if (next.anthropicSlots) merged.anthropicSlots = next.anthropicSlots;
   merged.updatedAt = new Date().toISOString();
   fs.mkdirSync(MC_CONFIG_DIR, { recursive: true });
   // Encrypt provider keys at rest when MC_ENCRYPTION_KEY is set (no-op otherwise).
@@ -310,6 +324,7 @@ export function writeSettings(next: Partial<Settings>): Settings {
   if (next.apiKeys) changed.push(`keys[${Object.keys(next.apiKeys).join(",")}]`); // names only, never values
   if (next.vaultDir) changed.push("vaultDir");
   if (next.gatewayToken) changed.push("gatewayToken");
+  if (next.anthropicSlots) changed.push("anthropicSlots");
   logEvent({ source: "settings", level: "info", event: "settings updated", detail: changed.join(" · ") || "—" });
   return merged;
 }
@@ -356,6 +371,7 @@ export function publicSettings(s: Settings) {
     routingPreferred: s.routingPreferred,
     keyStatus,
     gatewayToken: s.gatewayToken ?? "",
+    anthropicSlots: s.anthropicSlots ?? DEFAULT_ANTHROPIC_SLOTS,
     encryption: encryptionEnabled(),
     updatedAt: s.updatedAt,
     providers: PROVIDERS.map((p) => ({ ...p, freeLimit: FREE_LIMITS[p.id] })),

@@ -15,6 +15,7 @@ export async function POST(req: Request) {
     routingPreferred?: Record<string, { provider: string; model: string }>;
     apiKeys?: Record<string, string>;
     vaultDir?: string;
+    anthropicSlots?: { haiku: { provider: string; model: string }; sonnet: { provider: string; model: string }; opus: { provider: string; model: string } };
   };
   try {
     body = await req.json();
