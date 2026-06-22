@@ -1,6 +1,7 @@
 import { getAgent } from "./registry";
 import { getAgentBehavior } from "./memory";
 import { relTime } from "./format";
+import { llmTurn } from "./meeting-llm";
 import type {
   MeetingMetric,
   MeetingResp,
@@ -344,7 +345,38 @@ function tone(pct: number): MeetingMetric["tone"] {
   return "ok";
 }
 
-export function buildMeeting(report: SystemReport): MeetingResp {
+/**
+ * Live-LLM version of the meeting. Same orchestration as the template builder,
+ * but each turn's text is regenerated through cascadeChat on the agent's routed
+ * model, with the template text as fallback if the provider call fails. Async
+ * because it makes real network calls.
+ *
+ * The meeting must never break the dashboard: every LLM turn is wrapped so a
+ * provider failure silently falls back to the templated line.
+ */
+export async function buildMeeting(report: SystemReport): Promise<MeetingResp> {
+  const templated = buildMeetingTemplated(report);
+  const threadBuffer: string[] = [];
+  for (const t of templated.turns) {
+    let live: string | null = null;
+    try {
+      live = await llmTurn(t.agentId, {
+        report,
+        phase: t.phase === "open" ? "open" : t.phase === "close" ? "close" : "reply",
+        priorTurns: t.phase === "reply" ? threadBuffer.slice(-4) : undefined,
+      });
+    } catch {
+      live = null;
+    }
+    t.text = live ?? t.text; // fall back to the templated line
+    threadBuffer.push(`${t.name}: ${t.text}`);
+  }
+  return templated;
+}
+
+/** Template-only builder — every line is deterministic/metric-grounded, no LLM.
+ *  Kept as the fallback for the live builder and as a synchronous reference. */
+export function buildMeetingTemplated(report: SystemReport): MeetingResp {
   const c = deriveCtx(report);
   __tid = 0;
   const turns: MeetingTurn[] = [];
@@ -638,8 +670,10 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-/** Route a user message to the most relevant agents and generate replies. */
-export function replyToMessage(report: SystemReport, message: string): MeetingTurn[] {
+/** Route a user message to the most relevant agents and generate replies.
+ *  Async + live-LLM: each chosen agent replies through cascadeChat, falling
+ *  back to its templated `respond` line if the provider call fails. */
+export async function replyToMessage(report: SystemReport, message: string): Promise<MeetingTurn[]> {
   const c = deriveCtx(report);
   __tid = Date.now() % 100000;
   const lower = message.toLowerCase();
@@ -653,22 +687,29 @@ export function replyToMessage(report: SystemReport, message: string): MeetingTu
     .filter((x) => x.score > 0)
     .sort((a, b) => b.score - a.score);
 
-  const turns: MeetingTurn[] = [];
+  // Decide which agents speak, in order (same logic as before).
+  const ids: string[] =
+    scored.length === 0
+      ? ["claude", "jcode", ...pickGeneralists(1)]
+      : [...scored.slice(0, 3).map((x) => x.id), "jcode", "claude"];
 
-  if (scored.length === 0) {
-    // No specialist matched — the co-chairs field it, plus one generalist for an angle.
-    turns.push(turn("claude", "reply", PERSONAS.claude.respond(c, message)));
-    turns.push(turn("jcode", "reply", PERSONAS.jcode.respond(c, message)));
-    for (const id of pickGeneralists(1)) {
-      turns.push(turn(id, "reply", PERSONAS[id].respond(c, message)));
+  const turns: MeetingTurn[] = [];
+  const buffer: string[] = [];
+  for (const id of ids) {
+    let text: string | null = null;
+    try {
+      text = await llmTurn(id, {
+        report,
+        phase: "reply",
+        userMessage: message,
+        priorTurns: buffer.slice(-3),
+      });
+    } catch {
+      text = null;
     }
-  } else {
-    for (const { id } of scored.slice(0, 3)) {
-      turns.push(turn(id, "reply", PERSONAS[id].respond(c, message)));
-    }
-    // Co-chairs close out: jcode assigns/parallelizes, Claude synthesizes the decision.
-    turns.push(turn("jcode", "reply", PERSONAS.jcode.respond(c, message)));
-    turns.push(turn("claude", "reply", PERSONAS.claude.respond(c, message)));
+    const final = text ?? PERSONAS[id].respond(c, message); // fallback to template
+    buffer.push(`${meta(id).name}: ${final}`);
+    turns.push(turn(id, "reply", final));
   }
   return turns;
 }

@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   const report = await getSystemReport();
-  return NextResponse.json(buildMeeting(report));
+  return NextResponse.json(await buildMeeting(report));
 }
 
 export async function POST(req: Request) {
@@ -21,5 +21,5 @@ export async function POST(req: Request) {
   if (!message) return NextResponse.json({ turns: [] }, { status: 400 });
 
   const report = await getSystemReport();
-  return NextResponse.json({ turns: replyToMessage(report, message) });
+  return NextResponse.json({ turns: await replyToMessage(report, message) });
 }
