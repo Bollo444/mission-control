@@ -14,11 +14,13 @@ export interface Skin {
   ide?: boolean;
   /** Whether this agent renders its dedicated system-operations console. */
   console?: boolean;
+  /** Whether this agent renders its dedicated oxblood+gold Hermes console. */
+  hermes?: boolean;
 }
 
-const META: Record<string, { mood: string; type: Skin["type"]; ide?: boolean; console?: boolean }> = {
+const META: Record<string, { mood: string; type: Skin["type"]; ide?: boolean; console?: boolean; hermes?: boolean }> = {
   claude: { mood: "Ember", type: "sans" },
-  hermes: { mood: "Olympus", type: "serif" },
+  hermes: { mood: "Olympus", type: "serif", hermes: true },
   pi: { mood: "Laboratory", type: "mono" },
   opencode: { mood: "Open Signal", type: "mono" },
   antigravity: { mood: "Zero-G", type: "sans", ide: true },
@@ -41,6 +43,7 @@ export function getSkin(id: string): Skin {
     type: m.type,
     ide: m.ide,
     console: m.console,
+    hermes: m.hermes,
   };
 }
 

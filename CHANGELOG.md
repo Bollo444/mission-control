@@ -4,15 +4,64 @@ A detailed record of the project's development: **every commit**, grouped by
 working session and shown newest-first. Each short hash links to the commit on
 GitHub.
 
-**3 sessions · 22 commits · 2026-05-31 → 2026-06-03**
-_Latest revision: 2026-06-03 — the changelog was expanded into this detailed,
-per-commit build log._
+**4 sessions · 22 commits + working-tree overhaul · 2026-05-31 → 2026-06-23**
+_Latest revision: 2026-06-23 — added Session 4 (the major overhaul). Those
+changes live in the working tree and are not yet committed, so they have no
+commit hashes._
 
 | Session | Date | Commits | When | Theme |
 |:--:|---|:--:|---|---|
+| 4 | 2026-06-23 (Tue) | uncommitted | Day | Major overhaul: meeting, Hermes console, automation & theming |
 | 3 | 2026-06-03 (Wed) | 11 | Late morning → evening | Gateway phases, branding & public launch |
 | 2 | 2026-06-02 (Tue) | 4 | Midday | Providers, health monitor & cascade proxy |
 | 1 | 2026-05-31 (Sat) | 7 | Afternoon → evening | Initial fleet console |
+
+---
+
+## Session 4 — 2026-06-23 · Major overhaul: meeting, Hermes console, automation & theming
+_Working-tree changes, not yet committed (no commit hashes). Reconstructed from
+the project's auto-memory and this session's work._
+
+### Team meeting — fixed init + made it persistent
+The boardroom wouldn't start: `GET /api/meeting` ran one live-LLM call per turn
+sequentially, each behind a 60s gateway timeout, so the request hung for minutes.
+It now returns the templated, metric-grounded meeting **instantly**; live model
+upgrades stream from a new `GET /api/meeting/stream` (SSE) and patch each turn in
+place. Meeting state now persists across tab switches via `localStorage`
+(`mc.meeting.v1`).
+
+### Hermes — dedicated console with a real native TUI
+Hermes got its own surface (`components/ide/HermesConsole.tsx`) instead of the
+generic agent page, gated by a `skin.hermes` flag:
+- **Native TUI embedded** — xterm.js talks to a server-side ConPTY over SSE
+  (`lib/pty.ts` + `/api/hermes/pty`); the PTY lives in the Node process, so the
+  terminal resumes across tab switches.
+- **Duo flow** relay popup — `@mention` an agent (`@openclaw`, `@claude`) and
+  Hermes pairs with just that one over ACP (`lib/acp.ts` ↔ `hermes-acp`), as
+  opposed to the full Team Meeting. Renamed from "Open relay".
+- **Update button** — checks `uv` for a newer Hermes (`/api/hermes/update`).
+
+### System files & automation
+- **Right-edge hover drawer** (`components/EdgeFileDrawer.tsx`) lists agent
+  configs, the vault, and app settings (`/api/system/files`, reads allow-listed
+  to known roots); clicking a file peeks its contents.
+- **Automation page** (`/automation`) — cron jobs with an in-process scheduler
+  (`lib/cron.ts`, booted from `instrumentation.ts`) and headless sub-agent deploy
+  (`lib/subagents.ts`).
+
+### Theming & polish
+Hermes shifted oxblood → near-black; gold caduceus signature with a radial
+shimmer, plus a sweeping shimmer band across the hero top. The file drawer became
+blurred glass with drifting gold motes and a modern slide/scale/fade transition.
+
+### Infra fixes
+Hermes was pinned to the now-unavailable `claude-fable-5` (broke the TUI) and was
+missing the `agent-client-protocol` dependency (broke duo-flow/ACP). Fixed both,
+then repointed Hermes at the **dashboard gateway router** (`provider: custom` →
+`http://127.0.0.1:4317/api/gateway/v1`, `model: auto`) so it runs on the fleet's
+free providers instead of an Anthropic subscription. Added `@lydell/node-pty` +
+`@xterm/xterm`; native module marked external in `next.config.mjs`. Stack runs as
+a PM2 production build on win32-arm64.
 
 ---
 

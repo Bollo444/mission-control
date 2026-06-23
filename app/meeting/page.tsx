@@ -37,6 +37,14 @@ const toneColor: Record<MeetingMetric["tone"], string> = {
 };
 
 const SIGNAL = "#46e0d0";
+const STORAGE_KEY = "mc.meeting.v1";
+
+type PersistedMeeting = {
+  started: boolean;
+  meta: MeetingResp | null;
+  turns: MeetingTurn[];
+  revealed: number;
+};
 
 export default function MeetingPage() {
   const [meta, setMeta] = useState<MeetingResp | null>(null);
@@ -48,8 +56,75 @@ export default function MeetingPage() {
   const [started, setStarted] = useState(false);
   const [voiceOn, setVoiceOn] = useState(false);
   const [partial, setPartial] = useState(0);
+  const [hydrated, setHydrated] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const voicesRef = useRef<SpeechSynthesisVoice[]>([]);
+  const streamRef = useRef<EventSource | null>(null);
+
+  // Restore a meeting in progress so switching tabs (or reloading) never resets
+  // the boardroom. We only read once, before the first paint-driven effects.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const p = JSON.parse(raw) as PersistedMeeting;
+        if (p.started && p.turns?.length) {
+          setStarted(true);
+          setMeta(p.meta);
+          setTurns(p.turns);
+          // Reveal everything that was already on screen — no re-animation.
+          setRevealed(p.turns.length);
+        }
+      }
+    } catch {
+      /* corrupt or unavailable storage — start clean */
+    }
+    setHydrated(true);
+  }, []);
+
+  // Persist the live boardroom state (after hydration, so we never clobber it).
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      if (started) {
+        const payload: PersistedMeeting = { started, meta, turns, revealed };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+      } else {
+        localStorage.removeItem(STORAGE_KEY);
+      }
+    } catch {
+      /* storage full or blocked — non-fatal */
+    }
+  }, [hydrated, started, meta, turns, revealed]);
+
+  // Open the live-LLM upgrade stream and patch turns in place as replies land.
+  const openUpgradeStream = useCallback(() => {
+    streamRef.current?.close();
+    const es = new EventSource("/api/meeting/stream");
+    streamRef.current = es;
+    es.onmessage = (e) => {
+      try {
+        const ev = JSON.parse(e.data) as
+          | { kind: "meta"; meta: MeetingResp }
+          | { kind: "turn"; id: string; text: string }
+          | { kind: "done" | "error" };
+        if (ev.kind === "turn") {
+          setTurns((prev) => prev.map((t) => (t.id === ev.id ? { ...t, text: ev.text } : t)));
+        } else if (ev.kind === "done" || ev.kind === "error") {
+          es.close();
+          streamRef.current = null;
+        }
+      } catch {
+        /* ignore malformed frame */
+      }
+    };
+    es.onerror = () => {
+      es.close();
+      streamRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => () => streamRef.current?.close(), []);
 
   const convene = useCallback(async () => {
     setLoading(true);
@@ -59,10 +134,11 @@ export default function MeetingPage() {
       setMeta(json);
       setTurns(json.turns);
       setRevealed(0);
+      openUpgradeStream(); // templated room is live now; upgrades patch in as they land
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [openUpgradeStream]);
 
   // The boardroom stays quiet until you explicitly convene it — landing on the
   // tab (e.g. by accident) never auto-starts a meeting.

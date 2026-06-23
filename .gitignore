@@ -38,3 +38,6 @@ Thumbs.db
 # its own keys). Personal & heavy; never publish to the repo.
 /sentinel/
 /secswarm/
+
+# oh-my-claudecode operational state (sessions, handoffs, logs) — never publish
+/.omc/

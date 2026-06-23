@@ -1,13 +1,19 @@
 import { NextResponse } from "next/server";
 import { getSystemReport } from "@/lib/system";
-import { buildMeeting, replyToMessage } from "@/lib/meeting";
+import { buildMeetingTemplated, replyToMessage } from "@/lib/meeting";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/**
+ * Returns the metric-grounded meeting INSTANTLY — every line is templated from
+ * the live system report, with no model in the request path, so the boardroom
+ * always convenes at once. Live-LLM upgrades stream separately from
+ * /api/meeting/stream and patch the turns in place.
+ */
 export async function GET() {
   const report = await getSystemReport();
-  return NextResponse.json(await buildMeeting(report));
+  return NextResponse.json(buildMeetingTemplated(report));
 }
 
 export async function POST(req: Request) {

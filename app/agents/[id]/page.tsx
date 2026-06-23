@@ -16,6 +16,7 @@ import FleetTerminal from "@/components/ide/FleetTerminal";
 import { getSkin, typeFontClass } from "@/components/skins";
 import AntigravityIde from "@/components/ide/AntigravityIde";
 import OpenClawConsole from "@/components/ide/OpenClawConsole";
+import HermesConsole from "@/components/ide/HermesConsole";
 
 export default function AgentPage() {
   const { id } = useParams<{ id: string }>();
@@ -50,6 +51,11 @@ export default function AgentPage() {
   // OpenClaw gets its dedicated system-operations console.
   if (skin.console) {
     return <OpenClawConsole agent={a} />;
+  }
+
+  // Hermes gets its dedicated oxblood+gold console: native TUI + ACP relay.
+  if (skin.hermes) {
+    return <HermesConsole agent={a} />;
   }
 
   const myActivity = (mem?.activity ?? []).filter((e: ActivityEntry) => e.agentId === a.id);

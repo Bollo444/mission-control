@@ -241,7 +241,7 @@ export const PROVIDERS: Provider[] = [
     name: "Local (LM Studio / llama.cpp)",
     keyEnv: "LOCAL_API_KEY",
     free: true,
-    models: ["local-default", "devstral", "qwen3-coder"],
+    models: ["local-default", "devstral", "qwen3-coder", "qwythos-9b"],
   },
 ];
 

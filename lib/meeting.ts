@@ -76,6 +76,17 @@ function pick<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
+/** Race a promise against a timeout so one slow provider can never hang the room. */
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T | null> {
+  return Promise.race([
+    p,
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
+  ]);
+}
+
+/** Per-turn ceiling for a live LLM upgrade before we keep the templated line. */
+const TURN_TIMEOUT_MS = 14_000;
+
 function list(names: string[], max = 3): string {
   if (names.length === 0) return "none";
   if (names.length <= max) return names.join(", ");
@@ -317,7 +328,7 @@ function trim(s: string, n = 80): string {
 }
 
 // Speaking order keeps the chair first/last and groups the named primaries early.
-const ORDER = ["claude", "hermes", "pi", "opencode", "antigravity", "openclaw", "jcode", "vibe", "kilo", "sentinel"];
+const ORDER = ["hermes", "claude", "pi", "opencode", "antigravity", "openclaw", "jcode", "vibe", "kilo", "sentinel"];
 
 function meta(id: string) {
   const a = getAgent(id);
@@ -360,11 +371,14 @@ export async function buildMeeting(report: SystemReport): Promise<MeetingResp> {
   for (const t of templated.turns) {
     let live: string | null = null;
     try {
-      live = await llmTurn(t.agentId, {
-        report,
-        phase: t.phase === "open" ? "open" : t.phase === "close" ? "close" : "reply",
-        priorTurns: t.phase === "reply" ? threadBuffer.slice(-4) : undefined,
-      });
+      live = await withTimeout(
+        llmTurn(t.agentId, {
+          report,
+          phase: t.phase === "open" ? "open" : t.phase === "close" ? "close" : "reply",
+          priorTurns: t.phase === "reply" ? threadBuffer.slice(-4) : undefined,
+        }),
+        TURN_TIMEOUT_MS
+      );
     } catch {
       live = null;
     }
@@ -372,6 +386,45 @@ export async function buildMeeting(report: SystemReport): Promise<MeetingResp> {
     threadBuffer.push(`${t.name}: ${t.text}`);
   }
   return templated;
+}
+
+/**
+ * Streaming variant: yields the templated meeting instantly (so the boardroom
+ * is never blank), then yields one live-LLM upgrade per turn as it arrives.
+ * The meeting page renders the templated `meta` immediately and patches each
+ * turn's text in place as upgrades land — a slow or dead provider just leaves
+ * the templated line standing, and the room is always usable at once.
+ */
+export type MeetingStreamEvent =
+  | { kind: "meta"; meta: MeetingResp }
+  | { kind: "turn"; index: number; id: string; text: string };
+
+export async function* streamMeeting(
+  report: SystemReport
+): AsyncGenerator<MeetingStreamEvent> {
+  const templated = buildMeetingTemplated(report);
+  yield { kind: "meta", meta: templated };
+
+  const threadBuffer: string[] = [];
+  for (let i = 0; i < templated.turns.length; i++) {
+    const t = templated.turns[i];
+    let live: string | null = null;
+    try {
+      live = await withTimeout(
+        llmTurn(t.agentId, {
+          report,
+          phase: t.phase === "open" ? "open" : t.phase === "close" ? "close" : "reply",
+          priorTurns: t.phase === "reply" ? threadBuffer.slice(-4) : undefined,
+        }),
+        TURN_TIMEOUT_MS
+      );
+    } catch {
+      live = null;
+    }
+    const text = live ?? t.text;
+    threadBuffer.push(`${t.name}: ${text}`);
+    if (live && live !== t.text) yield { kind: "turn", index: i, id: t.id, text };
+  }
 }
 
 /** Template-only builder — every line is deterministic/metric-grounded, no LLM.
@@ -698,12 +751,15 @@ export async function replyToMessage(report: SystemReport, message: string): Pro
   for (const id of ids) {
     let text: string | null = null;
     try {
-      text = await llmTurn(id, {
-        report,
-        phase: "reply",
-        userMessage: message,
-        priorTurns: buffer.slice(-3),
-      });
+      text = await withTimeout(
+        llmTurn(id, {
+          report,
+          phase: "reply",
+          userMessage: message,
+          priorTurns: buffer.slice(-3),
+        }),
+        TURN_TIMEOUT_MS
+      );
     } catch {
       text = null;
     }

@@ -7,6 +7,7 @@ import type { NavAgent } from "@/lib/types";
 import { hexA } from "@/lib/format";
 import RouteTransition from "./RouteTransition";
 import { useEdgeAutoScroll } from "./useEdgeAutoScroll";
+import EdgeFileDrawer from "./EdgeFileDrawer";
 
 function NavLink({
   href,
@@ -178,6 +179,12 @@ export default function Shell({
             </span>
             Team Meeting
           </NavLink>
+          <NavLink href="/automation" active={pathname === "/automation"}>
+            <span className="grid h-6 w-6 place-items-center rounded-md text-[13px]">
+              ⏱
+            </span>
+            Automation
+          </NavLink>
           <NavLink href="/settings" active={pathname === "/settings"}>
             <span className="grid h-6 w-6 place-items-center rounded-md text-[13px]">
               ⚙
@@ -225,6 +232,9 @@ export default function Shell({
       <main className="h-screen min-w-0 flex-1 overflow-hidden">
         <RouteTransition>{children}</RouteTransition>
       </main>
+
+      {/* Hover the right edge of the window to reveal system files. */}
+      <EdgeFileDrawer />
     </div>
   );
 }
