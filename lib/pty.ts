@@ -1,3 +1,6 @@
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
 import * as pty from "@lydell/node-pty";
 import { getAgent } from "./registry";
 import { home } from "./paths";
@@ -27,6 +30,48 @@ interface Session {
 
 const sessions = new Map<string, Session>();
 const MAX_BUFFER = 200_000; // ~200 KB of scrollback per session
+
+/**
+ * Refresh the Hermes update-check cache so that hermes_cli/banner.py's
+ * prefetch_update_check() always hits the cache path on startup and never
+ * spawns a git subprocess (git fetch / git rev-list / git ls-remote).
+ *
+ * banner.py checks three conditions for a cache hit (banner.py ~line 256-261):
+ *   1. now - cached["ts"] < 21600  (6-hour TTL, _UPDATE_CHECK_CACHE_SECONDS)
+ *   2. cached["rev"] == HERMES_REVISION env var (null when not set)
+ *   3. cached["ver"] == hermes_cli.__version__
+ *
+ * Strategy: read the existing cache (which has the correct "rev" and "ver"
+ * for this install), reset "ts" to now so it stays fresh for another 6 hours,
+ * then write it back. If the file doesn't exist yet, skip — hermes will write
+ * a correct one after its first git/PyPI check, and we'll refresh it from
+ * the next launch onward. Wrapped in try/catch: a write failure must never
+ * block the PTY spawn.
+ */
+function refreshHermesUpdateCache(): void {
+  try {
+    const hermesHome =
+      process.env.HERMES_HOME ||
+      path.join(
+        process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local"),
+        "hermes"
+      );
+    const cacheFile = path.join(hermesHome, ".update_check");
+
+    // Only refresh an existing cache so we never write a wrong "ver" value.
+    if (!fs.existsSync(cacheFile)) return;
+
+    const raw = fs.readFileSync(cacheFile, "utf8");
+    const cached = JSON.parse(raw) as Record<string, unknown>;
+
+    // Stamp "ts" to now (seconds, matching Python's time.time()).
+    cached["ts"] = Date.now() / 1000;
+
+    fs.writeFileSync(cacheFile, JSON.stringify(cached), "utf8");
+  } catch {
+    // Never let a cache I/O failure prevent the PTY from spawning.
+  }
+}
 
 /** Resolve the binary for an allow-listed kind. Returns null if not found. */
 function resolveCommand(kind: string): { cmd: string; args: string[]; cwd: string } | null {
@@ -71,6 +116,11 @@ export function getOrCreateSession(
   const resolved = resolveCommand(kind);
   if (!resolved) return { ok: false, error: `unknown session kind: ${kind}` };
 
+  // Refresh the Hermes update-check cache before spawning so banner.py's
+  // prefetch_update_check() hits the cached path and skips the git subprocess
+  // that would flash a console window on Windows. See refreshHermesUpdateCache.
+  if (kind === "hermes") refreshHermesUpdateCache();
+
   let proc: pty.IPty;
   try {
     proc = pty.spawn(resolved.cmd, resolved.args, {
@@ -78,8 +128,30 @@ export function getOrCreateSession(
       cols: size.cols || 80,
       rows: size.rows || 24,
       cwd: resolved.cwd,
-      env: { ...process.env, TERM: "xterm-256color" } as Record<string, string>,
-    });
+      env: {
+        ...process.env,
+        TERM: "xterm-256color",
+        // Best-effort env-flag suppression for Hermes startup noise (hermes kind only).
+        // The definitive flash fix is refreshHermesUpdateCache() above, which keeps
+        // banner.py's prefetch_update_check() on the cache hit path so it never reaches
+        // the git subprocess calls. These vars are belt-and-suspenders for any other
+        // startup subprocess that may check them:
+        //   HERMES_QUIET — confirmed used in hermes (cli.py, gateway/run.py) for noise suppression
+        //   NO_UPDATE_NOTIFIER — common convention; not confirmed in hermes source but harmless
+        ...(kind === "hermes" ? {
+          HERMES_QUIET: "1",
+          NO_UPDATE_NOTIFIER: "1",
+        } : {}),
+      } as Record<string, string>,
+      // ConPTY is windowless — no console window flashes on spawn. windowsHide
+      // isn't in node-pty's option type, so cast to pass it through.
+      // Note: useConpty is deprecated/ignored in @lydell/node-pty (see node-pty.d.ts);
+      // ConPTY is now always used on supported Windows builds, so this is a no-op
+      // but harmless to keep for documentation clarity.
+      useConpty: true,
+      windowsHide: true,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
   } catch (e) {
     return { ok: false, error: (e as Error).message };
   }

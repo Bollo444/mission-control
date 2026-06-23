@@ -24,7 +24,7 @@ interface SysGroup {
   files: SysFile[];
 }
 
-const SIGNAL = "#46e0d0";
+const SIGNAL = "#f5b75a";
 
 function fmtSize(n: number): string {
   if (n <= 0) return "";
@@ -82,6 +82,16 @@ export default function EdgeFileDrawer() {
       setContent(`⚠ ${(e as Error).message}`);
     }
   }, []);
+
+  // Slam-to-edge: throwing the pointer at the far right edge of the window
+  // opens the drawer without needing to hit the thin hot-zone precisely.
+  useEffect(() => {
+    const onMove = (e: PointerEvent) => {
+      if (e.clientX >= window.innerWidth - 2) show();
+    };
+    window.addEventListener("pointermove", onMove);
+    return () => window.removeEventListener("pointermove", onMove);
+  }, [show]);
 
   // Close the peek viewer on Escape.
   useEffect(() => {

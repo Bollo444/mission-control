@@ -128,9 +128,9 @@ export default function Shell({
             <span
               className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-base font-bold"
               style={{
-                background: hexA("#46e0d0", 0.14),
+                background: hexA("#f5b75a", 0.14),
                 color: "var(--color-signal)",
-                boxShadow: `inset 0 0 0 1px ${hexA("#46e0d0", 0.3)}`,
+                boxShadow: `inset 0 0 0 1px ${hexA("#f5b75a", 0.3)}`,
               }}
             >
               ◎

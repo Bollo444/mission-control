@@ -39,6 +39,21 @@ const s = (text: string, color?: string, opts: { dim?: boolean; bold?: boolean }
 let __rid = 0;
 const nextId = () => ++__rid;
 
+/* ------------------------------------------------------------------ *
+ * Persistent per-agent terminal state. Lives at module scope so that   *
+ * navigating away and back to the same agent (keyed by `prompt`)       *
+ * restores the full output, command history and half-typed input line  *
+ * exactly — no reset. The opening system-check only runs when there is  *
+ * no stored state for the key. Row ids keep incrementing via __rid, so  *
+ * restored rows never collide with freshly pushed ones.                *
+ * ------------------------------------------------------------------ */
+interface FleetState {
+  rows: Row[];
+  history: string[];
+  input: string;
+}
+const FLEET_STATE = new Map<string, FleetState>();
+
 function bar(pct: number, width = 10): Seg[] {
   const filled = Math.round((pct / 100) * width);
   const col = pctColor(pct);
@@ -92,10 +107,12 @@ export default function FleetTerminal({
   sysops?: boolean;
 }) {
   const router = useRouter();
-  const [rows, setRows] = useState<Row[]>([]);
-  const [input, setInput] = useState("");
+  // Restore persisted state for this agent, if any (set by a prior mount).
+  const restored = FLEET_STATE.get(prompt);
+  const [rows, setRows] = useState<Row[]>(restored?.rows ?? []);
+  const [input, setInput] = useState(restored?.input ?? "");
   const [busy, setBusy] = useState(false);
-  const [history, setHistory] = useState<string[]>([]);
+  const [history, setHistory] = useState<string[]>(restored?.history ?? []);
   const [histIdx, setHistIdx] = useState(-1);
   const lastReport = useRef<SystemReport | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
@@ -202,12 +219,19 @@ export default function FleetTerminal({
     setBusy(false);
   }, [fetchReport, printReport, push, accent]);
 
-  // Initial boot: a real check, once.
+  // Initial boot: a real check, once — but ONLY when there's no restored
+  // state for this agent (otherwise we'd duplicate output on every return).
   useEffect(() => {
+    if (FLEET_STATE.has(prompt)) return;
     echoCmd("system --check");
     void runCheck();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Persist rows/history/input so the next mount of this agent restores them.
+  useEffect(() => {
+    FLEET_STATE.set(prompt, { rows, history, input });
+  }, [prompt, rows, history, input]);
 
   useEffect(() => {
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight });

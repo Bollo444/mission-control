@@ -4,23 +4,85 @@ A detailed record of the project's development: **every commit**, grouped by
 working session and shown newest-first. Each short hash links to the commit on
 GitHub.
 
-**4 sessions · 22 commits + working-tree overhaul · 2026-05-31 → 2026-06-23**
-_Latest revision: 2026-06-23 — added Session 4 (the major overhaul). Those
-changes live in the working tree and are not yet committed, so they have no
-commit hashes._
+**5 sessions · 23 commits + working-tree overhaul · 2026-05-31 → 2026-06-23**
+_Latest revision: 2026-06-23 — added Session 5 (Hermes persistency, gold theming
+& the tabbed panel interior). Session 4 has since been committed (`f06dcac`)._
 
 | Session | Date | Commits | When | Theme |
 |:--:|---|:--:|---|---|
-| 4 | 2026-06-23 (Tue) | uncommitted | Day | Major overhaul: meeting, Hermes console, automation & theming |
+| 5 | 2026-06-23 (Tue) | this commit | Evening | Hermes persistency, gold theme, fade transitions & tabbed panel interior |
+| 4 | 2026-06-23 (Tue) | `f06dcac` | Day | Major overhaul: meeting, Hermes console, automation & theming |
 | 3 | 2026-06-03 (Wed) | 11 | Late morning → evening | Gateway phases, branding & public launch |
 | 2 | 2026-06-02 (Tue) | 4 | Midday | Providers, health monitor & cascade proxy |
 | 1 | 2026-05-31 (Sat) | 7 | Afternoon → evening | Initial fleet console |
 
 ---
 
+## Session 5 — 2026-06-23 · Hermes persistency, gold theme, fade transitions & tabbed panel interior
+
+### Persistency — nothing resets, anywhere
+Leaving a page and returning used to wipe live state — most painfully a
+half-typed Hermes TUI session. Root cause: `RouteTransition` remounts each page
+on navigation, disposing terminals. Fixed by making views outlive the remount:
+- **`HermesTerminal`** now keeps its xterm instance + SSE stream in a
+  module-level registry; navigating away only *detaches* the host node (no
+  `dispose`/`close`), so returning shows the exact prior screen, mid-prompt.
+- **`FleetTerminal`** (the custom command terminal) lifts its rows/history/input
+  into a module-level store keyed by agent, surviving navigation too.
+- **Duo flow** chat persists to `localStorage` (`mc.duo.v1`).
+
+### Global Hermes theme
+Re-skinned the global chrome from teal/cyan to Hermes gold on warmed oxblood
+(`--color-signal` → `#f5b75a`, body glow, selection, sidebar logo, edge drawer).
+Each agent's own page keeps its individual accent.
+
+### Route transition — fade + slow color blend
+Removed the "blob" sweep (all `mc-sweep-*` / per-agent `mc-enter-*`). Now a fast
+content `mc-fade-in` (~200 ms) plus a persistent, heavily-blurred color-wash
+layer that blends from the previous accent into the new one over ~900 ms — fast
+motion, slow color.
+
+### Edge drawer — slam-to-activate
+`EdgeFileDrawer` now opens when the pointer hits the far-right edge
+(`clientX ≥ innerWidth − 2`), in addition to the hover hot-zone.
+
+### Hermes panel interior — tabbed surface
+`HermesConsole` became a tabbed panel (`components/ide/hermes/`):
+- **New Session** (default) — the live TUI, kept mounted (`display:none` on
+  switch) so it never resets.
+- **Skills & Tools** — a picker toggling *Tool sets* (an `enabled / installed`
+  fraction; each toolset's name is its real-time trigger keyword, with a switch
+  that writes `config.yaml`) and *Skills* (grouped by the 26 on-disk categories
+  with installed counts, each skill toggled via `skills/.usage.json`).
+- **Messaging** — stub shell (Telegram/Discord/Slack/…), deferred to last.
+- **Artifacts** — Hermes outputs aggregated by type (Snapshots, Shared, Cron
+  Outputs, Images, Audio, Memories, Plans, Transcripts) with counts.
+- **Right rail** (New Session) keeps Duo flow + Capabilities and adds a
+  scrollable **Sessions** list (subagent spawns badged via `parent_session_id`)
+  and a **Profiles** panel surfacing the active-profile count — each spawned
+  subagent being its own profile/identity/soul.
+
+New data layer `lib/hermes-data.ts` + five routes under `app/api/hermes/`
+(`toolsets`, `skills`, `profiles`, `sessions`, `artifacts`), reading the Hermes
+home (`%LOCALAPPDATA%/hermes`): `config.yaml` (via `yaml`), the `skills/` tree +
+`.usage.json`, `profiles/`, and `state.db` (via `sql.js`). `next.config.mjs`
+gained `outputFileTracingRoot` (fixes a Windows EPERM AppData-junction build
+crash) and `serverExternalPackages` for `@lydell/node-pty` + `sql.js`.
+
+### Terminal launch flash — fixed
+The console flash on Hermes launch was Hermes' `prefetch_update_check()`
+(`hermes_cli/banner.py`) spawning `git` without `CREATE_NO_WINDOW`, but only when
+its 6 h `.update_check` cache was stale. `lib/pty.ts` now refreshes that cache
+(`ts` → now, preserving `rev`/`ver`/`behind`) before every Hermes spawn, so the
+check always short-circuits and never spawns `git`. A separate cold-start ConPTY
+console-allocation flash (Hermes being a console-subsystem binary) can't be
+removed without detaching the PTY, which would break the live stream.
+
+---
+
 ## Session 4 — 2026-06-23 · Major overhaul: meeting, Hermes console, automation & theming
-_Working-tree changes, not yet committed (no commit hashes). Reconstructed from
-the project's auto-memory and this session's work._
+_Committed as `f06dcac`. Reconstructed from the project's auto-memory and that
+session's work._
 
 ### Team meeting — fixed init + made it persistent
 The boardroom wouldn't start: `GET /api/meeting` ran one live-LLM call per turn

@@ -4,6 +4,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import type { AgentDetail } from "@/lib/types";
 import { StatusPill, ExternalLink } from "@/components/ui";
+import SkillsAndTools from "./hermes/SkillsAndTools";
+import MessagingStub from "./hermes/MessagingStub";
+import Artifacts from "./hermes/Artifacts";
+import SessionsPanel from "./hermes/SessionsPanel";
+import ProfilesPanel from "./hermes/ProfilesPanel";
 
 // The native TUI touches the DOM/EventSource — load it client-side only.
 const HermesTerminal = dynamic(() => import("./HermesTerminal"), {
@@ -69,11 +74,41 @@ function Caduceus({ size = 56 }: { size?: number }) {
 interface ChatMsg {
   who: "you" | "hermes";
   text: string;
+  // For reply bubbles: the paired agent this turn was delegated to (null → Hermes himself).
+  agent?: string | null;
 }
+
+// Low-alpha rgba from a #rrggbb hex — for tinted bubble fills/borders.
+function hexA(hex: string, a: number): string {
+  const h = hex.replace("#", "");
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${a})`;
+}
+
+// ---- Tab bar types -------------------------------------------------------
+
+type TabId = "new-session" | "skills-tools" | "messaging" | "artifacts";
+
+interface Tab {
+  id: TabId;
+  label: string;
+}
+
+const TABS: Tab[] = [
+  { id: "new-session", label: "New Session" },
+  { id: "skills-tools", label: "Skills & Tools" },
+  { id: "messaging", label: "Messaging" },
+  { id: "artifacts", label: "Artifacts" },
+];
+
+// ---- Main component -----------------------------------------------------
 
 export default function HermesConsole({ agent }: { agent: AgentDetail }) {
   const a = agent;
   const [orchestrating, setOrchestrating] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabId>("new-session");
 
   // ---- Update check (#5) -------------------------------------------------
   const [update, setUpdate] = useState<{
@@ -209,64 +244,134 @@ export default function HermesConsole({ agent }: { agent: AgentDetail }) {
         </div>
       </header>
 
-      {/* Body: native TUI + orchestration rail */}
-      <div className="relative z-10 grid min-h-0 flex-1 grid-cols-1 gap-5 px-6 py-5 lg:grid-cols-[1fr_320px]">
-        {/* Native TUI */}
-        <section
-          className="flex min-h-0 flex-col overflow-hidden rounded-xl"
-          style={{ border: `1px solid ${OX.line}`, background: OX.base }}
-        >
-          <div
-            className="flex shrink-0 items-center justify-between px-4 py-2.5"
-            style={{ borderBottom: `1px solid ${OX.line}`, background: OX.surface }}
-          >
-            <div className="flex items-center gap-2 text-sm font-semibold" style={{ color: OX.gold }}>
-              <span className="h-3 w-1 rounded-full" style={{ background: OX.gold }} />
-              Native Hermes TUI · solo
-            </div>
-            <span className="font-mono text-[11px]" style={{ color: OX.inkDim }}>
-              live PTY · resumes across tabs
-            </span>
-          </div>
-          <div className="min-h-0 flex-1">
-            <HermesTerminal session="hermes-main" kind="hermes" />
-          </div>
-        </section>
-
-        {/* Orchestration rail */}
-        <aside className="flex min-h-0 flex-col gap-4 overflow-y-auto">
-          <div className="rounded-xl p-4" style={{ border: `1px solid ${OX.line}`, background: OX.surface }}>
-            <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: OX.inkDim }}>
-              Duo flow
-            </div>
-            <p className="mb-3 text-xs leading-relaxed" style={{ color: OX.inkDim }}>
-              Pair Hermes with one agent on a task — <span style={{ color: OX.gold }}>@openclaw</span>,{" "}
-              <span style={{ color: OX.gold }}>@claude</span> — and the two work it together. For the whole
-              room, use the Team Meeting tab.
-            </p>
+      {/* Tab bar — gold/oxblood identity, directly under the hero. */}
+      <nav
+        className="relative z-10 flex shrink-0 items-end gap-1 px-6"
+        style={{ borderBottom: `1px solid ${OX.line}`, background: OX.surface }}
+        aria-label="Hermes panel tabs"
+      >
+        {TABS.map((tab) => {
+          const active = activeTab === tab.id;
+          return (
             <button
-              onClick={() => setOrchestrating(true)}
-              className="w-full rounded-lg px-3 py-2 text-sm font-semibold transition-transform hover:-translate-y-px"
-              style={{ background: OX.gold, color: OX.base }}
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className="relative px-4 py-2.5 text-sm font-medium transition-colors"
+              style={
+                active
+                  ? { color: OX.gold }
+                  : { color: OX.inkDim }
+              }
             >
-              ⬡ Duo flow
+              {tab.label}
+              {/* Active underline — the gold bar that marks the current tab. */}
+              {active && (
+                <span
+                  className="absolute inset-x-0 bottom-0 h-0.5 rounded-t"
+                  style={{ background: OX.gold }}
+                />
+              )}
             </button>
-          </div>
+          );
+        })}
+      </nav>
 
-          <div className="rounded-xl p-4" style={{ border: `1px solid ${OX.line}`, background: OX.surface }}>
-            <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: OX.inkDim }}>
-              Capabilities
-            </div>
-            <div className="flex flex-col gap-1.5">
-              {a.tools.map((t) => (
-                <div key={t} className="flex items-center gap-2 text-sm" style={{ color: OX.ink }}>
-                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: OX.gold }} />
-                  {t}
+      {/* Body — tab content area */}
+      <div className="relative z-10 min-h-0 flex-1 overflow-hidden">
+
+        {/* ---- NEW SESSION TAB ----
+            IMPORTANT: HermesTerminal is never unmounted — it is hidden via CSS when
+            another tab is active, preserving the live PTY session. */}
+        <div
+          className="h-full"
+          style={{ display: activeTab === "new-session" ? undefined : "none" }}
+        >
+          <div className="grid h-full min-h-0 grid-cols-1 gap-5 px-6 py-5 lg:grid-cols-[1fr_320px]">
+            {/* Native TUI */}
+            <section
+              className="flex min-h-0 flex-col overflow-hidden rounded-xl"
+              style={{ border: `1px solid ${OX.line}`, background: OX.base }}
+            >
+              <div
+                className="flex shrink-0 items-center justify-between px-4 py-2.5"
+                style={{ borderBottom: `1px solid ${OX.line}`, background: OX.surface }}
+              >
+                <div className="flex items-center gap-2 text-sm font-semibold" style={{ color: OX.gold }}>
+                  <span className="h-3 w-1 rounded-full" style={{ background: OX.gold }} />
+                  Native Hermes TUI · solo
                 </div>
-              ))}
-            </div>
+                <span className="font-mono text-[11px]" style={{ color: OX.inkDim }}>
+                  live PTY · resumes across tabs
+                </span>
+              </div>
+              <div className="min-h-0 flex-1">
+                <HermesTerminal session="hermes-main" kind="hermes" />
+              </div>
+            </section>
+
+            {/* Orchestration rail — extended with SessionsPanel + ProfilesPanel */}
+            <aside className="flex min-h-0 flex-col gap-4 overflow-y-auto">
+              <div className="rounded-xl p-4" style={{ border: `1px solid ${OX.line}`, background: OX.surface }}>
+                <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: OX.inkDim }}>
+                  Duo flow
+                </div>
+                <p className="mb-3 text-xs leading-relaxed" style={{ color: OX.inkDim }}>
+                  Pair Hermes with one agent on a task — <span style={{ color: OX.gold }}>@openclaw</span>,{" "}
+                  <span style={{ color: OX.gold }}>@claude</span> — and the two work it together. For the whole
+                  room, use the Team Meeting tab.
+                </p>
+                <button
+                  onClick={() => setOrchestrating(true)}
+                  className="w-full rounded-lg px-3 py-2 text-sm font-semibold transition-transform hover:-translate-y-px"
+                  style={{ background: OX.gold, color: OX.base }}
+                >
+                  ⬡ Duo flow
+                </button>
+              </div>
+
+              <div className="rounded-xl p-4" style={{ border: `1px solid ${OX.line}`, background: OX.surface }}>
+                <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: OX.inkDim }}>
+                  Capabilities
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  {a.tools.map((t) => (
+                    <div key={t} className="flex items-center gap-2 text-sm" style={{ color: OX.ink }}>
+                      <span className="h-1.5 w-1.5 rounded-full" style={{ background: OX.gold }} />
+                      {t}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Sessions — scrollable list of past/current sessions */}
+              <SessionsPanel />
+
+              {/* Profiles — active profile count + each profile identity */}
+              <ProfilesPanel />
+            </aside>
           </div>
-        </aside>
+        </div>
+
+        {/* ---- SKILLS & TOOLS TAB ---- */}
+        {activeTab === "skills-tools" && (
+          <div className="h-full overflow-hidden px-6 py-5">
+            <SkillsAndTools />
+          </div>
+        )}
+
+        {/* ---- MESSAGING TAB ---- */}
+        {activeTab === "messaging" && (
+          <div className="h-full overflow-hidden px-6 py-5">
+            <MessagingStub />
+          </div>
+        )}
+
+        {/* ---- ARTIFACTS TAB ---- */}
+        {activeTab === "artifacts" && (
+          <div className="h-full overflow-hidden px-6 py-5">
+            <Artifacts />
+          </div>
+        )}
       </div>
 
       {orchestrating && <OrchestrationRelay onClose={() => setOrchestrating(false)} />}
@@ -274,26 +379,66 @@ export default function HermesConsole({ agent }: { agent: AgentDetail }) {
   );
 }
 
-// ponytail: static fleet for the @-picker; mirrors lib/registry ids (rarely changes).
+// ponytail: static fleet for the @-picker; mirrors lib/registry ids + accents (rarely changes).
 // Hermes excluded — he's the orchestrator, not a delegate.
-const FLEET: [string, string][] = [
-  ["claude", "Claude Code"],
-  ["openclaw", "OpenClaw"],
-  ["pi", "Pi"],
-  ["opencode", "OpenCode"],
-  ["antigravity", "Antigravity"],
-  ["jcode", "jcode"],
-  ["vibe", "Vibe"],
-  ["kilo", "Kilo Code"],
-  ["sentinel", "Sentinel"],
+const FLEET: [string, string, string][] = [
+  ["claude", "Claude Code", "#e0915f"],
+  ["openclaw", "OpenClaw", "#ff4438"],
+  ["pi", "Pi", "#5cd6a0"],
+  ["opencode", "OpenCode", "#9d8cff"],
+  ["antigravity", "Antigravity", "#6ea8fe"],
+  ["jcode", "jcode", "#46e0d0"],
+  ["vibe", "Vibe", "#f06a7a"],
+  ["kilo", "Kilo Code", "#c0c6d4"],
+  ["sentinel", "Sentinel", "#d65db1"],
 ];
+
+const FLEET_ACCENT: Record<string, string> = Object.fromEntries(
+  FLEET.map(([id, , accent]) => [id, accent]),
+);
+
+// Resolve a paired-agent id to its accent; unknown / null → Hermes gold.
+const agentAccent = (id?: string | null): string =>
+  (id && FLEET_ACCENT[id]) || OX.gold;
+
+// localStorage key — mirrors the Team Meeting persistence pattern (mc.meeting.v1).
+const DUO_KEY = "mc.duo.v1";
 
 /** The Duo-flow chat popup — @mention an agent and Hermes pairs with them over ACP. */
 function OrchestrationRelay({ onClose }: { onClose: () => void }) {
   const [msgs, setMsgs] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  // localStorage is the source of truth — wait for rehydrate before persisting,
+  // so the empty initial state never clobbers a saved convo.
+  const [hydrated, setHydrated] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
+
+  // Rehydrate the convo on mount — the popup remounts each open, so this runs
+  // every time and pulls the persisted history back in.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(DUO_KEY);
+      if (raw) {
+        const saved = JSON.parse(raw) as { msgs?: ChatMsg[]; input?: string };
+        if (Array.isArray(saved.msgs)) setMsgs(saved.msgs);
+        if (typeof saved.input === "string") setInput(saved.input);
+      }
+    } catch {
+      /* ignore corrupt/absent state */
+    }
+    setHydrated(true);
+  }, []);
+
+  // Persist on every change — nothing resets across close/reopen or navigation.
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      localStorage.setItem(DUO_KEY, JSON.stringify({ msgs, input }));
+    } catch {
+      /* quota / private mode — non-fatal */
+    }
+  }, [msgs, input, hydrated]);
 
   // Suggest agents while typing a trailing @mention.
   const mention = input.match(/@(\w*)$/);
@@ -309,8 +454,11 @@ function OrchestrationRelay({ onClose }: { onClose: () => void }) {
   const send = useCallback(async () => {
     const text = input.trim();
     if (!text || busy) return;
+    // Pull the first @mention out of the sent text → the agent this turn pairs with.
+    const m = text.match(/@(\w+)/);
+    const paired = m && FLEET_ACCENT[m[1].toLowerCase()] ? m[1].toLowerCase() : null;
     setInput("");
-    setMsgs((m) => [...m, { who: "you", text }, { who: "hermes", text: "" }]);
+    setMsgs((m) => [...m, { who: "you", text }, { who: "hermes", text: "", agent: paired }]);
     setBusy(true);
     try {
       const res = await fetch("/api/hermes/acp", {
@@ -336,16 +484,15 @@ function OrchestrationRelay({ onClose }: { onClose: () => void }) {
             if (ev.type === "chunk" && ev.text) {
               setMsgs((m) => {
                 const copy = [...m];
-                copy[copy.length - 1] = {
-                  who: "hermes",
-                  text: copy[copy.length - 1].text + ev.text,
-                };
+                const last = copy[copy.length - 1];
+                copy[copy.length - 1] = { ...last, who: "hermes", text: last.text + ev.text };
                 return copy;
               });
             } else if (ev.type === "error") {
               setMsgs((m) => {
                 const copy = [...m];
-                copy[copy.length - 1] = { who: "hermes", text: `⚠ ${ev.message}` };
+                const last = copy[copy.length - 1];
+                copy[copy.length - 1] = { ...last, who: "hermes", text: `⚠ ${ev.message}` };
                 return copy;
               });
             }
@@ -357,7 +504,8 @@ function OrchestrationRelay({ onClose }: { onClose: () => void }) {
     } catch (e) {
       setMsgs((m) => {
         const copy = [...m];
-        copy[copy.length - 1] = { who: "hermes", text: `⚠ ${(e as Error).message}` };
+        const last = copy[copy.length - 1];
+        copy[copy.length - 1] = { ...last, who: "hermes", text: `⚠ ${(e as Error).message}` };
         return copy;
       });
     } finally {
@@ -405,20 +553,37 @@ function OrchestrationRelay({ onClose }: { onClose: () => void }) {
             </div>
           ) : (
             <div className="flex flex-col gap-3">
-              {msgs.map((m, i) => (
-                <div key={i} className={m.who === "you" ? "self-end" : "self-start"}>
-                  <div
-                    className="max-w-[80%] rounded-xl px-3.5 py-2 text-sm leading-relaxed"
-                    style={
-                      m.who === "you"
-                        ? { background: OX.gold, color: OX.base }
-                        : { background: OX.surface2, color: OX.ink, border: `1px solid ${OX.line}` }
-                    }
-                  >
-                    {m.text || (busy ? "…" : "")}
+              {msgs.map((m, i) => {
+                // Reply bubbles are tinted with the paired agent's accent (or Hermes gold).
+                const accent = agentAccent(m.agent);
+                const handle = m.agent ?? "hermes";
+                return (
+                  <div key={i} className={m.who === "you" ? "self-end" : "self-start"}>
+                    {m.who !== "you" && (
+                      <div
+                        className="mb-0.5 pl-0.5 text-[11px] font-semibold tracking-wide"
+                        style={{ color: accent }}
+                      >
+                        @{handle}
+                      </div>
+                    )}
+                    <div
+                      className="max-w-[80%] rounded-xl px-3.5 py-2 text-sm leading-relaxed"
+                      style={
+                        m.who === "you"
+                          ? { background: OX.gold, color: OX.base }
+                          : {
+                              background: hexA(accent, 0.12),
+                              color: OX.ink,
+                              border: `1px solid ${hexA(accent, 0.55)}`,
+                            }
+                      }
+                    >
+                      {m.text || (busy ? "…" : "")}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
               <div ref={endRef} />
             </div>
           )}
@@ -430,14 +595,14 @@ function OrchestrationRelay({ onClose }: { onClose: () => void }) {
               className="absolute bottom-full left-4 mb-1 w-56 overflow-hidden rounded-lg"
               style={{ background: OX.surface2, border: `1px solid ${OX.line}` }}
             >
-              {suggestions.map(([id, name]) => (
+              {suggestions.map(([id, name, accent]) => (
                 <button
                   key={id}
                   onClick={() => pickMention(id)}
                   className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-black/30"
                   style={{ color: OX.ink }}
                 >
-                  <span style={{ color: OX.gold }}>@{id}</span>
+                  <span style={{ color: accent }}>@{id}</span>
                   <span className="text-[11px]" style={{ color: OX.inkDim }}>{name}</span>
                 </button>
               ))}

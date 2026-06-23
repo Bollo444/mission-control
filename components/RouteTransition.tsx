@@ -1,41 +1,44 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { useRef } from "react";
 
-/* On every tab switch this remounts (keyed by pathname) and fires two things:
-   1) a content entrance animation on the page, and
-   2) a themed color SWEEP overlay that plays regardless of how fast the page's
-      data loads — so the transition is always visibly dramatic and distinct
-      per agent. The overlay clears to transparent and never blocks clicks. */
+/* On every tab switch the content remounts (keyed by pathname) and plays a
+   single FAST fade-in. Separately, a persistent, heavily-blurred color WASH
+   layer (rendered outside the keyed wrapper, so it does not remount) blends
+   SLOWLY from the previous route's accent to the new route's accent over
+   ~900ms, then fades away. Fast motion + slow color is the intended contrast.
+   Per-agent accents are preserved; only the global/default + generic routes
+   are gold now. The wash never blocks pointer events. */
 
 interface Trans {
-  enter: string;
-  sweep: string;
   accent: string;
 }
 
+const GOLD = "#f5b75a";
+
 const AGENTS: Record<string, Trans> = {
-  claude: { enter: "mc-enter-ember", sweep: "mc-sweep-across", accent: "#e0915f" },
-  hermes: { enter: "mc-enter-shimmer", sweep: "mc-sweep-across", accent: "#f5b75a" },
-  pi: { enter: "mc-enter-wipe", sweep: "mc-sweep-up", accent: "#5cd6a0" },
-  opencode: { enter: "mc-enter-iris", sweep: "mc-sweep-iris", accent: "#9d8cff" },
-  antigravity: { enter: "mc-enter-warp", sweep: "mc-sweep-across", accent: "#6ea8fe" },
-  openclaw: { enter: "mc-enter-slash", sweep: "mc-sweep-diag", accent: "#ff4438" },
-  jcode: { enter: "mc-enter-zoom", sweep: "mc-sweep-diag", accent: "#46e0d0" },
-  vibe: { enter: "mc-enter-pulse", sweep: "mc-sweep-iris", accent: "#f06a7a" },
-  kilo: { enter: "mc-enter-fold", sweep: "mc-sweep-up", accent: "#c0c6d4" },
-  sentinel: { enter: "mc-enter-iris", sweep: "mc-sweep-diag", accent: "#d65db1" },
+  claude: { accent: "#e0915f" },
+  hermes: { accent: "#f5b75a" },
+  pi: { accent: "#5cd6a0" },
+  opencode: { accent: "#9d8cff" },
+  antigravity: { accent: "#6ea8fe" },
+  openclaw: { accent: "#ff4438" },
+  jcode: { accent: "#46e0d0" },
+  vibe: { accent: "#f06a7a" },
+  kilo: { accent: "#c0c6d4" },
+  sentinel: { accent: "#d65db1" },
 };
 
 const ROUTES: Record<string, Trans> = {
-  "/": { enter: "mc-enter-zoom", sweep: "mc-sweep-iris", accent: "#46e0d0" },
-  "/sessions": { enter: "mc-enter-wipe", sweep: "mc-sweep-up", accent: "#46e0d0" },
-  "/memory": { enter: "mc-enter-iris", sweep: "mc-sweep-iris", accent: "#46e0d0" },
-  "/meeting": { enter: "mc-enter-warp", sweep: "mc-sweep-across", accent: "#9d8cff" },
-  "/settings": { enter: "mc-enter-fold", sweep: "mc-sweep-up", accent: "#46e0d0" },
+  "/": { accent: GOLD },
+  "/sessions": { accent: GOLD },
+  "/memory": { accent: GOLD },
+  "/meeting": { accent: "#9d8cff" },
+  "/settings": { accent: GOLD },
 };
 
-const DEFAULT: Trans = { enter: "mc-enter-rise", sweep: "mc-sweep-across", accent: "#46e0d0" };
+const DEFAULT: Trans = { accent: GOLD };
 
 function transFor(pathname: string): Trans {
   if (pathname.startsWith("/agents/")) {
@@ -47,15 +50,41 @@ function transFor(pathname: string): Trans {
 
 export default function RouteTransition({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const t = transFor(pathname);
+  const accent = transFor(pathname).accent;
+
+  // Remember the accent from the previous render so the outgoing wash layer
+  // can fade out the old color while the new one fades in.
+  const prevAccent = useRef<string>(accent);
+  const outgoing = prevAccent.current;
+  prevAccent.current = accent;
+
   return (
-    <div key={pathname} className="relative h-full overflow-hidden">
-      <div className={`h-full overflow-hidden ${t.enter}`}>{children}</div>
-      <div
-        aria-hidden
-        className={`mc-route-sweep pointer-events-none absolute inset-0 z-40 ${t.sweep}`}
-        style={{ ["--sweep" as string]: t.accent } as React.CSSProperties}
-      />
+    <div className="relative h-full overflow-hidden">
+      {/* Persistent slow color wash — lives outside the keyed wrapper so it
+          never remounts; the two layers cross-blend on each navigation. */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 z-40 overflow-hidden">
+        <div
+          key={`out-${pathname}`}
+          className="mc-wash-out absolute inset-0"
+          style={{
+            background: `radial-gradient(1200px 800px at 80% 0%, ${outgoing}, transparent 70%)`,
+            filter: "blur(90px)",
+          }}
+        />
+        <div
+          key={`in-${pathname}`}
+          className="mc-wash-in absolute inset-0"
+          style={{
+            background: `radial-gradient(1200px 800px at 80% 0%, ${accent}, transparent 70%)`,
+            filter: "blur(90px)",
+          }}
+        />
+      </div>
+
+      {/* Fast content fade — remounts each route. */}
+      <div key={pathname} className="mc-fade-in h-full overflow-hidden">
+        {children}
+      </div>
     </div>
   );
 }
