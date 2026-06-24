@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { deploySubagent } from "@/lib/subagents";
-import { HATS, getHat, buildHatTask } from "@/lib/sentinel-hats";
+import { deployGatewayRun } from "@/lib/subagents";
+import { HATS, getHat, hatSystemPrompt } from "@/lib/sentinel-hats";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,21 +32,19 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "select at least one hat" }, { status: 400 });
   }
 
-  const deployed: string[] = [];
-  const errors: string[] = [];
-  for (const id of hatIds) {
+  // Hats run through the headless gateway (free fleet) — sentinel.py itself is
+  // interactive and can't run autonomously. Each is a security-framed prompt.
+  const deployed = hatIds.map((id) => {
     const hat = getHat(id)!;
-    const res = deploySubagent("sentinel", buildHatTask(hat, objective), `${hat.name} hat`);
-    if (res.ok && res.run) deployed.push(res.run.id);
-    else errors.push(`${hat.name}: ${res.error}`);
-  }
+    const run = deployGatewayRun({
+      label: `${hat.name} hat`,
+      system: hatSystemPrompt(hat),
+      user: `Objective: ${objective.trim()}`,
+      agentId: "sentinel",
+      agentName: "Sentinel",
+    });
+    return run.id;
+  });
 
-  // If nothing launched (e.g. Sentinel not installed), surface the failure.
-  if (deployed.length === 0) {
-    return NextResponse.json(
-      { ok: false, error: errors[0] ?? "no hats deployed" },
-      { status: 400 }
-    );
-  }
-  return NextResponse.json({ ok: true, deployed, errors });
+  return NextResponse.json({ ok: true, deployed, errors: [] });
 }

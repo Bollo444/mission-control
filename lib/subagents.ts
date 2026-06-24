@@ -5,6 +5,7 @@ import { MC_CONFIG_DIR } from "./paths";
 import { getAgent } from "./registry";
 import { resolveBinary } from "./detect";
 import { logEvent } from "./logbook";
+import { cascadeChat } from "./gateway";
 
 /* ------------------------------------------------------------------ *
  * Deploy a coding agent headless on a one-off task and track it. Each   *
@@ -70,6 +71,69 @@ function upsert(run: SubagentRun) {
 
 export function listRuns(): SubagentRun[] {
   return load().sort((a, b) => b.startedAt - a.startedAt);
+}
+
+/**
+ * Run a task through the in-process gateway (free fleet providers) and track it
+ * as a SubagentRun, so the same UI/store works. Used by the Sentinel hat swarm:
+ * the interactive sentinel.py can't run headless, so hats execute here instead.
+ * Fire-and-forget — the run updates async; poll listRuns() for status/output.
+ */
+export function deployGatewayRun(opts: {
+  label: string;
+  system: string;
+  user: string;
+  agentId?: string;
+  agentName?: string;
+}): SubagentRun {
+  const run: SubagentRun = {
+    id: `sub_${Date.now().toString(36)}_${Math.floor(Math.random() * 1e4)}`,
+    agentId: opts.agentId ?? "gateway",
+    agentName: opts.agentName ?? "Gateway",
+    task: opts.user,
+    status: "running",
+    startedAt: Date.now(),
+    endedAt: null,
+    exitCode: null,
+    output: "",
+    label: opts.label,
+  };
+  upsert(run);
+
+  void (async () => {
+    try {
+      const res = await cascadeChat(
+        {
+          model: "auto",
+          messages: [
+            { role: "system", content: opts.system },
+            { role: "user", content: opts.user },
+          ],
+          max_tokens: 900,
+          temperature: 0.4,
+        },
+        { agentId: "sentinel-hat" }
+      );
+      if (!res.ok) {
+        run.status = "error";
+        run.output = `gateway error (${res.status}): ${res.error}`;
+      } else {
+        const j = (await res.response.json().catch(() => null)) as
+          | { choices?: Array<{ message?: { content?: string } }> }
+          | null;
+        run.output = j?.choices?.[0]?.message?.content?.trim() || "(no content returned)";
+        run.status = "done";
+        run.exitCode = 0;
+      }
+    } catch (e) {
+      run.status = "error";
+      run.output = (e as Error).message;
+    }
+    run.endedAt = Date.now();
+    upsert(run);
+  })();
+
+  return run;
 }
 
 export function deploySubagent(

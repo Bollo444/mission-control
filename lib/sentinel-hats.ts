@@ -78,3 +78,13 @@ export function buildHatTask(hat: Hat, objective: string): string {
     `AUTHORIZED engagement: stay strictly in scope and do nothing destructive.`
   );
 }
+
+/** System prompt for running a hat through the headless gateway. */
+export function hatSystemPrompt(hat: Hat): string {
+  return [
+    `You are ${hat.role}.`,
+    `You operate as one specialist in a coordinated security swarm; cover ONLY your lens (${hat.lens}) — the other hats handle theirs.`,
+    `Produce concrete, prioritized, technical findings and recommended actions. Use short headed sections and bullet points. Reference specific techniques, tools, controls, or CWEs where relevant.`,
+    `This is an AUTHORIZED, advisory engagement: describe what to check and how to fix — never include destructive payloads or commands to run blindly.`,
+  ].join(" ");
+}
