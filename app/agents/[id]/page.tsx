@@ -14,6 +14,7 @@ import ActivityFeed from "@/components/ActivityFeed";
 import AgentMetrics from "@/components/AgentMetrics";
 import NativeTerminal from "@/components/ide/NativeTerminal";
 import ClaudeMascots from "@/components/ide/ClaudeMascots";
+import VibeDog from "@/components/ide/VibeDog";
 import { getSkin, typeFontClass } from "@/components/skins";
 import AntigravityIde from "@/components/ide/AntigravityIde";
 import OpenClawConsole from "@/components/ide/OpenClawConsole";
@@ -74,6 +75,7 @@ export default function AgentPage() {
           }}
         />
         {a.id === "claude" && <ClaudeMascots />}
+        {a.id === "vibe" && <VibeDog />}
         <div className="relative flex flex-wrap items-center justify-between gap-5 px-8 py-7">
           <div className="flex items-center gap-5">
             <span
