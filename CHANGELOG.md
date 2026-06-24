@@ -4,17 +4,54 @@ A detailed record of the project's development: **every commit**, grouped by
 working session and shown newest-first. Each short hash links to the commit on
 GitHub.
 
-**5 sessions · 23 commits + working-tree overhaul · 2026-05-31 → 2026-06-23**
-_Latest revision: 2026-06-23 — added Session 5 (Hermes persistency, gold theming
-& the tabbed panel interior). Session 4 has since been committed (`f06dcac`)._
+**6 sessions · 37 commits · 2026-05-31 → 2026-06-24**
+_Latest revision: 2026-06-24 — added Session 6 (native CLI harnesses for every
+agent, Hermes transcripts & artifact previews, Sentinel hat swarm, Antigravity
+workspace, the dual-format gateway verified, and the Discord fleet bot)._
 
 | Session | Date | Commits | When | Theme |
 |:--:|---|:--:|---|---|
-| 5 | 2026-06-23 (Tue) | this commit | Evening | Hermes persistency, gold theme, fade transitions & tabbed panel interior |
+| 6 | 2026-06-24 (Wed) | 14 | All day | Native harnesses, Hermes/Sentinel/Antigravity surfaces, Discord messaging |
+| 5 | 2026-06-23 (Tue) | `3b9dc1e` | Evening | Hermes persistency, gold theme, fade transitions & tabbed panel interior |
 | 4 | 2026-06-23 (Tue) | `f06dcac` | Day | Major overhaul: meeting, Hermes console, automation & theming |
 | 3 | 2026-06-03 (Wed) | 11 | Late morning → evening | Gateway phases, branding & public launch |
 | 2 | 2026-06-02 (Tue) | 4 | Midday | Providers, health monitor & cascade proxy |
 | 1 | 2026-05-31 (Sat) | 7 | Afternoon → evening | Initial fleet console |
+
+---
+
+## Session 6 — 2026-06-24 · Native harnesses, agent surfaces, dual-format gateway & Discord
+**14 commits.** Every agent now embeds its own real CLI harness in-browser; the
+Hermes console became interactive; Sentinel gained a parallel security swarm;
+Antigravity got real file-system powers; the gateway's Anthropic compatibility
+was verified end-to-end; and the Messaging stub became a real Discord fleet bot.
+
+### Native CLI harness for every agent
+- [`80da818`](https://github.com/Bollo444/mission-control/commit/80da818) — Generalized the Hermes ConPTY/xterm pattern to **all** registered agents. `resolveCommand` (in `lib/pty.ts`) now resolves any agent's binary from the registry, and `HermesTerminal` became a reusable `NativeTerminal` (accent prop). Each agent page spawns the agent's **own CLI**, so its recognizable banner renders on load — replacing the external-popup `FleetTerminal`. OpenClaw's console got the same real TUI ([`eaebdec`](https://github.com/Bollo444/mission-control/commit/eaebdec)).
+- [`f005368`](https://github.com/Bollo444/mission-control/commit/f005368) — Fixed the embedded xterm stretching the page (a `1fr` grid track with content-based min-width let the terminal blow out the layout). `minmax(0,1fr)` + `min-w-0` + `overflow-hidden`. Also stopped the wandering mascots from re-rendering React 60×/s (now direct DOM writes in the rAF loop).
+- [`b0aa5e8`](https://github.com/Bollo444/mission-control/commit/b0aa5e8) — First-run robustness: an uninstalled agent shows an install hint instead of firing a failing PTY for a missing binary.
+
+### Hermes console — made interactive
+- [`608b215`](https://github.com/Bollo444/mission-control/commit/608b215) — **Sessions are clickable**: open any session's full transcript in a modal (new `getSessionMessages` reads `state.db`; `GET /api/hermes/sessions/[id]`).
+- [`3e22645`](https://github.com/Bollo444/mission-control/commit/3e22645) — **Artifacts are clickable**: preview images/audio/text inline or download (new `GET /api/hermes/artifact`, hard-confined to the Hermes home).
+
+### Per-agent character
+- [`6c81cad`](https://github.com/Bollo444/mission-control/commit/6c81cad) — A **marketplace** button by each agent's ready emblem (verified URLs for Claude, OpenCode, Antigravity, Kilo).
+- [`c90c993`](https://github.com/Bollo444/mission-control/commit/c90c993) · [`db69cc1`](https://github.com/Bollo444/mission-control/commit/db69cc1) — Whimsy: Claude's ✻ logos **wander the hero** (occasionally cooking or in a fishbowl space helmet); Vibe gets a **wandering dog**. Shared `WanderMascots` engine, reduced-motion aware.
+
+### Sentinel — parallel security hat swarm
+- [`91027a2`](https://github.com/Bollo444/mission-control/commit/91027a2) — A **hat swarm**: pick an objective + which hats (red/blue/purple/green/white/yellow) and run them in parallel. Fixed two infra bugs found en route: `.cmd`/`.bat` agents threw `spawn EINVAL` (now shell-spawned — also unblocks headless pi/openclaw/kilo), and the interactive launcher needed stdin, not `-p`.
+- [`6890a45`](https://github.com/Bollo444/mission-control/commit/6890a45) — Since `sentinel.py` is interactive (mandatory per-command approval, crashes headless), the hats run through the **free gateway** instead (`deployGatewayRun` → `cascadeChat`). Verified: red + blue hats return distinct ~2.9k-char assessments with CWE/ATT&CK references.
+
+### Antigravity — file-system powers
+- [`23b1c41`](https://github.com/Bollo444/mission-control/commit/23b1c41) — A **Workspace** panel in the IDE activity bar that browses real project folders and edits files in a modal (`/api/workspace`: list/read/write, **hard-confined to the user's home** — escape attempts → 403).
+
+### Dual-format gateway — verified
+- The Anthropic-compatible endpoint (`/api/anthropic/v1/messages`, `lib/anthropic-bridge.ts`) was **verified end-to-end**: an Anthropic-format request is answered by a free provider in Anthropic shape, bad tokens → 401, `GET /v1/models` lists 72 models. So any Claude-API tool can run free through the fleet.
+- [`6f3b9f7`](https://github.com/Bollo444/mission-control/commit/6f3b9f7) — Typed `openAIToAnthropic`'s return (`AnthropicMessage`); the project is now `tsc --noEmit` clean (was 18 errors), bridge tests pass 27/27.
+
+### Discord fleet bot
+- [`14825e5`](https://github.com/Bollo444/mission-control/commit/14825e5) — Replaced the Messaging stub with **one Discord bot handed off to all agents**. A channel command like `claude: <task>` routes to that agent through the free gateway and replies as an embed in the agent's **accent color**; `help` lists the fleet. Dormant by default (`lib/discord.ts`, booted from `instrumentation.ts`, self-guards with no token); config + live status + per-agent test in the Messaging tab. Token stored encrypted in `apiKeys`.
 
 ---
 

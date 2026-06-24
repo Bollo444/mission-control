@@ -112,6 +112,26 @@ config exists. Ones you don't have installed appear as provisionable personas.
 - **Obsidian shared-memory vault** — one note per agent, a live shared Activity
   Log (where the health monitor records every sweep and re-route), and a Shared
   Knowledge base.
+- **Native CLI harness per agent** — each agent page embeds the agent's **own
+  real CLI** (xterm.js over a server-side ConPTY), so its recognizable banner
+  renders on load and the session survives navigation. Uninstalled agents show
+  an install hint instead.
+- **Anthropic-compatible gateway** — alongside the OpenAI endpoint, the gateway
+  speaks **Anthropic's `/v1/messages`** (`/api/anthropic`), so *any* Claude-API
+  tool — including Claude Code — can run free through the fleet. See
+  [below](#anthropic-compatible-endpoint).
+- **Hermes console** — a tabbed surface with a live native TUI, a Skills & Tools
+  picker (writes `config.yaml` / `.usage.json`), clickable **session transcripts**
+  and **artifact previews**, and a Duo-flow relay.
+- **Sentinel hat swarm** — pick an objective + which security hats
+  (red/blue/purple/green/white/yellow) and run them in parallel; each returns a
+  distinct, lens-specific assessment through the free gateway.
+- **Antigravity workspace** — the in-browser IDE browses real project folders and
+  edits files (`/api/workspace`, sandboxed to your home directory).
+- **Discord fleet bot** — one optional bot handed off to every agent: a channel
+  command like `claude: <task>` routes to that agent and replies as an embed in
+  the agent's accent color. Dormant until you add a token. See
+  [below](#discord-fleet-bot).
 
 ---
 
@@ -531,13 +551,57 @@ provider in `~/.config/opencode/opencode.json`):
 }
 ```
 
-> Don't point **Claude Code** at the gateway — it speaks Anthropic's Messages API
-> (not OpenAI's) and you'd downgrade your paid Claude to free models. Keep Claude
-> on Anthropic; route provider-agnostic tools (OpenCode, etc.) through the gateway.
+> The OpenAI endpoint above is for provider-agnostic tools (OpenCode, etc.).
+> Claude Code speaks Anthropic's Messages API — point it at the **Anthropic
+> endpoint** below instead (and only if you *want* it on free models; otherwise
+> keep paid Claude on Anthropic).
 
 > [!NOTE]
 > The gateway only helps an agent **whose base URL points at it** — see
 > [control plane vs. inference path](#how-it-works-under-the-hood--control-plane-vs-inference-path).
+
+### Anthropic-compatible endpoint
+
+The same fleet, exposed in **Anthropic's Messages API** format — so any tool that
+speaks Anthropic (including **Claude Code** itself) can run on your free
+providers. It translates Anthropic ⇄ OpenAI at the edge and reuses the same
+cascade, budgets, and routing underneath.
+
+- **Base URL:** `http://127.0.0.1:4317/api/anthropic`
+- **Auth:** your gateway token as `x-api-key` (or `Authorization: Bearer`).
+- **`POST /v1/messages`** — full Anthropic request/response, including the
+  `haiku` / `sonnet` / `opus` slots, each mapped to a provider+model you choose in
+  **Settings → Anthropic slots**. **`GET /v1/models`** lists the catalog.
+
+```bash
+curl http://127.0.0.1:4317/api/anthropic/v1/messages \
+  -H "x-api-key: <your gateway token>" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"claude-3-5-sonnet-20241022","max_tokens":64,
+       "messages":[{"role":"user","content":"hi"}]}'
+# answered by a free provider, returned in Anthropic message shape
+```
+
+Implemented in [`lib/anthropic-bridge.ts`](lib/anthropic-bridge.ts) +
+[`app/api/anthropic/[...path]`](app/api/anthropic).
+
+### Discord fleet bot
+
+An optional bot that hands your whole fleet to a Discord channel — **one bot, all
+agents, each in its own accent color.** Dormant until you add a token (no token →
+nothing connects, nothing errors).
+
+- In the **Messaging tab** (Hermes console), paste a **Channel ID** + **bot
+  token** (create a bot at the Discord Developer Portal, enable the **Message
+  Content** intent, invite it to your server). The token is write-only — stored
+  encrypted in `~/.mission-control`, never shown back.
+- In your channel, `claude: explain closures` routes to that agent through the
+  free gateway and replies as an embed in its color; `help` lists the fleet.
+
+Implemented in [`lib/discord.ts`](lib/discord.ts) +
+[`app/api/discord`](app/api/discord), booted from
+[`instrumentation.ts`](instrumentation.ts).
 
 ---
 
@@ -712,24 +776,35 @@ app/
     agents, agents/[id], launch, sessions, memory, settings, system, vault, meeting
     health/route.ts       GET last health state · POST run a sweep now
     gateway/[...path]      Fleet Gateway — all-provider OpenAI-compatible endpoint
+    anthropic/[...path]    Anthropic-compatible endpoint (/v1/messages, /v1/models)
     route/openrouter/…    single-provider OpenRouter cascade proxy
     usage/route.ts         GET per-provider usage + budgets · DELETE clear
     analytics/route.ts     GET windowed gateway analytics (today / 7d / 30d)
     logs/route.ts          GET universal log (filters) · DELETE clear
+    hermes/…              pty (ConPTY bridge), sessions, sessions/[id], artifacts, skills, toolsets, profiles
+    sentinel/swarm         deploy parallel security hats · subagents · cron (automation)
+    workspace/route.ts     Antigravity IDE file browse/read/write (home-confined)
+    discord/route.ts       fleet bot status · save creds · reconnect · test
 lib/
   registry.ts             agent definitions (identity, detection, launch, install)
-  settings.ts             provider catalog, routing (preferred + effective), keys, gateway token
+  settings.ts             provider catalog, routing (preferred + effective), keys, gateway token, anthropic slots
   health.ts               provider probes, auto-failover/revert, scheduler  ← failover engine
   gateway.ts              multi-provider cascade gateway (adapters, cooldown, sticky, vision, tools)
+  anthropic-bridge.ts     Anthropic ⇄ OpenAI translation for the /api/anthropic endpoint
+  pty.ts                  server-side ConPTY session manager (native agent TUIs)
+  hermes-data.ts          reads the Hermes home (config.yaml, skills, profiles, state.db via sql.js)
+  subagents.ts            headless sub-agent deploy + gateway-run tracking · sentinel-hats.ts · cron.ts
+  discord.ts              optional Discord fleet bot (discord.js) — dormant without a token
   usage.ts                gateway usage ledger (RPM/RPD/TPM/TPD + daily history) · limits.ts
   livelimits.ts           live provider limits (x-ratelimit headers + OpenRouter credits)
   secretbox.ts            opt-in AES-256-GCM encryption for keys at rest
   logbook.ts              universal event log — append/read events.log
   detect / system / meeting / sessions / memory / launch / format / types / paths / voices
-instrumentation.ts        Next.js boot hook — starts the 6h health scheduler
+instrumentation.ts        Next.js boot hook — health scheduler, cron, Discord bot (all self-guarded)
 components/
-  Shell, AgentCard, ActivityFeed, ConfigViewer, MemoryEditor, …
-  ide/    AntigravityIde, OpenClawConsole, FleetTerminal, WindowControls
+  Shell, AgentCard, ActivityFeed, ConfigViewer, MemoryEditor, EdgeFileDrawer, …
+  ide/    NativeTerminal (shared ConPTY xterm), HermesConsole + hermes/*, AntigravityIde + AntigravityWorkspace,
+          OpenClawConsole, SentinelSwarm, ClaudeMascots / VibeDog / WanderMascots, FleetTerminal
   skins/  one bespoke animated background + mascot per agent
 ```
 
@@ -741,8 +816,11 @@ surface reads/writes. Keys + routing + health state persist in `~/.mission-contr
 
 ## Tech stack
 
-Next.js 15 (App Router) · React 19 · TypeScript (strict) · Tailwind CSS v4 ·
-zero runtime dependencies beyond `next` and a TOML parser. No database.
+Next.js 15 (App Router) · React 19 · TypeScript (strict) · Tailwind CSS v4. No
+database — state lives in `~/.mission-control` JSON + the Hermes `state.db`.
+Runtime deps are deliberately lean: `@xterm/xterm` + `@lydell/node-pty` (native
+agent TUIs), `sql.js` (read Hermes' SQLite, pure-wasm), `yaml`, a TOML parser,
+and the **optional** `discord.js` (only loaded when the fleet bot is configured).
 
 ## License
 
