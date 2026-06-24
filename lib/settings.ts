@@ -29,6 +29,9 @@ export interface Settings {
   /** Claude Code's 3 Anthropic slots — each maps to a provider/model in the catalog.
    *  Claude sends haiku/sonnet/opus; the Anthropic bridge routes to whatever you pick here. */
   anthropicSlots?: { haiku: RouteRule; sonnet: RouteRule; opus: RouteRule };
+  /** Discord channel id the fleet bot listens/posts in. Bot token lives in
+   *  apiKeys["DISCORD_BOT_TOKEN"] (encrypted). Both empty = messaging dormant. */
+  discordChannelId?: string;
   updatedAt: string;
 }
 
@@ -313,6 +316,7 @@ export function writeSettings(next: Partial<Settings>): Settings {
   if (next.vaultDir) merged.vaultDir = next.vaultDir;
   if (next.gatewayToken) merged.gatewayToken = next.gatewayToken;
   if (next.anthropicSlots) merged.anthropicSlots = next.anthropicSlots;
+  if (next.discordChannelId !== undefined) merged.discordChannelId = next.discordChannelId;
   merged.updatedAt = new Date().toISOString();
   fs.mkdirSync(MC_CONFIG_DIR, { recursive: true });
   // Encrypt provider keys at rest when MC_ENCRYPTION_KEY is set (no-op otherwise).

@@ -9,6 +9,13 @@ export async function register() {
   startHealthScheduler();
   const { startCronScheduler } = await import("./lib/cron");
   startCronScheduler();
+  // Discord fleet bot — self-guards: no DISCORD_BOT_TOKEN configured => dormant.
+  try {
+    const { startDiscordBot } = await import("./lib/discord");
+    await startDiscordBot();
+  } catch {
+    /* never block boot on optional messaging */
+  }
   const { logEvent } = await import("./lib/logbook");
   logEvent({ source: "system", level: "success", event: "Mission Control server started" });
 }
