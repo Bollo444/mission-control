@@ -5,7 +5,7 @@ import type { AgentDetail, SystemReport } from "@/lib/types";
 import { fmtBytes, fmtDuration, pctColor } from "@/lib/format";
 import { OpenClawMascot } from "@/components/skins/mascots";
 import { OpenClawBg } from "@/components/skins/backgrounds";
-import FleetTerminal from "./FleetTerminal";
+import NativeTerminal from "./NativeTerminal";
 import WindowControls from "./WindowControls";
 import LaunchControls from "@/components/LaunchControls";
 
@@ -137,11 +137,11 @@ export default function OpenClawConsole({ agent }: { agent: AgentDetail }) {
 
         <div className="flex min-w-0 flex-1 flex-col">
           <div className="flex h-8 shrink-0 items-center gap-4 border-b border-white/10 px-4 text-[11px] uppercase tracking-wider">
-            <span style={{ color: ACCENT }}>● Terminal</span>
-            <span className="text-[var(--color-ink-4)]">live check + system ops · type `help`</span>
+            <span style={{ color: ACCENT }}>● Native TUI</span>
+            <span className="text-[var(--color-ink-4)]">live openclaw harness · survives navigation</span>
           </div>
           <div className="min-h-0 flex-1">
-            <FleetTerminal prompt="openclaw" accent={ACCENT} sysops />
+            <NativeTerminal kind="openclaw" session="openclaw-main" accent={ACCENT} />
           </div>
         </div>
       </div>
