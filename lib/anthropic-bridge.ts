@@ -208,10 +208,26 @@ const STOP_MAP: Record<string, string> = {
  * Covers both text-only and tool-call responses. Usage fields synthesized to 0
  * if the provider doesn't report them.
  */
+export interface AnthropicMessage {
+  id: string;
+  type: "message";
+  role: "assistant";
+  content: AnyObj[];
+  model: string;
+  stop_reason: string;
+  stop_sequence: string | null;
+  usage: {
+    input_tokens: number;
+    output_tokens: number;
+    cache_creation_input_tokens: number;
+    cache_read_input_tokens: number;
+  };
+}
+
 export function openAIToAnthropic(
   openai: AnyObj,
   requestedModel: string
-): AnyObj {
+): AnthropicMessage {
   const choice = ((openai.choices as AnyObj[]) ?? [])[0] ?? ({} as AnyObj);
   const msg = (choice.message ?? {}) as AnyObj;
   const finish = String(choice.finish_reason ?? "stop");

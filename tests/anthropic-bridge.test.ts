@@ -194,7 +194,7 @@ describe("openAIToAnthropic — response translation", () => {
     assert.equal(resp.content[0].name, "Bash");
     assert.deepEqual(resp.content[0].input, { command: "ls" });
     // tool call id is preserved (wrapped in toolu_ prefix if needed? no — we preserve as-is)
-    assert.ok(resp.content[0].id.includes("call_abc"));
+    assert.ok(String(resp.content[0].id).includes("call_abc"));
   });
 
   it("maps stop reasons correctly", () => {
