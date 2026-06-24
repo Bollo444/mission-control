@@ -31,6 +31,8 @@ export interface AgentSummary {
   primary: boolean;
   tools: string[];
   homepage?: string;
+  /** Agent's add-on marketplace (plugins/skills/extensions), if it has one. */
+  marketplace?: string;
   installable: boolean;
   status: AgentStatus;
 }

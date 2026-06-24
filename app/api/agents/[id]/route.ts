@@ -32,6 +32,7 @@ export async function GET(
     primary: def.primary,
     tools: def.tools,
     homepage: def.homepage,
+    marketplace: def.marketplace,
     docsNote: def.docsNote,
     install: def.install ?? null,
     route: settings.routing[id] ?? null,

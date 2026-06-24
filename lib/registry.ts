@@ -52,6 +52,8 @@ export interface AgentDef {
   /** Capabilities surfaced on the agent's mission-control page. */
   tools: string[];
   homepage?: string;
+  /** Agent's add-on marketplace (plugins/skills/extensions), if it has one. */
+  marketplace?: string;
   docsNote?: string;
 }
 
@@ -127,6 +129,7 @@ export const AGENTS: AgentDef[] = [
       "Slash commands",
     ],
     homepage: "https://claude.com/claude-code",
+    marketplace: "https://github.com/anthropics/claude-plugins-official",
   },
   {
     id: "pi",
@@ -198,6 +201,7 @@ export const AGENTS: AgentDef[] = [
       "MCP support",
     ],
     homepage: "https://opencode.ai",
+    marketplace: "https://github.com/awesome-opencode/awesome-opencode",
   },
   {
     id: "antigravity",
@@ -237,6 +241,7 @@ export const AGENTS: AgentDef[] = [
       "Inline editing",
     ],
     homepage: "https://antigravity.google",
+    marketplace: "https://open-vsx.org/",
   },
   {
     id: "openclaw",
@@ -330,6 +335,7 @@ export const AGENTS: AgentDef[] = [
     launch: { cmd: "kilo", args: [], askCwd: true },
     install: { manager: "npm", command: "npm install -g @kilocode/cli", docs: "https://kilo.ai/cli" },
     homepage: "https://kilo.ai",
+    marketplace: "https://github.com/Kilo-Org/kilo-marketplace",
     tools: ["CLI agent", "Free models (500+)", "Custom modes", "MCP", "VS Code / JetBrains"],
   },
 

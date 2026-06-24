@@ -103,7 +103,25 @@ export default function AgentPage() {
             </div>
           </div>
           <div className="flex flex-col items-end gap-2">
-            <StatusPill on={s.installed} labelOn="ready" accent={accent} />
+            <div className="flex items-center gap-2">
+              {a.marketplace && (
+                <a
+                  href={a.marketplace}
+                  target="_blank"
+                  rel="noreferrer"
+                  title={`${a.name} marketplace`}
+                  className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-semibold transition-transform hover:-translate-y-px"
+                  style={{
+                    background: hexA(accent, 0.12),
+                    color: accent,
+                    boxShadow: `inset 0 0 0 1px ${hexA(accent, 0.35)}`,
+                  }}
+                >
+                  ⊞ Marketplace
+                </a>
+              )}
+              <StatusPill on={s.installed} labelOn="ready" accent={accent} />
+            </div>
             <div className="text-xs text-[var(--color-ink-3)]">
               {s.version || (s.installed ? "configured" : "not detected")}
             </div>
