@@ -210,9 +210,9 @@ export default function NativeTerminal({
   }, [session, kind, accent]);
 
   return (
-    <div className="relative h-full w-full" style={{ background: OXBLOOD }}>
+    <div className="relative h-full w-full overflow-hidden" style={{ background: OXBLOOD }}>
       {/* Container — the persistent xterm host div is appended here. */}
-      <div ref={hostRef} className="h-full w-full" />
+      <div ref={hostRef} className="h-full w-full overflow-hidden" />
       {status !== "live" && (
         <div
           className="pointer-events-none absolute right-3 top-2 rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wider"

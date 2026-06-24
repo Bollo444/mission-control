@@ -139,9 +139,9 @@ export default function AgentPage() {
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-      <div className="grid grid-cols-1 gap-6 px-8 py-7 lg:grid-cols-[1fr_360px]">
-        {/* Main column */}
-        <div className="flex flex-col gap-6">
+      <div className="grid grid-cols-1 gap-6 px-8 py-7 lg:grid-cols-[minmax(0,1fr)_360px]">
+        {/* Main column — min-w-0 so the embedded xterm fits the track, not the reverse */}
+        <div className="flex min-w-0 flex-col gap-6">
           {/* Launch + stats */}
           <section className="mc-panel p-5">
             <div className="mb-4">
