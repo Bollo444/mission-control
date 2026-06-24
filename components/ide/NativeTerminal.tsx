@@ -3,10 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 
 /* ------------------------------------------------------------------ *
- * The real, native Hermes TUI embedded in the page. xterm.js renders   *
- * a true terminal; keystrokes POST to the PTY bridge and output streams *
- * back over SSE. The PTY lives server-side, so leaving and returning to *
- * the tab resumes the SAME session (scrollback is replayed on connect). *
+ * The real, native CLI harness of an agent, embedded in the page.      *
+ * xterm.js renders a true terminal; keystrokes POST to the PTY bridge   *
+ * and output streams back over SSE. The PTY lives server-side, so       *
+ * leaving and returning to the tab resumes the SAME session (scrollback *
+ * is replayed on connect). Each agent spawns its OWN CLI (kind = agent  *
+ * id), so its recognizable banner/branding renders on load.             *
  *                                                                       *
  * To make the *client* view survive navigation with zero reset, the     *
  * live xterm instance and its SSE stream live in a MODULE-LEVEL         *
@@ -37,12 +39,15 @@ interface Entry {
 // One live terminal per `${kind}:${session}`. Survives component unmount.
 const TERMS = new Map<string, Entry>();
 
-export default function HermesTerminal({
+export default function NativeTerminal({
   session = "hermes-main",
   kind = "hermes",
+  accent = GOLD,
 }: {
   session?: string;
   kind?: string;
+  /** Per-agent identity color — themes cursor + highlight for brand recognition. */
+  accent?: string;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState<Status>("connecting");
@@ -118,18 +123,18 @@ export default function HermesTerminal({
           theme: {
             background: OXBLOOD,
             foreground: PARCHMENT,
-            cursor: GOLD,
+            cursor: accent,
             cursorAccent: OXBLOOD,
             selectionBackground: "#2c2c30",
             black: "#1b1b1e",
             red: "#ff6b6b",
             green: "#7bd88f",
-            yellow: GOLD,
+            yellow: accent,
             blue: "#7aa2f7",
             magenta: "#d6a4ff",
             cyan: "#7be0d0",
             white: PARCHMENT,
-            brightYellow: "#ffd483",
+            brightYellow: accent,
           },
         });
         const fit = new FitAddon();
@@ -202,7 +207,7 @@ export default function HermesTerminal({
         if (entry.host.parentNode) entry.host.parentNode.removeChild(entry.host);
       }
     };
-  }, [session, kind]);
+  }, [session, kind, accent]);
 
   return (
     <div className="relative h-full w-full" style={{ background: OXBLOOD }}>
@@ -212,7 +217,7 @@ export default function HermesTerminal({
         <div
           className="pointer-events-none absolute right-3 top-2 rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wider"
           style={{
-            color: status === "ended" ? "#ff8f8f" : GOLD,
+            color: status === "ended" ? "#ff8f8f" : accent,
             background: "rgba(0,0,0,0.35)",
           }}
         >

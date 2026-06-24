@@ -11,7 +11,7 @@ import SessionsPanel from "./hermes/SessionsPanel";
 import ProfilesPanel from "./hermes/ProfilesPanel";
 
 // The native TUI touches the DOM/EventSource — load it client-side only.
-const HermesTerminal = dynamic(() => import("./HermesTerminal"), {
+const HermesTerminal = dynamic(() => import("./NativeTerminal"), {
   ssr: false,
   loading: () => (
     <div className="grid h-full place-items-center text-sm" style={{ color: "#c9a98f" }}>

@@ -12,7 +12,7 @@ import MemoryEditor from "@/components/MemoryEditor";
 import SessionList from "@/components/SessionList";
 import ActivityFeed from "@/components/ActivityFeed";
 import AgentMetrics from "@/components/AgentMetrics";
-import FleetTerminal from "@/components/ide/FleetTerminal";
+import NativeTerminal from "@/components/ide/NativeTerminal";
 import { getSkin, typeFontClass } from "@/components/skins";
 import AntigravityIde from "@/components/ide/AntigravityIde";
 import OpenClawConsole from "@/components/ide/OpenClawConsole";
@@ -160,16 +160,16 @@ export default function AgentPage() {
             </div>
           </section>
 
-          {/* Terminal — per-agent prompting surface (ready & standing by) */}
+          {/* Native harness — the agent's real CLI embedded, live on load */}
           <section className="mc-panel overflow-hidden">
             <div className="flex items-center justify-between border-b px-5 py-3">
-              <SectionTitle accent={accent}>Terminal · {a.name}</SectionTitle>
+              <SectionTitle accent={accent}>Native TUI · {a.name}</SectionTitle>
               <span className="text-[11px] text-[var(--color-ink-4)]">
-                type <code className="text-[var(--color-ink-3)]">launch {a.id}</code> for the native session
+                live {a.id} session · survives navigation
               </span>
             </div>
-            <div className="h-72">
-              <FleetTerminal prompt={a.id} accent={accent} />
+            <div className="h-[28rem]">
+              <NativeTerminal kind={a.id} session={`${a.id}-main`} accent={accent} />
             </div>
           </section>
 

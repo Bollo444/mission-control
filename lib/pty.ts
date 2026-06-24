@@ -75,17 +75,26 @@ function refreshHermesUpdateCache(): void {
 
 /** Resolve the binary for an allow-listed kind. Returns null if not found. */
 function resolveCommand(kind: string): { cmd: string; args: string[]; cwd: string } | null {
-  if (kind === "hermes") {
-    const a = getAgent("hermes");
-    const cmd =
-      a?.binPaths?.find(Boolean) ?? home(".local", "bin", "hermes.exe");
-    return { cmd, args: [], cwd: home() };
-  }
   if (kind === "shell") {
     const cmd = process.platform === "win32" ? "powershell.exe" : process.env.SHELL || "bash";
     return { cmd, args: [], cwd: home() };
   }
-  return null;
+  // Any registered agent's native CLI: prefer an existing absolute binPath,
+  // else fall back to its PATH command name. Spawns the agent's real harness so
+  // its own banner/branding renders in the embedded terminal. Allow-listed by
+  // registry membership — the client still can't request an arbitrary command.
+  const a = getAgent(kind);
+  if (!a) return null;
+  const existing = a.binPaths?.find((p) => {
+    try {
+      return fs.existsSync(p);
+    } catch {
+      return false;
+    }
+  });
+  const cmd = existing ?? a.bin ?? a.launch?.cmd ?? a.binPaths?.find(Boolean);
+  if (!cmd) return null;
+  return { cmd, args: a.launch?.args ?? [], cwd: home() };
 }
 
 export interface SessionInfo {
