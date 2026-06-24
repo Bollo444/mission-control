@@ -92,9 +92,17 @@ function resolveCommand(kind: string): { cmd: string; args: string[]; cwd: strin
       return false;
     }
   });
-  const cmd = existing ?? a.bin ?? a.launch?.cmd ?? a.binPaths?.find(Boolean);
-  if (!cmd) return null;
-  return { cmd, args: a.launch?.args ?? [], cwd: home() };
+  const resolved = existing ?? a.bin ?? a.launch?.cmd ?? a.binPaths?.find(Boolean);
+  if (!resolved) return null;
+  const launchArgs = a.launch?.args ?? [];
+  // Windows .cmd/.bat shims (kilo, openclaw, pi, sentinel's launcher) can't be
+  // exec'd directly by a PTY — it throws EINVAL. Run them through cmd.exe so the
+  // agent's own TUI still renders in the embedded terminal.
+  if (process.platform === "win32" && /\.(cmd|bat)$/i.test(resolved)) {
+    const comspec = process.env.ComSpec || "cmd.exe";
+    return { cmd: comspec, args: ["/c", resolved, ...launchArgs], cwd: home() };
+  }
+  return { cmd: resolved, args: launchArgs, cwd: home() };
 }
 
 export interface SessionInfo {
