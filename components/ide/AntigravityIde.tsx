@@ -13,12 +13,13 @@ import { hexA, relTime, stateColor } from "@/lib/format";
 import { AntigravityMascot } from "@/components/skins/mascots";
 import { AntigravityBg } from "@/components/skins/backgrounds";
 import FleetTerminal from "./FleetTerminal";
+import AntigravityWorkspace from "./AntigravityWorkspace";
 import WindowControls from "./WindowControls";
 import LaunchControls from "@/components/LaunchControls";
 
 const ACCENT = "#6ea8fe";
 
-type Panel = "explorer" | "search" | "agents" | "scm";
+type Panel = "explorer" | "workspace" | "search" | "agents" | "scm";
 
 interface SearchHit {
   path: string;
@@ -36,6 +37,7 @@ interface OpenDoc {
 
 const ACTIVITY = [
   { id: "explorer", icon: "⛶", label: "Explorer · Vault" },
+  { id: "workspace", icon: "🗂", label: "Workspace · project files" },
   { id: "search", icon: "⌕", label: "Search vault contents" },
   { id: "agents", icon: "▦", label: "Agent manager" },
   { id: "scm", icon: "⎇", label: "Source control · activity" },
@@ -397,6 +399,12 @@ export default function AntigravityIde({ agent }: { agent: AgentDetail }) {
                     );
                   })}
               </div>
+            </SidePanel>
+          )}
+
+          {panel === "workspace" && (
+            <SidePanel title="Workspace · project files" count={0}>
+              <AntigravityWorkspace />
             </SidePanel>
           )}
 
