@@ -23,6 +23,8 @@ export interface SubagentRun {
   endedAt: number | null;
   exitCode: number | null;
   output: string;
+  /** Optional grouping tag, e.g. a Sentinel hat ("red hat") for swarm runs. */
+  label?: string;
 }
 
 const STORE = path.join(MC_CONFIG_DIR, "subagents.json");
@@ -70,7 +72,11 @@ export function listRuns(): SubagentRun[] {
   return load().sort((a, b) => b.startedAt - a.startedAt);
 }
 
-export function deploySubagent(agentId: string, task: string): { ok: boolean; run?: SubagentRun; error?: string } {
+export function deploySubagent(
+  agentId: string,
+  task: string,
+  label?: string
+): { ok: boolean; run?: SubagentRun; error?: string } {
   const def = getAgent(agentId);
   if (!def) return { ok: false, error: `unknown agent: ${agentId}` };
   const bin = resolveBinary(def);
@@ -78,7 +84,7 @@ export function deploySubagent(agentId: string, task: string): { ok: boolean; ru
   if (!task.trim()) return { ok: false, error: "task is empty" };
 
   const run: SubagentRun = {
-    id: `sub_${Date.now().toString(36)}`,
+    id: `sub_${Date.now().toString(36)}_${Math.floor(Math.random() * 1e4)}`,
     agentId,
     agentName: def.name,
     task: task.trim(),
@@ -87,16 +93,32 @@ export function deploySubagent(agentId: string, task: string): { ok: boolean; ru
     endedAt: null,
     exitCode: null,
     output: "",
+    label,
   };
   upsert(run);
   logEvent({ source: "system", level: "info", event: `subagent deployed: ${def.name}`, detail: task.slice(0, 80) });
 
+  // Windows .cmd/.bat shims (pi, openclaw, kilo, sentinel's launcher) can't be
+  // spawned directly — child_process throws EINVAL. Route those through a shell.
+  const needsShell = process.platform === "win32" && /\.(cmd|bat)$/i.test(bin);
+
+  // Sentinel's launcher is an interactive REPL: it reads the task from stdin
+  // ("Describe a task"), not from a -p flag. Feed those agents via stdin.
+  const STDIN_AGENTS = new Set(["sentinel"]);
+  const viaStdin = STDIN_AGENTS.has(agentId);
+  const args = viaStdin ? [] : headlessArgs(agentId, task.trim());
+
   let child;
   try {
-    child = spawn(bin, headlessArgs(agentId, task.trim()), {
+    child = spawn(bin, args, {
       windowsHide: true,
-      stdio: ["ignore", "pipe", "pipe"],
+      shell: needsShell,
+      stdio: [viaStdin ? "pipe" : "ignore", "pipe", "pipe"],
     });
+    if (viaStdin && child.stdin) {
+      child.stdin.write(task.trim() + "\n");
+      child.stdin.end();
+    }
   } catch (e) {
     run.status = "error";
     run.endedAt = Date.now();
