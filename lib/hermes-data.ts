@@ -535,36 +535,37 @@ export function getProfiles(): ProfilesResp {
 // 4) SESSIONS helpers (sql.js, pure-JS wasm, no native module)
 // ---------------------------------------------------------------------------
 
-export async function getSessions(): Promise<SessionsResp> {
+/**
+ * Open the Hermes state.db with sql.js (pure-JS wasm). Returns null if the DB
+ * doesn't exist. Caller owns the returned db and must call db.close().
+ *
+ * Resolve the wasm via cwd, NOT require.resolve(): webpack rewrites
+ * require.resolve() to a numeric module id at build time, so
+ * path.dirname(<number>) throws. pm2 runs from the project root, so cwd
+ * reliably points at node_modules.
+ */
+async function loadStateDb(): Promise<SqlJsDatabase | null> {
   const dbPath = hermesHome("state.db");
-  if (!fs.existsSync(dbPath)) {
-    return { sessions: [] };
-  }
+  if (!fs.existsSync(dbPath)) return null;
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const initSqlJs = require("sql.js") as (
+    opts?: Record<string, unknown>
+  ) => Promise<{ Database: new (data: Uint8Array) => SqlJsDatabase }>;
+  const wasmPath = path.join(
+    process.cwd(),
+    "node_modules",
+    "sql.js",
+    "dist",
+    "sql-wasm.wasm"
+  );
+  const SQL = await initSqlJs({ locateFile: () => wasmPath });
+  return new SQL.Database(new Uint8Array(fs.readFileSync(dbPath)));
+}
 
+export async function getSessions(): Promise<SessionsResp> {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const initSqlJs = require("sql.js") as (
-      opts?: Record<string, unknown>
-    ) => Promise<{ Database: new (data: Uint8Array) => SqlJsDatabase }>;
-
-    // Resolve the wasm via cwd, NOT require.resolve(): webpack rewrites
-    // require.resolve() to a numeric module id at build time, so
-    // path.dirname(<number>) throws "path must be string, received number".
-    // pm2 runs from the project root, so cwd reliably points at node_modules.
-    const wasmPath = path.join(
-      process.cwd(),
-      "node_modules",
-      "sql.js",
-      "dist",
-      "sql-wasm.wasm"
-    );
-
-    const SQL = await initSqlJs({
-      locateFile: () => wasmPath,
-    });
-
-    const fileBuffer = fs.readFileSync(dbPath);
-    const db = new SQL.Database(new Uint8Array(fileBuffer));
+    const db = await loadStateDb();
+    if (!db) return { sessions: [] };
 
     let rows: SessionItem[] = [];
     try {
@@ -603,12 +604,65 @@ export async function getSessions(): Promise<SessionsResp> {
   }
 }
 
+export interface SessionMessage {
+  id: string;
+  role: string;
+  content: string;
+  toolName: string | null;
+  timestamp: number | null;
+}
+export interface SessionTranscriptResp {
+  messages: SessionMessage[];
+}
+
+/** Read a single session's transcript (messages) from state.db, oldest-first. */
+export async function getSessionMessages(
+  sessionId: string
+): Promise<SessionTranscriptResp> {
+  try {
+    const db = await loadStateDb();
+    if (!db) return { messages: [] };
+
+    const messages: SessionMessage[] = [];
+    try {
+      const stmt = db.prepare(
+        `SELECT id, role, content, tool_name, timestamp
+         FROM messages
+         WHERE session_id = ?
+         ORDER BY timestamp ASC, id ASC
+         LIMIT 2000`
+      );
+      stmt.bind([sessionId]);
+      while (stmt.step()) {
+        const r = stmt.getAsObject() as Record<string, unknown>;
+        messages.push({
+          id: String(r.id ?? ""),
+          role: r.role != null ? String(r.role) : "",
+          content: r.content != null ? String(r.content) : "",
+          toolName: r.tool_name != null ? String(r.tool_name) : null,
+          timestamp: r.timestamp != null ? Number(r.timestamp) : null,
+        });
+      }
+      stmt.free();
+    } catch (queryErr) {
+      console.error("[hermes-data] transcript query failed:", queryErr);
+    }
+
+    db.close();
+    return { messages };
+  } catch (err) {
+    console.error("[hermes-data] getSessionMessages error:", err);
+    return { messages: [] };
+  }
+}
+
 // Minimal type shim for sql.js Database
 interface SqlJsDatabase {
   prepare(sql: string): SqlJsStatement;
   close(): void;
 }
 interface SqlJsStatement {
+  bind(values: unknown[]): boolean;
   step(): boolean;
   getAsObject(): Record<string, unknown>;
   free(): void;
