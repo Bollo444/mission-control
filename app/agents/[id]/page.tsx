@@ -186,17 +186,34 @@ export default function AgentPage() {
             </div>
           </section>
 
-          {/* Native harness — the agent's real CLI embedded, live on load */}
+          {/* Native harness — the agent's real CLI embedded, live on load.
+              Only spawn when installed; otherwise a fresh clone would fire a
+              failing PTY for a missing binary. Show an install hint instead. */}
           <section className="mc-panel overflow-hidden">
             <div className="flex items-center justify-between border-b px-5 py-3">
               <SectionTitle accent={accent}>Native TUI · {a.name}</SectionTitle>
               <span className="text-[11px] text-[var(--color-ink-4)]">
-                live {a.id} session · survives navigation
+                {s.installed ? `live ${a.id} session · survives navigation` : "not installed"}
               </span>
             </div>
-            <div className="h-[28rem]">
-              <NativeTerminal kind={a.id} session={`${a.id}-main`} accent={accent} />
-            </div>
+            {s.installed ? (
+              <div className="h-[28rem]">
+                <NativeTerminal kind={a.id} session={`${a.id}-main`} accent={accent} />
+              </div>
+            ) : (
+              <div className="grid h-56 place-items-center px-6 text-center">
+                <div className="max-w-sm">
+                  <p className="text-sm text-[var(--color-ink-3)]">
+                    {a.name}&apos;s native TUI appears here once it&apos;s installed.
+                  </p>
+                  {a.install?.command && (
+                    <code className="mt-3 block break-all rounded-lg border bg-[var(--color-surface-2)] px-3 py-2 text-left font-mono text-[11px] text-[var(--color-ink-2)]">
+                      {a.install.command}
+                    </code>
+                  )}
+                </div>
+              </div>
+            )}
           </section>
 
           {/* Config */}
