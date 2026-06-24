@@ -13,6 +13,7 @@ import SessionList from "@/components/SessionList";
 import ActivityFeed from "@/components/ActivityFeed";
 import AgentMetrics from "@/components/AgentMetrics";
 import NativeTerminal from "@/components/ide/NativeTerminal";
+import ClaudeMascots from "@/components/ide/ClaudeMascots";
 import { getSkin, typeFontClass } from "@/components/skins";
 import AntigravityIde from "@/components/ide/AntigravityIde";
 import OpenClawConsole from "@/components/ide/OpenClawConsole";
@@ -72,6 +73,7 @@ export default function AgentPage() {
               "linear-gradient(90deg, rgba(8,9,12,0.85) 0%, rgba(8,9,12,0.5) 48%, rgba(8,9,12,0.12) 100%)",
           }}
         />
+        {a.id === "claude" && <ClaudeMascots />}
         <div className="relative flex flex-wrap items-center justify-between gap-5 px-8 py-7">
           <div className="flex items-center gap-5">
             <span
