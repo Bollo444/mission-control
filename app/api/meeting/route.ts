@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSystemReport } from "@/lib/system";
 import { buildMeetingTemplated, replyToMessage } from "@/lib/meeting";
+import { logEvent } from "@/lib/logbook";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,12 +18,23 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  let body: { message?: string };
+  let body: { message?: string; event?: "start" | "finish" };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ turns: [] }, { status: 400 });
   }
+
+  // Annotate the universal log when a meeting is convened or adjourned.
+  if (body.event === "start" || body.event === "finish") {
+    logEvent({
+      source: "system",
+      level: "info",
+      event: body.event === "start" ? "Team meeting convened" : "Team meeting adjourned",
+    });
+    return NextResponse.json({ ok: true });
+  }
+
   const message = (body.message ?? "").trim();
   if (!message) return NextResponse.json({ turns: [] }, { status: 400 });
 

@@ -142,10 +142,24 @@ export default function MeetingPage() {
 
   // The boardroom stays quiet until you explicitly convene it — landing on the
   // tab (e.g. by accident) never auto-starts a meeting.
+  const logMeeting = (event: "start" | "finish") =>
+    void fetch("/api/meeting", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ event }),
+    }).catch(() => {});
+
   const start = useCallback(() => {
     setStarted(true);
     void convene();
+    logMeeting("start");
   }, [convene]);
+
+  const finish = useCallback(() => {
+    setStarted(false);
+    if (typeof window !== "undefined" && window.speechSynthesis) window.speechSynthesis.cancel();
+    logMeeting("finish");
+  }, []);
 
   // Load installed TTS voices (async on most browsers) and stop speech on exit.
   useEffect(() => {
@@ -284,6 +298,14 @@ export default function MeetingPage() {
                 style={{ borderColor: hexA(SIGNAL, 0.4), color: SIGNAL }}
               >
                 {loading ? "Convening…" : "↻ New round"}
+              </button>
+              <button
+                onClick={finish}
+                className="rounded-xl border px-4 py-2 text-sm font-semibold transition-colors hover:bg-[var(--color-surface-3)]"
+                style={{ borderColor: "var(--color-line)", color: "var(--color-ink-3)" }}
+                title="Adjourn the meeting"
+              >
+                ■ Finish meeting
               </button>
             </>
           ) : (

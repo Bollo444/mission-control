@@ -25,8 +25,13 @@ const LEVEL_COLOR: Record<LogLevel, string> = {
 
 const LEVELS: (LogLevel | "all")[] = ["all", "info", "success", "warn", "error"];
 
+/** Military-style stamp: YYYY-MM-DD HH:MM:SS (24h, zero-padded). */
 function hhmmss(iso: string): string {
-  return new Date(iso).toLocaleTimeString([], { hour12: false });
+  const d = new Date(iso);
+  const p = (n: number) => String(n).padStart(2, "0");
+  const date = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  const time = `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+  return `${date} ${time}`;
 }
 
 export default function LogsPage() {
