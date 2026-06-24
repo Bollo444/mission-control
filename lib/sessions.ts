@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { AgentDef } from "./registry";
+import { AGENTS, type AgentDef } from "./registry";
 
 export interface SessionMeta {
   agentId: string;
@@ -148,6 +148,67 @@ function deriveJsonTitle(p: string): { title: string; messages: number | null } 
   } catch {
     return { title: "Session", messages: null };
   }
+}
+
+export interface ConversationMessage {
+  role: string;
+  text: string;
+}
+
+/** A session file path is readable only if it sits under some agent's session dir. */
+export function isAllowedSessionPath(filePath: string): boolean {
+  const resolved = path.resolve(filePath);
+  return AGENTS.some((a) => {
+    if (!a.sessionsDir) return false;
+    const base = path.resolve(a.sessionsDir);
+    return resolved === base || resolved.startsWith(base + path.sep);
+  });
+}
+
+/** Parse a session file into a flat conversation (best-effort across formats). */
+export function readConversation(filePath: string): ConversationMessage[] {
+  let raw: string;
+  try {
+    raw = fs.readFileSync(filePath, "utf8");
+  } catch {
+    return [];
+  }
+  const msgs: ConversationMessage[] = [];
+
+  // JSONL (Claude + others): one JSON object per line.
+  if (filePath.endsWith(".jsonl")) {
+    for (const line of raw.split(/\r?\n/)) {
+      const t = line.trim();
+      if (!t) continue;
+      try {
+        const o = JSON.parse(t) as Record<string, unknown>;
+        const m = (o.message ?? o) as Record<string, unknown>;
+        const role = String(m.role ?? o.role ?? o.type ?? "?");
+        const text = textOf(m.content ?? o.content).trim();
+        if (text) msgs.push({ role, text });
+      } catch {
+        /* skip malformed line */
+      }
+    }
+    if (msgs.length) return msgs;
+  }
+
+  // JSON with a messages[] array.
+  try {
+    const o = JSON.parse(raw) as { messages?: Array<Record<string, unknown>> };
+    if (Array.isArray(o.messages)) {
+      for (const m of o.messages) {
+        const text = textOf(m.content).trim();
+        if (text) msgs.push({ role: String(m.role ?? "?"), text });
+      }
+      if (msgs.length) return msgs;
+    }
+  } catch {
+    /* not a JSON document */
+  }
+
+  // Fallback: show the raw text (capped) so something is always viewable.
+  return [{ role: "raw", text: raw.slice(0, 40000) }];
 }
 
 export function listSessions(def: AgentDef, limit = 50): SessionMeta[] {
