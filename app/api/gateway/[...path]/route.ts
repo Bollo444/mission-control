@@ -2,6 +2,7 @@ import { cascadeChat, gatewayModels } from "@/lib/gateway";
 import { getGatewayToken } from "@/lib/settings";
 import { recordTokens } from "@/lib/usage";
 import { logEvent } from "@/lib/logbook";
+import { responsesToChat, parseChat, buildResponsesSSE } from "@/lib/responses-bridge";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,13 +38,38 @@ export async function POST(req: Request, { params }: { params: Promise<{ path: s
       { status: 401 }
     );
   }
-  if (sub !== "chat/completions") {
+  if (sub !== "chat/completions" && sub !== "responses") {
     return Response.json({ error: `Unsupported path: ${sub}` }, { status: 404 });
   }
 
-  const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   const agentId = req.headers.get("x-mc-agent") || undefined;
   const sessionId = req.headers.get("x-mc-session") || undefined;
+
+  // OpenAI Responses API (Codex). Translate to chat, cascade, emit a synthetic
+  // Responses SSE stream the Codex client accepts.
+  if (sub === "responses") {
+    const rbody = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+    const chatBody = responsesToChat(rbody);
+    const r = await cascadeChat(chatBody, { agentId, sessionId });
+    if (!r.ok) {
+      return Response.json({ error: { message: r.error, type: "upstream_error" } }, { status: r.status });
+    }
+    const json = (await r.response.json().catch(() => ({}))) as Record<string, unknown>;
+    const { text, toolCalls, usage } = parseChat(json);
+    if (typeof usage.total_tokens === "number") recordTokens(r.served.provider, usage.total_tokens);
+    const sse = buildResponsesSSE({ model: String(rbody.model ?? "auto"), text, toolCalls, usage });
+    return new Response(sse, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache, no-transform",
+        Connection: "keep-alive",
+        "X-MC-Served-By": `${r.served.provider}/${r.served.model}`,
+      },
+    });
+  }
+
+  const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   const result = await cascadeChat(body, { agentId, sessionId });
 
   if (!result.ok) {
