@@ -56,7 +56,6 @@ export default function NativeTerminal({
     const key = `${kind}:${session}`;
     let disposed = false;
     let resizeObs: ResizeObserver | null = null;
-    const fitTimers: ReturnType<typeof setTimeout>[] = [];
 
     // Adopt an entry's persistent host into this component's container,
     // (re)fit, observe size, focus, and reflect its status into state.
@@ -66,30 +65,19 @@ export default function NativeTerminal({
       setStatus(entry.status);
       hostRef.current.appendChild(entry.host);
 
-      let lastCols = 0;
-      let lastRows = 0;
       const syncSize = () => {
-        // Only fit once the host actually has a box — fitting at 0px sizes the
-        // terminal to ~1 row (the "just a cursor" symptom) and the TUI draws
-        // clipped. Skip until layout gives the host real dimensions.
-        const host = hostRef.current;
-        if (!host || host.clientHeight < 8 || host.clientWidth < 8) return;
         try {
           entry.fit.fit();
-          // Only tell the PTY when the size ACTUALLY changed — resizing spams a
-          // full redraw in TUIs like Hermes (the flicker that made it worse).
-          if (entry.term.cols !== lastCols || entry.term.rows !== lastRows) {
-            lastCols = entry.term.cols;
-            lastRows = entry.term.rows;
-            void post({ type: "resize", cols: entry.term.cols, rows: entry.term.rows });
-          }
+          void post({ type: "resize", cols: entry.term.cols, rows: entry.term.rows });
         } catch {
           /* ignore */
         }
       };
-      // One settle pass after layout (route-transition height animations can make
-      // the first fit mis-measure). resize-on-change keeps this from flickering.
-      fitTimers.push(setTimeout(syncSize, 250));
+      try {
+        entry.fit.fit();
+      } catch {
+        /* ignore pre-layout fit */
+      }
       resizeObs = new ResizeObserver(syncSize);
       resizeObs.observe(hostRef.current);
       entry.term.focus();
@@ -211,7 +199,6 @@ export default function NativeTerminal({
     return () => {
       disposed = true;
       resizeObs?.disconnect();
-      fitTimers.forEach(clearTimeout);
       // DETACH only — keep the term and SSE stream alive off-screen so the
       // session (scrollback/cursor/typed input) survives navigation.
       const entry = TERMS.get(key);

@@ -3,6 +3,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import * as pty from "@lydell/node-pty";
 import { getAgent } from "./registry";
+import { resolveBinary } from "./detect";
 import { home } from "./paths";
 
 /* ------------------------------------------------------------------ *
@@ -85,14 +86,10 @@ function resolveCommand(kind: string): { cmd: string; args: string[]; cwd: strin
   // registry membership — the client still can't request an arbitrary command.
   const a = getAgent(kind);
   if (!a) return null;
-  const existing = a.binPaths?.find((p) => {
-    try {
-      return fs.existsSync(p);
-    } catch {
-      return false;
-    }
-  });
-  const resolved = existing ?? a.bin ?? a.launch?.cmd ?? a.binPaths?.find(Boolean);
+  // resolveBinary() checks binPaths AND resolves the command on PATH with the
+  // right Windows extension (PATHEXT) — so opencode's npm shim resolves to
+  // opencode.cmd, not the bare (unspawnable) name.
+  const resolved = resolveBinary(a) ?? a.launch?.cmd ?? a.binPaths?.find(Boolean);
   if (!resolved) return null;
   const launchArgs = a.launch?.args ?? [];
   // Windows .cmd/.bat shims (kilo, openclaw, pi, sentinel's launcher) can't be
