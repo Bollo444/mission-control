@@ -72,7 +72,7 @@ the health monitor** (see [failover & recovery](#free-tier-health-monitor-failov
 | **OpenCode** | CLI | Provider-agnostic **routing & cost** | **Re-routes agents on failover/recovery** |
 | Antigravity | IDE | Developer surface (renders a full in-browser IDE) | — |
 | Vibe | CLI | Voice, local models & accessibility | — |
-| Kilo Code | Framework | Config, structure & conventions | — |
+| **Codex** | CLI | Shared tooling, **review gate** & sandboxed execution | **Reviews & sandboxes shipped work** |
 
 Agents are **pluggable**: each shows as `ready`, `config`, or `offline` based on
 whether its binary resolves on `PATH` (or a configured path) and whether its
@@ -116,13 +116,22 @@ config exists. Ones you don't have installed appear as provisionable personas.
   real CLI** (xterm.js over a server-side ConPTY), so its recognizable banner
   renders on load and the session survives navigation. Uninstalled agents show
   an install hint instead.
-- **Anthropic-compatible gateway** — alongside the OpenAI endpoint, the gateway
-  speaks **Anthropic's `/v1/messages`** (`/api/anthropic`), so *any* Claude-API
-  tool — including Claude Code — can run free through the fleet. See
+- **Tri-format gateway** — the gateway speaks **three** API shapes over the one
+  free-provider cascade: OpenAI `/v1/chat/completions`, **Anthropic `/v1/messages`**
+  (`/api/anthropic`, runs Claude Code free), and **OpenAI Responses** (`/v1/responses`,
+  runs Codex free, with agentic tool-calling). See
   [below](#anthropic-compatible-endpoint).
+- **Codex console** — the retired kilo slot is now OpenAI **Codex**, gateway-aligned
+  (free, via the Responses adapter). A noir "cipher" surface with its native TUI plus
+  tabs for plugins (apps library), MCP servers, sessions, prompts, code review and
+  cloud — all wired to the real `codex` CLI.
 - **Hermes console** — a tabbed surface with a live native TUI, a Skills & Tools
   picker (writes `config.yaml` / `.usage.json`), clickable **session transcripts**
-  and **artifact previews**, and a Duo-flow relay.
+  and **artifact previews**, a **Profiles** tab (create subagent profiles), and a Duo-flow relay.
+- **Automation flow builder** — a ComfyUI-style node canvas: wire triggers,
+  if/then conditions and actions (run agent, shell, Discord, log) into chains and run them.
+- **Session conversations** — click any session (fleet-wide or per-agent) to read
+  the actual transcript.
 - **Sentinel hat swarm** — pick an objective + which security hats
   (red/blue/purple/green/white/yellow) and run them in parallel; each returns a
   distinct, lens-specific assessment through the free gateway.
@@ -765,7 +774,7 @@ reach it through a tunnel** (as the recipe above does).
 ```
 app/
   page.tsx                overview / fleet grid + activity rail
-  agents/[id]/page.tsx    per-agent mission control (→ Antigravity IDE / OpenClaw console)
+  agents/[id]/page.tsx    per-agent mission control (→ Antigravity IDE / OpenClaw / Hermes / Codex console)
   meeting/page.tsx        team meeting boardroom
   sessions/page.tsx       unified session history
   memory/page.tsx         vault: activity feed + shared knowledge editor
@@ -775,14 +784,15 @@ app/
   api/
     agents, agents/[id], launch, sessions, memory, settings, system, vault, meeting
     health/route.ts       GET last health state · POST run a sweep now
-    gateway/[...path]      Fleet Gateway — all-provider OpenAI-compatible endpoint
+    gateway/[...path]      Fleet Gateway — tri-format: /chat/completions, /responses (Codex), /models
     anthropic/[...path]    Anthropic-compatible endpoint (/v1/messages, /v1/models)
     route/openrouter/…    single-provider OpenRouter cascade proxy
     usage/route.ts         GET per-provider usage + budgets · DELETE clear
     analytics/route.ts     GET windowed gateway analytics (today / 7d / 30d)
     logs/route.ts          GET universal log (filters) · DELETE clear
     hermes/…              pty (ConPTY bridge), sessions, sessions/[id], artifacts, skills, toolsets, profiles
-    sentinel/swarm         deploy parallel security hats · subagents · cron (automation)
+    codex/…               config (align to gateway), plugins, mcp, sessions, prompts, review, cloud
+    sentinel/swarm         deploy parallel security hats · subagents · cron · flows (automation)
     workspace/route.ts     Antigravity IDE file browse/read/write (home-confined)
     discord/route.ts       fleet bot status · save creds · reconnect · test
 lib/
@@ -791,6 +801,9 @@ lib/
   health.ts               provider probes, auto-failover/revert, scheduler  ← failover engine
   gateway.ts              multi-provider cascade gateway (adapters, cooldown, sticky, vision, tools)
   anthropic-bridge.ts     Anthropic ⇄ OpenAI translation for the /api/anthropic endpoint
+  responses-bridge.ts     OpenAI Responses ⇄ chat translation for /responses (Codex)
+  codex-data.ts           reads ~/.codex + shells out to the codex CLI; gateway alignment
+  flows.ts                automation node-graph model + executor
   pty.ts                  server-side ConPTY session manager (native agent TUIs)
   hermes-data.ts          reads the Hermes home (config.yaml, skills, profiles, state.db via sql.js)
   subagents.ts            headless sub-agent deploy + gateway-run tracking · sentinel-hats.ts · cron.ts

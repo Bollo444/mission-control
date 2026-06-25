@@ -4,19 +4,47 @@ A detailed record of the project's development: **every commit**, grouped by
 working session and shown newest-first. Each short hash links to the commit on
 GitHub.
 
-**6 sessions · 37 commits · 2026-05-31 → 2026-06-24**
-_Latest revision: 2026-06-24 — added Session 6 (native CLI harnesses for every
-agent, Hermes transcripts & artifact previews, Sentinel hat swarm, Antigravity
-workspace, the dual-format gateway verified, and the Discord fleet bot)._
+**7 sessions · 51 commits · 2026-05-31 → 2026-06-25**
+_Latest revision: 2026-06-25 — added Session 7 (terminal fixes, session
+conversations, Hermes Profiles, the ComfyUI-style automation builder, and the
+Codex overhaul — replacing kilo, with the tri-format gateway and agentic
+tool-calling on the free fleet)._
 
 | Session | Date | Commits | When | Theme |
 |:--:|---|:--:|---|---|
+| 7 | 2026-06-25 (Thu) | 14 | All day | Codex overhaul (kilo→Codex), terminal fixes, automation node builder |
 | 6 | 2026-06-24 (Wed) | 14 | All day | Native harnesses, Hermes/Sentinel/Antigravity surfaces, Discord messaging |
 | 5 | 2026-06-23 (Tue) | `3b9dc1e` | Evening | Hermes persistency, gold theme, fade transitions & tabbed panel interior |
 | 4 | 2026-06-23 (Tue) | `f06dcac` | Day | Major overhaul: meeting, Hermes console, automation & theming |
 | 3 | 2026-06-03 (Wed) | 11 | Late morning → evening | Gateway phases, branding & public launch |
 | 2 | 2026-06-02 (Tue) | 4 | Midday | Providers, health monitor & cascade proxy |
 | 1 | 2026-05-31 (Sat) | 7 | Afternoon → evening | Initial fleet console |
+
+---
+
+## Session 7 — 2026-06-25 · Codex overhaul, terminal fixes & the automation node builder
+**14 commits.** Replaced the dead kilo slot with OpenAI **Codex** — gateway-aligned
+for free model fallback, with a noir console and full agentic tool-calling — plus a
+batch of terminal fixes, session conversations, a Hermes Profiles tab, and a
+ComfyUI-style automation builder.
+
+### Codex — replaces kilo, runs free, codes autonomously
+- [`1ffd24b`](https://github.com/Bollo444/mission-control/commit/1ffd24b) — Swapped the kilo agent slot for **Codex** (identity, `skin.codex`, meeting persona, default route; the kilo *provider* is kept). Added a noir **"cipher" console**: a performant hex cipher-rain hero and chapter tabs wired to the real `codex` CLI — Session (native TUI), Plugins (apps library), MCP, Sessions, Prompts, Review, Cloud. A one-click "align to gateway" writes `~/.codex/{config.toml,.env,AGENTS.md}` + a vault note.
+- [`cd8f6bf`](https://github.com/Bollo444/mission-control/commit/cd8f6bf) — **OpenAI Responses API adapter** (`lib/responses-bridge.ts`). Codex's CLI now requires `wire_api="responses"`, which the chat-completions gateway didn't speak; the new `/responses` endpoint translates to chat, cascades the free providers, and emits a synthetic Responses SSE stream. The gateway now speaks **three** formats (OpenAI chat + Anthropic messages + OpenAI Responses).
+- [`06873a3`](https://github.com/Bollo444/mission-control/commit/06873a3) — **Agentic tool-calling.** Carry prior `function_call` items through the bridge so the loop history stays intact (it was degrading the model into text-format calls); plus a fallback parser for `<function>…</function>` text calls. Verified: `codex exec "create a file…"` runs the full loop — native `shell_command` → Codex executes → file created — on the free fleet.
+- [`5a1df53`](https://github.com/Bollo444/mission-control/commit/5a1df53) — Codex gets a real **team responsibility** in the boardroom: it leads a "tooling" topic and owns the **review gate** (shared MCP tools + sandbox/diff-review before anything ships).
+- Design + plan: [`2115c79`](https://github.com/Bollo444/mission-control/commit/2115c79) · [`1e0eb63`](https://github.com/Bollo444/mission-control/commit/1e0eb63) (brainstorm → spec → plan → build).
+
+### Terminal fixes
+- [`3118aa8`](https://github.com/Bollo444/mission-control/commit/3118aa8) — `.cmd`/`.bat` agent shims (kilo, openclaw, pi, sentinel) threw `spawn EINVAL` in the embedded terminal; now run through `cmd.exe`.
+- [`c84a237`](https://github.com/Bollo444/mission-control/commit/c84a237) — opencode's terminal never appeared (its npm shim resolved to the bare, unspawnable name); `resolveCommand` now uses `resolveBinary` (PATHEXT) to find `opencode.cmd`.
+- [`3263cf1`](https://github.com/Bollo444/mission-control/commit/3263cf1) · [`bb3757c`](https://github.com/Bollo444/mission-control/commit/bb3757c) — explored an xterm re-fit for the Hermes clip/cursor issue; reverted to baseline (it didn't help). _(jcode/vibe model-config and Hermes' subprocess popups are agent-internal, not MC's terminal.)_
+
+### Other surfaces
+- [`6206d33`](https://github.com/Bollo444/mission-control/commit/6206d33) — **Session conversations**: click any session (fleet-wide or per-agent) to read its transcript (`readConversation` + `/api/sessions/content`, allow-listed to the agents' session dirs).
+- [`f1641b9`](https://github.com/Bollo444/mission-control/commit/f1641b9) — Hermes **Profiles** tab: view + create subagent profiles (writes `profile.yaml`/`config.yaml`/`SOUL.md`).
+- [`6840597`](https://github.com/Bollo444/mission-control/commit/6840597) — **Automation flow builder**: a ComfyUI-style node canvas (React Flow) — trigger / if-then / action nodes wired into chains, saved and run by a graph executor reusing the gateway, shell, Discord and log primitives.
+- [`0e1697a`](https://github.com/Bollo444/mission-control/commit/0e1697a) — Team-meeting **Finish** button (logs convene + adjourn) and **date + 24h military** timestamps in the Logs tab.
 
 ---
 
