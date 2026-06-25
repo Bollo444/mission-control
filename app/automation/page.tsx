@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useFetch } from "@/lib/useFetch";
 import type { AgentsResp } from "@/lib/types";
 import { relTime } from "@/lib/format";
+import FlowBuilder from "@/components/automation/FlowBuilder";
 
 const SIGNAL = "#46e0d0";
 
@@ -36,6 +37,7 @@ const statusColor: Record<string, string> = {
 };
 
 export default function AutomationPage() {
+  const [tab, setTab] = useState<"flows" | "schedules">("flows");
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <div className="shrink-0 border-b px-8 py-6">
@@ -44,15 +46,33 @@ export default function AutomationPage() {
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">Automation</h1>
         <p className="mt-1 max-w-2xl text-sm text-[var(--color-ink-3)]">
-          Cron jobs run unattended on a timer; sub-agents run a coding agent headless on a one-off
-          task. Both are opt-in and logged.
+          Build node flows (if/then chains of agents, conditions and actions), or run cron jobs and
+          one-off headless sub-agents. All opt-in and logged.
         </p>
+        <div className="mt-4 flex gap-2">
+          {(["flows", "schedules"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className="rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors"
+              style={tab === t ? { background: `${SIGNAL}22`, color: SIGNAL, border: `1px solid ${SIGNAL}66` } : { color: "var(--color-ink-3)", border: "1px solid var(--color-line)" }}
+            >
+              {t === "flows" ? "Flow builder" : "Cron & sub-agents"}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-6 overflow-y-auto px-8 py-7 xl:grid-cols-2">
-        <CronSection />
-        <SubagentSection />
-      </div>
+      {tab === "flows" ? (
+        <div className="min-h-0 flex-1 overflow-hidden px-8 py-6">
+          <FlowBuilder />
+        </div>
+      ) : (
+        <div className="grid min-h-0 flex-1 grid-cols-1 gap-6 overflow-y-auto px-8 py-7 xl:grid-cols-2">
+          <CronSection />
+          <SubagentSection />
+        </div>
+      )}
     </div>
   );
 }
