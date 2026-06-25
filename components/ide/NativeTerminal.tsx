@@ -66,29 +66,30 @@ export default function NativeTerminal({
       setStatus(entry.status);
       hostRef.current.appendChild(entry.host);
 
+      let lastCols = 0;
+      let lastRows = 0;
       const syncSize = () => {
         // Only fit once the host actually has a box — fitting at 0px sizes the
-        // terminal to ~1 row (the "just a cursor" symptom) and Hermes' TUI then
-        // draws clipped. Skip until layout gives the host real dimensions.
+        // terminal to ~1 row (the "just a cursor" symptom) and the TUI draws
+        // clipped. Skip until layout gives the host real dimensions.
         const host = hostRef.current;
         if (!host || host.clientHeight < 8 || host.clientWidth < 8) return;
         try {
           entry.fit.fit();
-          void post({ type: "resize", cols: entry.term.cols, rows: entry.term.rows });
+          // Only tell the PTY when the size ACTUALLY changed — resizing spams a
+          // full redraw in TUIs like Hermes (the flicker that made it worse).
+          if (entry.term.cols !== lastCols || entry.term.rows !== lastRows) {
+            lastCols = entry.term.cols;
+            lastRows = entry.term.rows;
+            void post({ type: "resize", cols: entry.term.cols, rows: entry.term.rows });
+          }
         } catch {
           /* ignore */
         }
       };
-      try {
-        entry.fit.fit();
-      } catch {
-        /* ignore pre-layout fit */
-      }
-      // Re-fit after layout settles. A single fit on mount can run mid route-
-      // transition (animating height) and mis-measure; these catch the final size
-      // and re-tell the PTY, so Hermes redraws its TUI to the correct dimensions.
-      requestAnimationFrame(syncSize);
-      fitTimers.push(setTimeout(syncSize, 120), setTimeout(syncSize, 400));
+      // One settle pass after layout (route-transition height animations can make
+      // the first fit mis-measure). resize-on-change keeps this from flickering.
+      fitTimers.push(setTimeout(syncSize, 250));
       resizeObs = new ResizeObserver(syncSize);
       resizeObs.observe(hostRef.current);
       entry.term.focus();
