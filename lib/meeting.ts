@@ -283,10 +283,10 @@ const PERSONAS: Record<string, Persona> = {
   },
 
   codex: {
-    role: "Extensibility, tooling & sandboxed execution",
-    lens: "plugins, MCP & safe execution",
-    keywords: ["codex", "plugin", "mcp", "tool", "extension", "sandbox", "review", "cloud", "session", "exec", "marketplace", "integration", "capability"],
-    status: () => `Running on the gateway's free fleet. Plugins, MCP servers and sandboxed exec are wired — capability is a config away, not a rebuild.`,
+    role: "Shared tooling, review gate & sandboxed execution",
+    lens: "plugins, MCP, review & safe execution",
+    keywords: ["codex", "plugin", "mcp", "tool", "extension", "sandbox", "review", "diff", "cloud", "session", "exec", "marketplace", "integration", "capability", "gate"],
+    status: () => `On the free gateway, holding the review gate: anything the fleet ships gets sandboxed and diff-reviewed first. Plugins and MCP tools are wired so capability is a config away, not a rebuild.`,
     concern: (c) =>
       c.config > 0
         ? `${list(c.configNames)} ${c.config === 1 ? "has" : "have"} config but no live binary — capability without an engine. Wire it or mark it provisional.`
@@ -674,10 +674,34 @@ const TOPICS: Topic[] = [
       },
       {
         id: "codex",
-        text: `Whatever we pick, encode it as a convention so it runs itself next time instead of becoming a one-off.`,
+        text: `Whatever we ship, it goes through a review first — I'll run it in a sandbox, check the diff, then we apply. No blind merges, and it ships as a reusable tool, not a one-off.`,
       },
     ],
-    decision: () => ({ action: "ship one diff-first improvement", owner: "OpenClaw" }),
+    decision: () => ({ action: "ship one diff-first improvement", owner: "OpenClaw (ships) → Codex (reviews + sandboxes)" }),
+  },
+  {
+    // Codex's signature responsibility: standardize shared capability + a review gate.
+    id: "tooling",
+    fires: (c) => c.ready >= 3,
+    weight: (c) => 24 + c.ready * 2,
+    thread: (c) => [
+      {
+        id: "codex",
+        text: `Every agent's re-wiring the same primitives — file ops, web, shell. That's ${c.ready} copies of one capability drifting apart. Let me expose them once as MCP tools and the whole fleet inherits them, versioned and reviewed.`,
+      },
+      {
+        id: "opencode",
+        text: pick([
+          `Works on the routing side — one tool surface to keep healthy beats ${c.ready} bespoke integrations.`,
+          `Agreed: shared tools mean one thing to monitor and fail over, not ${c.ready} of them.`,
+        ]),
+      },
+      {
+        id: "claude",
+        text: `Make it the rule, then: new capability ships as a shared tool behind a Codex review, never a per-agent fork. Codex owns that gate.`,
+      },
+    ],
+    decision: () => ({ action: "expose shared primitives as MCP tools behind a review gate", owner: "Codex" }),
   },
 ];
 
