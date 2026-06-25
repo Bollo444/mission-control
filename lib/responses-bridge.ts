@@ -36,10 +36,20 @@ export function responsesToChat(body: AnyObj): AnyObj {
   } else if (Array.isArray(input)) {
     for (const raw of input) {
       const item = raw as AnyObj;
+      // Assistant's prior tool call — without this the loop history is broken.
+      if (item.type === "function_call") {
+        messages.push({
+          role: "assistant",
+          content: null,
+          tool_calls: [{ id: String(item.call_id ?? item.id ?? ""), type: "function", function: { name: String(item.name ?? ""), arguments: String(item.arguments ?? "{}") } }],
+        });
+        continue;
+      }
       if (item.type === "function_call_output") {
         messages.push({ role: "tool", tool_call_id: String(item.call_id ?? ""), content: textOf(item.output) });
         continue;
       }
+      if (item.type === "reasoning") continue; // not representable in chat
       // OpenAI's Responses API uses "developer" for system-level instructions;
       // chat-completions providers only know system/user/assistant/tool.
       let role = String(item.role ?? "user");
@@ -60,8 +70,10 @@ export function responsesToChat(body: AnyObj): AnyObj {
     const fns = body.tools
       .map((t) => {
         const o = t as AnyObj;
+        if (o.type === "namespace") return null; // a group of sub-tools, not callable itself
         const fn = (o.function ?? {}) as AnyObj;
         if (o.type === "function" && fn.name) return o;
+        // Responses function tools are flat: { type:"function", name, parameters }.
         if (o.name) {
           return { type: "function", function: { name: o.name, description: o.description ?? "", parameters: o.parameters ?? { type: "object", properties: {} } } };
         }
@@ -78,15 +90,39 @@ interface ChatMessage {
   tool_calls?: Array<{ id?: string; function?: { name?: string; arguments?: string } }>;
 }
 
+/**
+ * Some free models can't emit native tool_calls and instead write the call as
+ * text: <function>name{json-args}</function>. Recover those so Codex's agentic
+ * loop still works. Returns the extracted calls + the text with them removed.
+ */
+function parseTextToolCalls(text: string): { calls: NonNullable<ChatMessage["tool_calls"]>; rest: string } {
+  const calls: NonNullable<ChatMessage["tool_calls"]> = [];
+  let rest = text;
+  const re = /<function>\s*([a-zA-Z0-9_.-]+)\s*(\{[\s\S]*?\})\s*<\/function>/g;
+  let m: RegExpExecArray | null;
+  let i = 0;
+  while ((m = re.exec(text)) !== null) {
+    let args = m[2];
+    try { args = JSON.stringify(JSON.parse(args)); } catch { /* keep raw */ }
+    calls.push({ id: `call_txt_${i++}`, function: { name: m[1], arguments: args } });
+    rest = rest.replace(m[0], "");
+  }
+  return { calls, rest: rest.trim() };
+}
+
 /** Extract the assistant message + usage from a chat-completions JSON response. */
 export function parseChat(json: AnyObj): { text: string; toolCalls: ChatMessage["tool_calls"]; usage: AnyObj } {
   const choice = ((json.choices as AnyObj[]) ?? [])[0] ?? {};
   const msg = ((choice as AnyObj).message ?? {}) as ChatMessage;
-  return {
-    text: typeof msg.content === "string" ? msg.content : "",
-    toolCalls: Array.isArray(msg.tool_calls) ? msg.tool_calls : [],
-    usage: (json.usage as AnyObj) ?? {},
-  };
+  const native = Array.isArray(msg.tool_calls) ? msg.tool_calls : [];
+  let text = typeof msg.content === "string" ? msg.content : "";
+  let toolCalls = native;
+  // Fallback: recover text-format tool calls when the model didn't emit native ones.
+  if (native.length === 0 && text.includes("<function>")) {
+    const { calls, rest } = parseTextToolCalls(text);
+    if (calls.length) { toolCalls = calls; text = rest; }
+  }
+  return { text, toolCalls, usage: (json.usage as AnyObj) ?? {} };
 }
 
 const enc = (event: string, data: unknown) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
