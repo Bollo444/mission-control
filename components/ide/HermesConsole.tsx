@@ -9,6 +9,7 @@ import MessagingStub from "./hermes/MessagingStub";
 import Artifacts from "./hermes/Artifacts";
 import SessionsPanel from "./hermes/SessionsPanel";
 import ProfilesPanel from "./hermes/ProfilesPanel";
+import ProfilesManager from "./hermes/ProfilesManager";
 
 // The native TUI touches the DOM/EventSource — load it client-side only.
 const HermesTerminal = dynamic(() => import("./NativeTerminal"), {
@@ -89,7 +90,7 @@ function hexA(hex: string, a: number): string {
 
 // ---- Tab bar types -------------------------------------------------------
 
-type TabId = "new-session" | "skills-tools" | "messaging" | "artifacts";
+type TabId = "new-session" | "skills-tools" | "profiles" | "messaging" | "artifacts";
 
 interface Tab {
   id: TabId;
@@ -99,6 +100,7 @@ interface Tab {
 const TABS: Tab[] = [
   { id: "new-session", label: "New Session" },
   { id: "skills-tools", label: "Skills & Tools" },
+  { id: "profiles", label: "Profiles" },
   { id: "messaging", label: "Messaging" },
   { id: "artifacts", label: "Artifacts" },
 ];
@@ -356,6 +358,13 @@ export default function HermesConsole({ agent }: { agent: AgentDetail }) {
         {activeTab === "skills-tools" && (
           <div className="h-full overflow-hidden px-6 py-5">
             <SkillsAndTools />
+          </div>
+        )}
+
+        {/* ---- PROFILES TAB ---- */}
+        {activeTab === "profiles" && (
+          <div className="h-full overflow-hidden px-6 py-5">
+            <ProfilesManager />
           </div>
         )}
 

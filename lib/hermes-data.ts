@@ -531,6 +531,40 @@ export function getProfiles(): ProfilesResp {
   return { active: profiles.length, profiles };
 }
 
+/** Create a named subagent profile dir under the Hermes home (profile.yaml +
+ *  optional config.yaml/SOUL.md). Name is sanitized to a safe dir segment. */
+export function createProfile(
+  name: string,
+  opts: { description?: string; model?: string; soul?: string }
+): { ok: boolean; error?: string } {
+  const safe = (name ?? "").trim().replace(/[^a-zA-Z0-9_-]/g, "");
+  if (!safe) return { ok: false, error: "name must be alphanumeric / - / _" };
+  if (safe === "default") return { ok: false, error: "'default' is reserved" };
+  const dir = hermesHome("profiles", safe);
+  if (fs.existsSync(dir)) return { ok: false, error: "a profile with that name already exists" };
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(
+      path.join(dir, "profile.yaml"),
+      stringifyYaml({ description: (opts.description ?? "").trim() }),
+      "utf8"
+    );
+    if (opts.model?.trim()) {
+      fs.writeFileSync(
+        path.join(dir, "config.yaml"),
+        stringifyYaml({ model: { default: opts.model.trim() } }),
+        "utf8"
+      );
+    }
+    if (opts.soul?.trim()) {
+      fs.writeFileSync(path.join(dir, "SOUL.md"), opts.soul.trim() + "\n", "utf8");
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+}
+
 // ---------------------------------------------------------------------------
 // 4) SESSIONS helpers (sql.js, pure-JS wasm, no native module)
 // ---------------------------------------------------------------------------
