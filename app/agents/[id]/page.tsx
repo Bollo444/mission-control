@@ -20,6 +20,7 @@ import { getSkin, typeFontClass } from "@/components/skins";
 import AntigravityIde from "@/components/ide/AntigravityIde";
 import OpenClawConsole from "@/components/ide/OpenClawConsole";
 import HermesConsole from "@/components/ide/HermesConsole";
+import CodexConsole from "@/components/ide/CodexConsole";
 
 export default function AgentPage() {
   const { id } = useParams<{ id: string }>();
@@ -59,6 +60,11 @@ export default function AgentPage() {
   // Hermes gets its dedicated oxblood+gold console: native TUI + ACP relay.
   if (skin.hermes) {
     return <HermesConsole agent={a} />;
+  }
+
+  // Codex gets its dedicated noir "cipher" console: native TUI + plugins/MCP/etc.
+  if (skin.codex) {
+    return <CodexConsole agent={a} />;
   }
 
   const myActivity = (mem?.activity ?? []).filter((e: ActivityEntry) => e.agentId === a.id);

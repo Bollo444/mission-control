@@ -282,23 +282,23 @@ const PERSONAS: Record<string, Persona> = {
       `"${trim(msg)}" through the interface lens: can a person do this by voice, and is the output legible to a screen reader? Mem's at ${c.mem}% so a local model could even handle it privately.`,
   },
 
-  kilo: {
-    role: "Config, structure & conventions",
-    lens: "structure & conventions",
-    keywords: ["config", "blueprint", "structure", "vscode", "mode", "convention", "standard", "architecture", "consisten", "rule"],
-    status: () => `Blueprint view: config-driven and consistent. Every agent should be reproducible from its files alone.`,
+  codex: {
+    role: "Extensibility, tooling & sandboxed execution",
+    lens: "plugins, MCP & safe execution",
+    keywords: ["codex", "plugin", "mcp", "tool", "extension", "sandbox", "review", "cloud", "session", "exec", "marketplace", "integration", "capability"],
+    status: () => `Running on the gateway's free fleet. Plugins, MCP servers and sandboxed exec are wired — capability is a config away, not a rebuild.`,
     concern: (c) =>
       c.config > 0
-        ? `${list(c.configNames)} ${c.config === 1 ? "has" : "have"} config but no live binary — half-built. Either finish the wiring or mark it provisional.`
+        ? `${list(c.configNames)} ${c.config === 1 ? "has" : "have"} config but no live binary — capability without an engine. Wire it or mark it provisional.`
         : null,
     suggestion: () =>
       pick([
-        `Define one config convention every agent follows so onboarding a tenth is a template, not a project.`,
-        `Codify the "what each agent excels at" notes as the single source of truth the meeting reads from.`,
+        `Expose the common tools as MCP servers once so every agent inherits them instead of re-wiring per agent.`,
+        `Run risky steps in a sandbox by default — propose, review, then apply, never blind execution.`,
       ]),
-    question: () => `Do we have a written standard for adding an agent, or is each one bespoke?`,
+    question: () => `Which capabilities should be shared fleet-wide as plugins/MCP versus kept per-agent?`,
     respond: (c, msg) =>
-      `Structurally, "${trim(msg)}" should be reduced to a convention — do it once, encode it, and the next ${c.total - 1} cases are free. Bespoke is how a fleet drifts.`,
+      `On "${trim(msg)}": package it as a plugin or MCP tool once and the other ${c.total - 1} agents inherit it for free — extend the platform, don't fork the work.`,
   },
 
   sentinel: {
@@ -328,7 +328,7 @@ function trim(s: string, n = 80): string {
 }
 
 // Speaking order keeps the chair first/last and groups the named primaries early.
-const ORDER = ["hermes", "claude", "pi", "opencode", "antigravity", "openclaw", "jcode", "vibe", "kilo", "sentinel"];
+const ORDER = ["hermes", "claude", "pi", "opencode", "antigravity", "openclaw", "jcode", "vibe", "codex", "sentinel"];
 
 function meta(id: string) {
   const a = getAgent(id);
@@ -523,7 +523,7 @@ const TOPICS: Topic[] = [
         ]),
       },
       {
-        id: "kilo",
+        id: "codex",
         text: `And it stays bespoke until we fix it — give me one provisioning convention and the next agent is a template, not a project.`,
       },
     ],
@@ -626,7 +626,7 @@ const TOPICS: Topic[] = [
         text: `Same blind spot on cost — you can't optimise a route you never logged.`,
       },
       {
-        id: "kilo",
+        id: "codex",
         text: `Make it a convention then: log one metric per action and next month is measurable by default.`,
       },
     ],
@@ -673,7 +673,7 @@ const TOPICS: Topic[] = [
         ]),
       },
       {
-        id: "kilo",
+        id: "codex",
         text: `Whatever we pick, encode it as a convention so it runs itself next time instead of becoming a one-off.`,
       },
     ],
@@ -771,6 +771,6 @@ export async function replyToMessage(report: SystemReport, message: string): Pro
 }
 
 function pickGeneralists(n: number): string[] {
-  const pool = ["pi", "openclaw", "kilo", "antigravity", "opencode", "vibe"];
+  const pool = ["pi", "openclaw", "codex", "antigravity", "opencode", "vibe"];
   return shuffle(pool).slice(0, n);
 }
