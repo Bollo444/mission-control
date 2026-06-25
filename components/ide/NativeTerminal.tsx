@@ -56,6 +56,7 @@ export default function NativeTerminal({
     const key = `${kind}:${session}`;
     let disposed = false;
     let resizeObs: ResizeObserver | null = null;
+    const fitTimers: ReturnType<typeof setTimeout>[] = [];
 
     // Adopt an entry's persistent host into this component's container,
     // (re)fit, observe size, focus, and reflect its status into state.
@@ -66,6 +67,11 @@ export default function NativeTerminal({
       hostRef.current.appendChild(entry.host);
 
       const syncSize = () => {
+        // Only fit once the host actually has a box — fitting at 0px sizes the
+        // terminal to ~1 row (the "just a cursor" symptom) and Hermes' TUI then
+        // draws clipped. Skip until layout gives the host real dimensions.
+        const host = hostRef.current;
+        if (!host || host.clientHeight < 8 || host.clientWidth < 8) return;
         try {
           entry.fit.fit();
           void post({ type: "resize", cols: entry.term.cols, rows: entry.term.rows });
@@ -78,6 +84,11 @@ export default function NativeTerminal({
       } catch {
         /* ignore pre-layout fit */
       }
+      // Re-fit after layout settles. A single fit on mount can run mid route-
+      // transition (animating height) and mis-measure; these catch the final size
+      // and re-tell the PTY, so Hermes redraws its TUI to the correct dimensions.
+      requestAnimationFrame(syncSize);
+      fitTimers.push(setTimeout(syncSize, 120), setTimeout(syncSize, 400));
       resizeObs = new ResizeObserver(syncSize);
       resizeObs.observe(hostRef.current);
       entry.term.focus();
@@ -199,6 +210,7 @@ export default function NativeTerminal({
     return () => {
       disposed = true;
       resizeObs?.disconnect();
+      fitTimers.forEach(clearTimeout);
       // DETACH only — keep the term and SSE stream alive off-screen so the
       // session (scrollback/cursor/typed input) survives navigation.
       const entry = TERMS.get(key);
