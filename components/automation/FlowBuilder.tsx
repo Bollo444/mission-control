@@ -48,9 +48,18 @@ function FlowNodeView({ id, type, data }: NodeProps) {
   const pal = palOf(type);
   const isCond = type === "condition.if";
   const isTrigger = type.startsWith("trigger");
+  // Per-node phase so they bob out of sync (weightless, like the jcode void).
+  const seed = id.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
 
   return (
-    <div className="rounded-lg border bg-[var(--color-surface)] text-[var(--color-ink)] shadow-lg" style={{ borderColor: `${pal?.color}66`, minWidth: 190 }}>
+    <div
+      className="rounded-lg border bg-[var(--color-surface)] text-[var(--color-ink)] shadow-lg"
+      style={{
+        borderColor: `${pal?.color}66`,
+        minWidth: 190,
+        animation: `mc-node-float ${6 + (seed % 5)}s ease-in-out ${(seed % 7) * 0.4}s infinite`,
+      }}
+    >
       {!isTrigger && <Handle type="target" position={Position.Top} style={{ background: pal?.color }} />}
       <div className="border-b px-2.5 py-1.5 text-[11px] font-semibold" style={{ borderColor: "rgba(255,255,255,0.08)", color: pal?.color }}>
         {pal?.label ?? type}
@@ -115,6 +124,11 @@ function Inner() {
   const [flows, setFlows] = useState<FlowMeta[]>([]);
   const [steps, setSteps] = useState<Array<{ type: string; ok: boolean; detail: string }> | null>(null);
   const [busy, setBusy] = useState(false);
+  // Natural-language driver state.
+  const [nl, setNl] = useState("");
+  const [driver, setDriver] = useState("claude");
+  const [gen, setGen] = useState(false);
+  const [genErr, setGenErr] = useState<string | null>(null);
 
   const loadList = useCallback(() => {
     fetch("/api/flows").then((r) => r.json()).then((j) => setFlows(j.flows ?? [])).catch(() => {});
@@ -165,8 +179,72 @@ function Inner() {
     loadList();
   };
 
+  // Describe an automation in plain language; an agent drafts the graph.
+  const generate = async () => {
+    const prompt = nl.trim();
+    if (!prompt || gen) return;
+    setGen(true); setGenErr(null);
+    try {
+      const r = await fetch("/api/flows/generate", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ prompt, agentId: driver }),
+      });
+      const j = await r.json();
+      if (!j.ok) { setGenErr(j.error || "couldn't build that — try rephrasing"); return; }
+      setFlowId(`flow_${Math.random().toString(36).slice(2, 9)}`);
+      setName(j.flow.name || "Generated flow");
+      setNodes(j.flow.nodes as Node[]);
+      setEdges(j.flow.edges as Edge[]);
+      setSteps(null);
+      setNl("");
+    } catch (e) {
+      setGenErr((e as Error).message);
+    } finally {
+      setGen(false);
+    }
+  };
+
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
+      {/* Natural-language driver — describe it, an agent wires the flow. */}
+      <div className="rounded-xl border p-3" style={{ borderColor: `${ACCENT}55`, background: `${ACCENT}0d` }}>
+        <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em]" style={{ color: ACCENT }}>
+          ✦ Describe it — an agent builds the flow
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            value={nl}
+            onChange={(e) => setNl(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && generate()}
+            placeholder="e.g. Have Claude summarize today's git commits, and log a warning if any mention a bug"
+            className="min-w-0 flex-1 rounded-lg border bg-[var(--color-surface-2)] px-3 py-2 text-sm outline-none"
+          />
+          <select
+            value={driver}
+            onChange={(e) => setDriver(e.target.value)}
+            title="which agent drives the build"
+            className="rounded-lg border border-white/10 bg-[var(--color-surface-2)] px-2 py-2 text-sm text-[var(--color-ink-3)]"
+          >
+            {["claude", "hermes", "codex", "jcode", "opencode", "pi", "vibe"].map((a) => (
+              <option key={a} value={a}>{a}</option>
+            ))}
+          </select>
+          <button
+            onClick={generate}
+            disabled={gen || !nl.trim()}
+            className="rounded-lg px-4 py-2 text-sm font-semibold text-[#06121f] disabled:opacity-40"
+            style={{ background: ACCENT }}
+          >
+            {gen ? "Building…" : "✨ Build it"}
+          </button>
+        </div>
+        {genErr && <div className="mt-2 text-xs text-[#ff6b6b]">{genErr}</div>}
+        <div className="mt-1.5 text-[11px] text-[var(--color-ink-4)]">
+          The agent drafts the nodes onto the canvas below — review, tweak, then Save / Run. Nothing runs on its own.
+        </div>
+      </div>
+
       {/* toolbar */}
       <div className="flex flex-wrap items-center gap-2">
         <input value={name} onChange={(e) => setName(e.target.value)} className="rounded-lg border bg-[var(--color-surface-2)] px-3 py-1.5 text-sm outline-none" placeholder="flow name" />
@@ -191,6 +269,7 @@ function Inner() {
       <div className="flex min-h-0 flex-1 gap-3">
         <div className="min-h-0 flex-1 overflow-hidden rounded-xl border" style={{ borderColor: "var(--color-line)" }}>
           <ReactFlow
+            className="mc-flow"
             nodes={nodes}
             edges={edges}
             onNodesChange={onNodesChange}

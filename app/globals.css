@@ -237,6 +237,33 @@ body {
   33% { transform: translateY(-20px) translateX(12px) rotate(5deg); }
   66% { transform: translateY(12px) translateX(-14px) rotate(-4deg); }
 }
+/* Automation canvas — gently floating nodes + edges that read like current
+   is running through them (subtle marching glow + flicker). */
+@keyframes mc-node-float {
+  0%, 100% { transform: translateY(0) translateX(0); }
+  50% { transform: translateY(-5px) translateX(3px); }
+}
+@keyframes mc-edge-flow { to { stroke-dashoffset: -22; } }
+@keyframes mc-edge-flicker {
+  0%, 100% { opacity: 0.9; }
+  47% { opacity: 1; }
+  50% { opacity: 0.68; }
+  53% { opacity: 1; }
+}
+.mc-flow .react-flow__edge-path {
+  stroke: #46e0d0;
+  stroke-width: 1.8;
+  filter: drop-shadow(0 0 3px rgba(70, 224, 208, 0.85));
+}
+.mc-flow .react-flow__edge.animated .react-flow__edge-path {
+  stroke-dasharray: 7 5;
+  animation: mc-edge-flow 0.55s linear infinite, mc-edge-flicker 2.4s ease-in-out infinite;
+}
+.mc-flow .react-flow__edge.selected .react-flow__edge-path,
+.mc-flow .react-flow__edge:hover .react-flow__edge-path {
+  stroke: #8ffff0;
+  filter: drop-shadow(0 0 6px rgba(70, 224, 208, 1));
+}
 @keyframes mc-blink {
   0%,
   49% {
