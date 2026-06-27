@@ -4,14 +4,14 @@ A detailed record of the project's development: **every commit**, grouped by
 working session and shown newest-first. Each short hash links to the commit on
 GitHub.
 
-**8 sessions · 53 commits · 2026-05-31 → 2026-06-26**
-_Latest revision: 2026-06-26 — added Session 8: the home page becomes a living
-**Jarvis command orb** you can talk to (it speaks back via neural TTS), jcode
-gets a weightless **swarm cockpit**, and launching an agent gets a pop-out
-**folder picker**._
+**9 sessions · 55 commits · 2026-05-31 → 2026-06-27**
+_Latest revision: 2026-06-27 — added Session 9: a **natural-language automation
+driver** (describe it, an agent builds the flow), a **living canvas** (floating
+nodes + electric edges), and a build brief for a **one-node MCP connector hub**._
 
 | Session | Date | Commits | When | Theme |
 |:--:|---|:--:|---|---|
+| 9 | 2026-06-27 (Sat) | 2 | All day | NL automation driver, living canvas, MCP connector brief |
 | 8 | 2026-06-26 (Fri) | 2 | All day | Jarvis command orb, jcode swarm cockpit, voice & folder picker |
 | 7 | 2026-06-25 (Thu) | 14 | All day | Codex overhaul (kilo→Codex), terminal fixes, automation node builder |
 | 6 | 2026-06-24 (Wed) | 14 | All day | Native harnesses, Hermes/Sentinel/Antigravity surfaces, Discord messaging |
@@ -20,6 +20,37 @@ gets a weightless **swarm cockpit**, and launching an agent gets a pop-out
 | 3 | 2026-06-03 (Wed) | 11 | Late morning → evening | Gateway phases, branding & public launch |
 | 2 | 2026-06-02 (Tue) | 4 | Midday | Providers, health monitor & cascade proxy |
 | 1 | 2026-05-31 (Sat) | 7 | Afternoon → evening | Initial fleet console |
+
+---
+
+## Session 9 — 2026-06-27 · Natural-language automation driver, living canvas & the MCP connector plan
+**2 commits.** Automation gets a plain-language **driver** (an agent builds the flow
+for you), the canvas comes **alive**, and there's a build brief to turn the whole
+thing into a **Sim.ai-style connector hub with a single MCP node**.
+
+### Natural-language flow driver
+- [`c5ef520`](https://github.com/Bollo444/mission-control/commit/c5ef520) — New
+  `/api/flows/generate`: describe an automation in plain English and an agent —
+  **you pick which one drives** (Claude, Hermes, Codex, jcode…) — emits the node
+  graph through the Fleet Gateway. The route **sanitizes** it (valid node types
+  only, a guaranteed trigger, edges checked/remapped) and the builder drops it
+  onto the canvas to **review, tweak, then Save / Run** — nothing runs on its own.
+  Verified: *"summarize today's git commits, and if it mentions a bug, log a
+  warning"* → trigger → agent → `if contains "bug"` → log, wired correctly.
+
+### Living canvas
+- Nodes gently **float** in place (`mc-node-float`, each with its own phase) and
+  connected edges read like **current is flowing through them** — marching glow +
+  flicker in teal, brightening on hover/select (`mc-edge-flow`, scoped `.mc-flow`).
+  Both respect `prefers-reduced-motion`.
+
+### MCP connector hub — build brief (roadmap)
+- Added `docs/JULES-BRIEF-mcp-connectors.md`: a complete spec to add **one
+  `action.mcp` node** that calls tools on any connected **MCP server** — turning
+  the builder into a Sim.ai-style connector library (GitHub, Notion, Supabase,
+  web search, filesystem, …) **without** adopting Sim's platform (no Postgres/
+  Redis/auth). Stays local-first; OAuth connectors (Gmail/Google) deferred to a
+  future credential vault.
 
 ---
 
