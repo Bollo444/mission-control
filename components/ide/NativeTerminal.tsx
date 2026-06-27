@@ -43,11 +43,14 @@ export default function NativeTerminal({
   session = "hermes-main",
   kind = "hermes",
   accent = GOLD,
+  transparent = false,
 }: {
   session?: string;
   kind?: string;
   /** Per-agent identity color — themes cursor + highlight for brand recognition. */
   accent?: string;
+  /** See-through background — lets a page's animation show behind the text. */
+  transparent?: boolean;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState<Status>("connecting");
@@ -116,12 +119,14 @@ export default function NativeTerminal({
 
         const term = new Terminal({
           cursorBlink: true,
+          // Transparent mode needs xterm's alpha compositing path enabled.
+          allowTransparency: transparent,
           fontFamily:
             '"Cascadia Code", "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace',
           fontSize: 13,
           lineHeight: 1.2,
           theme: {
-            background: OXBLOOD,
+            background: transparent ? "rgba(4,17,15,0.12)" : OXBLOOD,
             foreground: PARCHMENT,
             cursor: accent,
             cursorAccent: OXBLOOD,
@@ -196,6 +201,10 @@ export default function NativeTerminal({
       })();
     }
 
+    // transparent only matters at construction; included so a changed value
+    // would re-run (the cached entry is keyed by kind:session regardless).
+    void transparent;
+
     return () => {
       disposed = true;
       resizeObs?.disconnect();
@@ -207,10 +216,10 @@ export default function NativeTerminal({
         if (entry.host.parentNode) entry.host.parentNode.removeChild(entry.host);
       }
     };
-  }, [session, kind, accent]);
+  }, [session, kind, accent, transparent]);
 
   return (
-    <div className="relative h-full w-full overflow-hidden" style={{ background: OXBLOOD }}>
+    <div className="relative h-full w-full overflow-hidden" style={{ background: transparent ? "transparent" : OXBLOOD }}>
       {/* Container — the persistent xterm host div is appended here. */}
       <div ref={hostRef} className="h-full w-full overflow-hidden" />
       {status !== "live" && (

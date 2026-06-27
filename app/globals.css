@@ -53,10 +53,11 @@ body {
 
 body {
   /* Subtle grid + radial glow — command-center backdrop, kept very low contrast */
+  /* --glow-rgb is set dynamically by theme system (e.g., '245, 183, 90') */
   background-image:
     radial-gradient(
       1200px 600px at 80% -10%,
-      rgba(245, 183, 90, 0.06),
+      rgba(var(--glow-rgb, 245, 183, 90), 0.06),
       transparent 60%
     ),
     linear-gradient(rgba(255, 255, 255, 0.014) 1px, transparent 1px),
@@ -228,6 +229,13 @@ body {
   to {
     transform: rotate(360deg) translateX(var(--r, 22px)) rotate(-360deg);
   }
+}
+/* Zero-G drift — jcode's Crash-jetpack weightless float. One keyframe, varied
+   per element via duration/delay/size for a parallax swarm of objects. */
+@keyframes mc-weightless {
+  0%, 100% { transform: translateY(0) translateX(0) rotate(0deg); }
+  33% { transform: translateY(-20px) translateX(12px) rotate(5deg); }
+  66% { transform: translateY(12px) translateX(-14px) rotate(-4deg); }
 }
 @keyframes mc-blink {
   0%,

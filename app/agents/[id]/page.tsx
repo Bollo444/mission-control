@@ -21,6 +21,7 @@ import AntigravityIde from "@/components/ide/AntigravityIde";
 import OpenClawConsole from "@/components/ide/OpenClawConsole";
 import HermesConsole from "@/components/ide/HermesConsole";
 import CodexConsole from "@/components/ide/CodexConsole";
+import JcodeConsole from "@/components/ide/JcodeConsole";
 
 export default function AgentPage() {
   const { id } = useParams<{ id: string }>();
@@ -65,6 +66,12 @@ export default function AgentPage() {
   // Codex gets its dedicated noir "cipher" console: native TUI + plugins/MCP/etc.
   if (skin.codex) {
     return <CodexConsole agent={a} />;
+  }
+
+  // jcode gets its weightless swarm cockpit: live terminal hovering in a
+  // zero-G teal void with floating menu tabs.
+  if (skin.swarm) {
+    return <JcodeConsole agent={a} />;
   }
 
   const myActivity = (mem?.activity ?? []).filter((e: ActivityEntry) => e.agentId === a.id);

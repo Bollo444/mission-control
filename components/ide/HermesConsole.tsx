@@ -38,7 +38,7 @@ const OX = {
   inkDim: "#c9a98f",
 };
 
-function Caduceus({ size = 56 }: { size?: number }) {
+export function Caduceus({ size = 56 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 64 64" fill="none" aria-hidden>
       {/* wings */}
@@ -414,7 +414,7 @@ const agentAccent = (id?: string | null): string =>
 const DUO_KEY = "mc.duo.v1";
 
 /** The Duo-flow chat popup — @mention an agent and Hermes pairs with them over ACP. */
-function OrchestrationRelay({ onClose }: { onClose: () => void }) {
+export function OrchestrationRelay({ onClose }: { onClose: () => void }) {
   const [msgs, setMsgs] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);

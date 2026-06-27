@@ -6,6 +6,7 @@ import type { PublicSettings, AgentsResp, HealthState, ProviderStatus } from "@/
 import type { UsageRow } from "@/lib/usage";
 import { PageHeader, Screen } from "@/components/ui";
 import { hexA } from "@/lib/format";
+import { useTheme, ThemePalette } from "@/lib/theme";
 
 export default function SettingsPage() {
   const { data, reload } = useFetch<PublicSettings>("/api/settings", 0);
@@ -20,6 +21,7 @@ export default function SettingsPage() {
   const [keys, setKeys] = useState<Record<string, string>>({});
   const [saved, setSaved] = useState<"idle" | "saving" | "ok">("idle");
   const [checking, setChecking] = useState(false);
+  const theme = useTheme();
 
   useEffect(() => {
     if (data) setRouting(data.routingPreferred ?? data.routing);
@@ -296,6 +298,56 @@ export default function SettingsPage() {
               Override with the <code>MC_VAULT_DIR</code> environment variable to point
               at an existing Obsidian vault.
             </p>
+          </section>
+
+          {/* Theme selector */}
+          <section className="mc-panel p-5">
+            <h2 className="mb-1 text-sm font-semibold">Theme</h2>
+            <p className="mb-4 text-xs text-[var(--color-ink-4)]">
+              Colors rotate automatically every 6 hours (quarter-day). Override to
+              lock a specific palette.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {theme.allThemes.slice(0, 4).map((t: ThemePalette) => (
+                <button
+                  key={t.id}
+                  onClick={() => theme.setThemeById(t.id)}
+                  className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors"
+                  style={{
+                    borderColor:
+                      theme.currentTheme.id === t.id
+                        ? t.signal
+                        : "var(--color-line)",
+                    background:
+                      theme.currentTheme.id === t.id
+                        ? `${hexA(t.signal, 0.12)}`
+                        : "transparent",
+                    color:
+                      theme.currentTheme.id === t.id
+                        ? t.signal
+                        : "var(--color-ink)",
+                  }}
+                >
+                  <span
+                    className="inline-block h-3 w-3 shrink-0 rounded"
+                    style={{ background: t.signal }}
+                  />
+                  {t.name}
+                  {theme.currentTheme.id === t.id && (
+                    <span className="text-[10px] text-[var(--color-ink-3)]">(active)</span>
+                  )}
+                </button>
+              ))}
+              <button
+                onClick={() => theme.setThemeById(theme.currentTheme.id)}
+                className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm text-[var(--color-ink-3)] transition-colors hover:border-[var(--color-ink-4)]"
+              >
+                <span className="inline-block h-3 w-3 shrink-0 rounded"
+                  style={{ background: "var(--color-signal)" }}
+                />
+                Auto (quarter-day)
+              </button>
+            </div>
           </section>
         </div>
       </div>

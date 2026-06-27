@@ -18,16 +18,18 @@ export interface Skin {
   hermes?: boolean;
   /** Whether this agent renders its dedicated noir Codex console. */
   codex?: boolean;
+  /** Whether this agent renders its dedicated weightless jcode swarm cockpit. */
+  swarm?: boolean;
 }
 
-const META: Record<string, { mood: string; type: Skin["type"]; ide?: boolean; console?: boolean; hermes?: boolean; codex?: boolean }> = {
+const META: Record<string, { mood: string; type: Skin["type"]; ide?: boolean; console?: boolean; hermes?: boolean; codex?: boolean; swarm?: boolean }> = {
   claude: { mood: "Ember", type: "sans" },
   hermes: { mood: "Olympus", type: "serif", hermes: true },
   pi: { mood: "Laboratory", type: "mono" },
   opencode: { mood: "Open Signal", type: "mono" },
   antigravity: { mood: "Zero-G", type: "sans", ide: true },
   openclaw: { mood: "Apex", type: "mono", console: true },
-  jcode: { mood: "Swarm", type: "mono" },
+  jcode: { mood: "Swarm", type: "mono", swarm: true },
   vibe: { mood: "Resonance", type: "sans" },
   codex: { mood: "Cipher", type: "mono", codex: true },
   sentinel: { mood: "Vigil", type: "mono" },
@@ -47,6 +49,7 @@ export function getSkin(id: string): Skin {
     console: m.console,
     hermes: m.hermes,
     codex: m.codex,
+    swarm: m.swarm,
   };
 }
 

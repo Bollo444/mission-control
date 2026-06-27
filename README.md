@@ -82,6 +82,14 @@ config exists. Ones you don't have installed appear as provisionable personas.
 
 ## Features
 
+- **Jarvis command center** (`/`) — the home page is a living **command orb**: a
+  breathing reactor core wrapped in Hermes' caduceus, with one orbiting spark per
+  fleet agent. **Talk to it** — type and Hermes answers, streamed back and **spoken
+  aloud** (a neural TTS voice via Cloudflare Workers AI, a voice picker, and
+  browser-speech fallback). Press **`/`** to summon a Mass-Effect-style HUD:
+  holographic panels drift in at the edges — Hermes capabilities, the fleet
+  (colour-coded per agent), knowledge, ops — each opening a feature in place over
+  the dimmed orb. The classic dashboard lives on at **Overview**.
 - **Fleet overview** — a live status grid: which agents are installed, versions,
   session counts, configs, last-active times.
 - **Per-agent Mission Control** — a dedicated page per agent: tools, live on-disk
@@ -128,6 +136,13 @@ config exists. Ones you don't have installed appear as provisionable personas.
 - **Hermes console** — a tabbed surface with a live native TUI, a Skills & Tools
   picker (writes `config.yaml` / `.usage.json`), clickable **session transcripts**
   and **artifact previews**, a **Profiles** tab (create subagent profiles), and a Duo-flow relay.
+- **jcode swarm cockpit** — jcode's page is a weightless teal void (Crash-jetpack
+  energy): hex shards, crates and swarm sparks drift in zero-G while the
+  **see-through** native terminal hovers in the centre and the menu tabs float
+  around it — Swarm · Memory · MCP · Sessions · Launch.
+- **Launch-anywhere folder picker** — the Launch control pops out a folder browser
+  (`/api/workspace`, sandboxed to your home directory) so you can choose the
+  project directory to start an agent in, instead of typing a path.
 - **Automation flow builder** — a ComfyUI-style node canvas: wire triggers,
   if/then conditions and actions (run agent, shell, Discord, log) into chains and run them.
 - **Session conversations** — click any session (fleet-wide or per-agent) to read

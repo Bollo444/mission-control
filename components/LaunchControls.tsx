@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { hexA } from "@/lib/format";
+import DirPicker from "./DirPicker";
 
 type Action = "launch" | "install";
 
@@ -25,15 +26,17 @@ export default function LaunchControls({
   const [cwd, setCwd] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [picking, setPicking] = useState(false);
 
-  async function act(action: Action) {
+  async function act(action: Action, dir?: string) {
     setBusy(true);
     setMsg(null);
     try {
+      const where = dir ?? (cwd || undefined);
       const res = await fetch("/api/launch", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ id, cwd: cwd || undefined, action }),
+        body: JSON.stringify({ id, cwd: where, action }),
       });
       const json = await res.json();
       setMsg(json.message || (json.ok ? "Done." : "Failed."));
@@ -43,6 +46,13 @@ export default function LaunchControls({
     } finally {
       setBusy(false);
     }
+  }
+
+  // Picked a folder in the browser → remember it and launch there immediately.
+  function launchIn(dir: string) {
+    setPicking(false);
+    setCwd(dir);
+    void act("launch", dir);
   }
 
   const launchLabel = kind === "ide" ? "Open IDE" : "Launch session";
@@ -56,6 +66,15 @@ export default function LaunchControls({
           placeholder="Working directory (optional) e.g. C:\\path\\to\\project"
           className="min-w-0 flex-1 rounded-lg border bg-[var(--color-surface-2)] px-3 py-2 text-sm text-[var(--color-ink)] outline-none placeholder:text-[var(--color-ink-4)] focus:border-[var(--color-ink-4)]"
         />
+        <button
+          disabled={busy || !installed}
+          onClick={() => setPicking(true)}
+          title="Browse for a project folder"
+          className="rounded-lg border px-3 py-2 text-sm font-semibold text-[var(--color-ink)] transition-colors hover:bg-[var(--color-surface-3)] disabled:cursor-not-allowed disabled:opacity-40"
+          style={{ borderColor: hexA(accent, 0.5) }}
+        >
+          🗀 Browse…
+        </button>
         <button
           disabled={busy || !installed}
           onClick={() => act("launch")}
@@ -95,6 +114,8 @@ export default function LaunchControls({
           {msg}
         </div>
       )}
+
+      {picking && <DirPicker accent={accent} onPick={launchIn} onClose={() => setPicking(false)} />}
     </div>
   );
 }

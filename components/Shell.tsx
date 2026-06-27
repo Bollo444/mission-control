@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import type { NavAgent } from "@/lib/types";
 import { hexA } from "@/lib/format";
 import RouteTransition from "./RouteTransition";
 import { useEdgeAutoScroll } from "./useEdgeAutoScroll";
 import EdgeFileDrawer from "./EdgeFileDrawer";
+import { useTheme } from "@/lib/theme";
 
 function NavLink({
   href,
@@ -73,6 +74,16 @@ export default function Shell({
   const [clock, setClock] = useState("");
   const [open, setOpen] = useState(true);
   const agentNavRef = useEdgeAutoScroll<HTMLElement>();
+  const { currentTheme } = useTheme();
+
+  // Create theme-aware nav with current theme's agent accents
+  const themedNav = useMemo(() =>
+    nav.map((a) => ({
+      ...a,
+      accent: currentTheme.agentAccents[a.id] ?? currentTheme.signal,
+    })),
+    [nav, currentTheme]
+  );
 
   // Default: sidebar open on desktop, collapsed on mobile.
   useEffect(() => {
@@ -128,9 +139,9 @@ export default function Shell({
             <span
               className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-base font-bold"
               style={{
-                background: hexA("#f5b75a", 0.14),
+                background: hexA(currentTheme.signal, 0.14),
                 color: "var(--color-signal)",
-                boxShadow: `inset 0 0 0 1px ${hexA("#f5b75a", 0.3)}`,
+                boxShadow: `inset 0 0 0 1px ${hexA(currentTheme.signal, 0.3)}`,
               }}
             >
               ◎
@@ -156,6 +167,12 @@ export default function Shell({
 
         <nav className="flex flex-col gap-1">
           <NavLink href="/" active={pathname === "/"}>
+            <span className="grid h-6 w-6 place-items-center rounded-md text-[13px]">
+              ◎
+            </span>
+            Command
+          </NavLink>
+          <NavLink href="/overview" active={pathname === "/overview"}>
             <span className="grid h-6 w-6 place-items-center rounded-md text-[13px]">
               ⬚
             </span>
@@ -212,7 +229,7 @@ export default function Shell({
           ref={agentNavRef}
           className="-mr-1 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto pr-1"
         >
-          {nav.map((a) => (
+          {themedNav.map((a) => (
             <AgentNav key={a.id} a={a} active={pathname === `/agents/${a.id}`} />
           ))}
         </nav>
