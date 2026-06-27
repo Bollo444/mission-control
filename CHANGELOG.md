@@ -4,14 +4,15 @@ A detailed record of the project's development: **every commit**, grouped by
 working session and shown newest-first. Each short hash links to the commit on
 GitHub.
 
-**7 sessions · 51 commits · 2026-05-31 → 2026-06-25**
-_Latest revision: 2026-06-25 — added Session 7 (terminal fixes, session
-conversations, Hermes Profiles, the ComfyUI-style automation builder, and the
-Codex overhaul — replacing kilo, with the tri-format gateway and agentic
-tool-calling on the free fleet)._
+**8 sessions · 53 commits · 2026-05-31 → 2026-06-26**
+_Latest revision: 2026-06-26 — added Session 8: the home page becomes a living
+**Jarvis command orb** you can talk to (it speaks back via neural TTS), jcode
+gets a weightless **swarm cockpit**, and launching an agent gets a pop-out
+**folder picker**._
 
 | Session | Date | Commits | When | Theme |
 |:--:|---|:--:|---|---|
+| 8 | 2026-06-26 (Fri) | 2 | All day | Jarvis command orb, jcode swarm cockpit, voice & folder picker |
 | 7 | 2026-06-25 (Thu) | 14 | All day | Codex overhaul (kilo→Codex), terminal fixes, automation node builder |
 | 6 | 2026-06-24 (Wed) | 14 | All day | Native harnesses, Hermes/Sentinel/Antigravity surfaces, Discord messaging |
 | 5 | 2026-06-23 (Tue) | `3b9dc1e` | Evening | Hermes persistency, gold theme, fade transitions & tabbed panel interior |
@@ -19,6 +20,39 @@ tool-calling on the free fleet)._
 | 3 | 2026-06-03 (Wed) | 11 | Late morning → evening | Gateway phases, branding & public launch |
 | 2 | 2026-06-02 (Tue) | 4 | Midday | Providers, health monitor & cascade proxy |
 | 1 | 2026-05-31 (Sat) | 7 | Afternoon → evening | Initial fleet console |
+
+---
+
+## Session 8 — 2026-06-26 · Jarvis command orb, jcode swarm cockpit, voice & folder picker
+**2 commits.** The home page becomes a living **command orb** you can talk to —
+and it talks back. jcode gets a weightless **swarm cockpit**, and launching an
+agent gets a pop-out **folder picker**.
+
+### Jarvis command center (`/`)
+- [`4057426`](https://github.com/Bollo444/mission-control/commit/4057426) — New
+  **OracleOrb** home: a breathing reactor core wrapped in Hermes' caduceus, with
+  one orbiting spark per fleet agent. A **talk-to-Jarvis** bar streams Hermes'
+  reply over the ACP bridge and **speaks it aloud** — neural TTS via **Cloudflare
+  Workers AI MeloTTS** (`/api/jarvis/tts`), a **voice picker** (the model voice +
+  every browser voice, choice remembered), and browser **SpeechSynthesis** as the
+  always-on fallback; the orb's core quickens while it speaks. Pressing **`/`**
+  summons a Mass-Effect edge HUD (`CommandHud`) — Hermes / the fleet (colour-coded
+  per agent) / knowledge / ops — each petal opening a real feature in place over
+  the dimmed orb. The classic dashboard is preserved at **`/overview`** (the
+  sidebar splits into **Command** and **Overview**).
+
+### jcode swarm cockpit
+- jcode's page (`JcodeConsole`, `skin.swarm`) is a weightless teal void —
+  Crash-jetpack energy — with hex shards, crates and swarm sparks drifting in
+  zero-G (`mc-weightless`), a **see-through** native terminal hovering in the
+  centre, and floating menu tabs (Swarm · Memory · MCP · Sessions · Launch).
+  `NativeTerminal` gains an opt-in **transparent** mode (Hermes/Codex unchanged).
+
+### Launch-anywhere folder picker
+- The Launch control pops out a portalled **folder browser** (`DirPicker` over
+  `/api/workspace`, sandboxed to your home directory) so you choose the project
+  directory to start an agent in — wired into the shared `LaunchControls`, so
+  **every agent** gets it.
 
 ---
 
