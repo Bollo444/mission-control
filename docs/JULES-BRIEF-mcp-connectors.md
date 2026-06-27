@@ -167,6 +167,35 @@ the provider's hosted MCP URL).
 - **Timeouts** on connect (10s) and tool calls (30s); cache live clients; reconnect on drop.
 - Don't pull in Sim or any platform — this is MCP-client only.
 
+## 4b. Clarifications (answers to implementation questions)
+
+1. **Windows/ARM vs a Linux dev env.** Develop on Linux freely — this is pure JS
+   (`@modelcontextprotocol/sdk` + `child_process`), no native build, so ARM is a
+   non-issue (the repo's only ARM gotcha is `node-pty`, untouched here). The real
+   cross-platform trap is **stdio spawning**: on Windows `npx`/`uvx` are
+   `npx.cmd`/`uvx.cmd`. Make spawning OS-aware in `lib/mcp.ts` — guard with
+   `process.platform === "win32"` to use the `.cmd` form (or `cmd /c`), plain
+   command elsewhere. Use `lib/paths.ts` / `os.homedir()` / `path.join`; never
+   hardcode separators. Terminal/PTY specifics are unrelated to this task.
+2. **Args template** = a **string parsed at execution** (not valid JSON until
+   `{{input}}` is substituted). Add a **non-blocking** UI hint only: `JSON.parse`
+   with `{{input}}`→dummy; on throw show a subtle "invalid JSON" warning but still
+   allow Save. Executor already falls back to `{}` on parse failure.
+3. **Secret redaction (GET /api/mcp):** keep key names, **mask values** —
+   `{ GITHUB_TOKEN: "••••" }` for set values; never return real values. On POST,
+   **only overwrite a secret when a non-empty value is supplied** (editing other
+   fields must not wipe secrets; the form never pre-fills real secret values).
+4. **Tool selection UI:** go **dynamic** — render each tool's `inputSchema`
+   params (name · type · required · description) as hints under the args textarea
+   (the schema is already in the GET payload). No full per-schema form for v1; a
+   "prefill args skeleton" button (JSON template from the schema) is a nice bonus.
+5. **Connection management:** cache live clients; on a tool-call failure from a
+   dead transport, **evict + reconnect once and retry**, then return `⚠ …` to the
+   flow (fail soft, no loops). 10s connect / 30s call timeouts.
+6. **Default servers:** **seed all, `enabled:false`** — inert until enabled, so a
+   missing `npx`/`uvx` is harmless. Enable/Test must surface a clear "command not
+   found" error, and the UI should note which need `uv` (fetch/git/time) vs Node.
+
 ## 5. Deliverable
 A PR to `main` with: `lib/mcp.ts`, `app/api/mcp/*`, the `action.mcp` execution in `lib/flows.ts`,
 the FlowBuilder palette + node editor, the Connectors (MCP) manager tab, the seeded `mcp.json`
