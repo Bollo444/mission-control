@@ -4,6 +4,7 @@ import { spawn } from "node:child_process";
 import { MC_CONFIG_DIR } from "./paths";
 import { cascadeChat } from "./gateway";
 import { logEvent } from "./logbook";
+import { callTool } from "./mcp";
 
 /* ------------------------------------------------------------------ *
  * Automation flows — a ComfyUI-style node graph. Triggers feed into     *
@@ -152,6 +153,16 @@ export async function runFlow(flow: Flow): Promise<{ steps: StepLog[] }> {
       } else if (node.type === "action.log") {
         logEvent({ source: "system", level: "info", event: subst(String(node.data.message || "flow step"), input).slice(0, 200) });
         steps.push({ nodeId, type: node.type, ok: true, detail: "logged" });
+      } else if (node.type === "action.mcp") {
+        const server = String(node.data.server || "");
+        const tool = String(node.data.tool || "");
+        let args: Record<string, unknown> = {};
+        try {
+          args = JSON.parse(subst(String(node.data.args || "{}"), input));
+        } catch {}
+        const out = await callTool(server, tool, args);
+        input = out;
+        steps.push({ nodeId, type: node.type, ok: !out.startsWith("⚠"), detail: out.slice(0, 400) });
       } else if (node.type === "condition.if") {
         const pass = evalCondition(node.data, input);
         branch = pass ? "then" : "else";
