@@ -5,53 +5,114 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /*
- * Jarvis voice — text → speech via a real audio model: Cloudflare Workers AI
- * MeloTTS (@cf/myshell-ai/melotts), which returns base64 MP3. If the key/account
- * is missing or Cloudflare errors, this 502s and the client drops to the
- * browser's built-in SpeechSynthesis — the offline-proof fallback rung.
- *
- * (Groq's PlayAI TTS was decommissioned; Groq now only does speech-to-text.)
+ * Jarvis voice — text → speech, tried in order:
+ *   1. Google Gemini TTS (gemini-2.5-flash-preview-tts) — natural, free via an
+ *      AI Studio key. Returns raw 24kHz/16-bit/mono PCM, which we wrap in a WAV
+ *      header. Needs GEMINI_API_KEY.
+ *   2. Cloudflare Workers AI MeloTTS — returns WAV. Needs CF token + account.
+ *   3. (client) browser SpeechSynthesis — the offline-proof last resort.
+ * Each rung falls through to the next on missing key / error.
  */
 
+const GEMINI_MODEL = "gemini-2.5-flash-preview-tts";
+const GEMINI_VOICE = "Charon"; // deep, measured — the Jarvis register
+
+/** Prepend a 44-byte RIFF/WAVE header to raw PCM so browsers can play it. */
+function pcmToWav(pcm: Buffer, sampleRate = 24000, channels = 1, bits = 16): Buffer {
+  const blockAlign = (channels * bits) / 8;
+  const byteRate = sampleRate * blockAlign;
+  const h = Buffer.alloc(44);
+  h.write("RIFF", 0);
+  h.writeUInt32LE(36 + pcm.length, 4);
+  h.write("WAVE", 8);
+  h.write("fmt ", 12);
+  h.writeUInt32LE(16, 16);
+  h.writeUInt16LE(1, 20); // PCM
+  h.writeUInt16LE(channels, 22);
+  h.writeUInt32LE(sampleRate, 24);
+  h.writeUInt32LE(byteRate, 28);
+  h.writeUInt16LE(blockAlign, 32);
+  h.writeUInt16LE(bits, 34);
+  h.write("data", 36);
+  h.writeUInt32LE(pcm.length, 40);
+  return Buffer.concat([h, pcm]);
+}
+
+async function geminiTTS(text: string, voice: string, key: string): Promise<Buffer | null> {
+  const r = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
+    {
+      method: "POST",
+      headers: { "x-goog-api-key": key, "content-type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text }] }],
+        generationConfig: {
+          responseModalities: ["AUDIO"],
+          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } },
+        },
+      }),
+    },
+  );
+  if (!r.ok) return null;
+  const j = (await r.json()) as {
+    candidates?: Array<{ content?: { parts?: Array<{ inlineData?: { data?: string } }> } }>;
+  };
+  const b64 = j?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+  if (!b64) return null;
+  return pcmToWav(Buffer.from(b64, "base64")); // Gemini returns 24kHz/16-bit/mono PCM
+}
+
+async function cloudflareTTS(text: string, lang: string, acct: string, token: string): Promise<Buffer | null> {
+  const r = await fetch(
+    `https://api.cloudflare.com/client/v4/accounts/${acct}/ai/run/@cf/myshell-ai/melotts`,
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: JSON.stringify({ prompt: text, lang }),
+    },
+  );
+  const j = (await r.json()) as { success?: boolean; result?: { audio?: string } };
+  if (!r.ok || !j.success || !j.result?.audio) return null;
+  return Buffer.from(j.result.audio, "base64"); // already WAV
+}
+
 export async function POST(req: Request) {
-  let body: { text?: string; lang?: string };
+  let body: { text?: string; voice?: string; lang?: string };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "bad request" }, { status: 400 });
   }
-
-  const text = (body.text || "").trim().slice(0, 1200); // cap to keep latency sane
+  const text = (body.text || "").trim().slice(0, 1200);
   if (!text) return NextResponse.json({ error: "empty text" }, { status: 400 });
 
   const keys = readSettings().apiKeys;
-  const acct = keys.CLOUDFLARE_ACCOUNT_ID || process.env.CLOUDFLARE_ACCOUNT_ID;
-  const token = keys.CLOUDFLARE_API_TOKEN || process.env.CLOUDFLARE_API_TOKEN;
-  if (!acct || !token) {
-    return NextResponse.json({ error: "Cloudflare token/account not configured" }, { status: 503 });
+  const wav = (buf: Buffer) =>
+    new Response(buf, { headers: { "content-type": "audio/wav", "cache-control": "no-store" } });
+
+  // 1) Gemini (primary)
+  const gemKey = keys.GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+  if (gemKey) {
+    try {
+      const out = await geminiTTS(text, body.voice || GEMINI_VOICE, gemKey);
+      if (out) return wav(out);
+    } catch {
+      /* fall through */
+    }
   }
 
-  try {
-    const r = await fetch(
-      `https://api.cloudflare.com/client/v4/accounts/${acct}/ai/run/@cf/myshell-ai/melotts`,
-      {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "content-type": "application/json" },
-        body: JSON.stringify({ prompt: text, lang: body.lang || "en" }),
-      },
-    );
-    const j = (await r.json()) as { success?: boolean; result?: { audio?: string }; errors?: unknown };
-    if (!r.ok || !j.success || !j.result?.audio) {
-      return NextResponse.json(
-        { error: "tts upstream", status: r.status, detail: JSON.stringify(j.errors ?? j).slice(0, 300) },
-        { status: 502 },
-      );
+  // 2) Cloudflare MeloTTS (fallback)
+  const acct = keys.CLOUDFLARE_ACCOUNT_ID || process.env.CLOUDFLARE_ACCOUNT_ID;
+  const token = keys.CLOUDFLARE_API_TOKEN || process.env.CLOUDFLARE_API_TOKEN;
+  if (acct && token) {
+    try {
+      const out = await cloudflareTTS(text, body.lang || "en", acct, token);
+      if (out) return wav(out);
+    } catch {
+      /* fall through */
     }
-    // MeloTTS returns base64 WAV (RIFF/PCM) audio.
-    return new Response(Buffer.from(j.result.audio, "base64"), {
-      headers: { "content-type": "audio/wav", "cache-control": "no-store" },
-    });
-  } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 502 });
   }
+
+  // 3) nothing available → client drops to browser SpeechSynthesis
+  return NextResponse.json({ error: "no tts provider available" }, { status: 502 });
 }

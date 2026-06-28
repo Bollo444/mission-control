@@ -212,6 +212,15 @@ body {
     transform: scaleY(1);
   }
 }
+@keyframes mc-wag {
+  0%,
+  100% {
+    transform: rotate(-14deg);
+  }
+  50% {
+    transform: rotate(14deg);
+  }
+}
 @keyframes mc-ripple {
   0% {
     transform: scale(0.4);

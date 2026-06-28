@@ -17,8 +17,10 @@ function DogGlyph({ size }: { size: number }) {
     // Side profile facing right; the engine flips horizontally to face travel.
     <svg width={w} height={h} viewBox="0 0 46 32" aria-hidden>
       <g fill={ACCENT}>
-        {/* tail, curling up at the back */}
-        <path d="M6 16 q-5 -2 -3 -8 q4 1 6 6 z" />
+        {/* waggy tail — sticks up at the back and swishes side to side */}
+        <g style={{ transformOrigin: "9px 14px", animation: "mc-wag 0.55s ease-in-out infinite" }}>
+          <path d="M9 14 q-7 -1 -6 -8 q5 2 8 7 z" />
+        </g>
         {/* body */}
         <ellipse cx="21" cy="17" rx="14" ry="7.5" />
         {/* legs */}
@@ -28,14 +30,14 @@ function DogGlyph({ size }: { size: number }) {
         <rect x="31" y="22" width="3.4" height="8" rx="1.5" />
         {/* head */}
         <circle cx="35" cy="13" r="6.5" />
-        {/* snout */}
-        <rect x="38" y="12" width="7" height="4.5" rx="2.2" />
-        {/* floppy ear */}
-        <path d="M33 7 q-4 -7 -8 -2 q3 5 8 5 z" />
+        {/* rounded dog muzzle */}
+        <ellipse cx="41" cy="14.5" rx="4.5" ry="3.2" />
+        {/* floppy ear — droops down behind the head */}
+        <path d="M33 8 q-3 0 -3.5 6 q-0.3 4 3 4.5 q2.2 0.2 2.5 -3.5 q0.3 -6 -2 -7 z" />
       </g>
       {/* eye + nose */}
       <circle cx="36.5" cy="12" r="1" fill="#1b1b1e" />
-      <circle cx="44.5" cy="13.6" r="1.2" fill="#1b1b1e" />
+      <ellipse cx="44.6" cy="14" rx="1.5" ry="1.3" fill="#1b1b1e" />
     </svg>
   );
 }
