@@ -11,7 +11,13 @@ const nextConfig = {
   outputFileTracingRoot: __dirname,
   // node-pty is a native module; sql.js ships a wasm file that must be
   // resolved at runtime — keep both out of the webpack bundle.
-  serverExternalPackages: ["@lydell/node-pty", "sql.js", "discord.js"],
+  serverExternalPackages: [
+    "@lydell/node-pty",
+    "sql.js",
+    "discord.js",
+    "@modelcontextprotocol/sdk",
+    "worker_threads",
+  ],
   // The dashboard reads local config files and spawns local CLIs, so it is
   // intended to run only on the loopback interface during local development.
   experimental: {

@@ -35,6 +35,7 @@ const PALETTE: Pal[] = [
   { type: "action.shell", label: "⌘ Shell command", color: "#c0c6d4", defaults: { command: "" } },
   { type: "action.discord", label: "◈ Post to Discord", color: "#5865F2", defaults: { agentId: "claude", message: "{{input}}" } },
   { type: "action.log", label: "▸ Log message", color: "#46e0d0", defaults: { message: "flow step: {{input}}" } },
+  { type: "action.mcp", label: "⧉ MCP tool", color: "#9d8cff", defaults: { server: "", tool: "", args: "{}" } },
 ];
 const palOf = (type: string) => PALETTE.find((p) => p.type === type);
 
@@ -42,10 +43,20 @@ const inp = "w-full rounded border bg-black/30 px-2 py-1 text-[11px] outline-non
 
 function FlowNodeView({ id, type, data }: NodeProps) {
   const { setNodes } = useReactFlow();
+  const [servers, setServers] = useState<any[]>([]);
   const set = (patch: Record<string, unknown>) =>
     setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch } } : n)));
   const d = data as Record<string, unknown>;
   const pal = palOf(type);
+
+  useEffect(() => {
+    if (type === "action.mcp") {
+      fetch("/api/mcp").then(r => r.json()).then(j => setServers(j.servers || [])).catch(() => {});
+    }
+  }, [type]);
+
+  const selectedServer = servers.find(s => s.id === d.server);
+  const selectedTool = selectedServer?.tools?.find((t: any) => t.name === d.tool);
   const isCond = type === "condition.if";
   const isTrigger = type.startsWith("trigger");
   // Per-node phase so they bob out of sync (weightless, like the jcode void).
@@ -82,6 +93,37 @@ function FlowNodeView({ id, type, data }: NodeProps) {
         )}
         {type === "action.log" && (
           <input className={inp} value={String(d.message ?? "")} onChange={(e) => set({ message: e.target.value })} placeholder="log message ({{input}})" />
+        )}
+        {type === "action.mcp" && (
+          <>
+            <select className={inp} value={String(d.server ?? "")} onChange={(e) => set({ server: e.target.value, tool: "" })}>
+              <option value="">Pick server…</option>
+              {servers.map(s => <option key={s.id} value={s.id}>{s.name} {!s.enabled && "(disabled)"}</option>)}
+            </select>
+            {d.server && (
+              <select className={inp} value={String(d.tool ?? "")} onChange={(e) => set({ tool: e.target.value })}>
+                <option value="">Pick tool…</option>
+                {selectedServer?.tools?.map((t: any) => <option key={t.name} value={t.name}>{t.name}</option>)}
+              </select>
+            )}
+            {selectedTool && (
+              <div className="text-[10px] text-[var(--color-ink-4)] leading-tight px-1">
+                {selectedTool.description}
+              </div>
+            )}
+            <textarea
+              className={inp}
+              rows={3}
+              value={String(d.args ?? "{}")}
+              onChange={(e) => set({ args: e.target.value })}
+              placeholder='args JSON e.g. {"query":"{{input}}"}'
+            />
+            {selectedTool?.inputSchema?.properties && (
+              <div className="text-[9px] text-[var(--color-ink-4)] leading-tight px-1 opacity-80">
+                params: {Object.keys(selectedTool.inputSchema.properties).join(" · ")}
+              </div>
+            )}
+          </>
         )}
         {isCond && (
           <>

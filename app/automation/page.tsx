@@ -37,7 +37,7 @@ const statusColor: Record<string, string> = {
 };
 
 export default function AutomationPage() {
-  const [tab, setTab] = useState<"flows" | "schedules">("flows");
+  const [tab, setTab] = useState<"flows" | "schedules" | "mcp">("flows");
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <div className="shrink-0 border-b px-8 py-6">
@@ -50,14 +50,18 @@ export default function AutomationPage() {
           one-off headless sub-agents. All opt-in and logged.
         </p>
         <div className="mt-4 flex gap-2">
-          {(["flows", "schedules"] as const).map((t) => (
+          {[
+            { id: "flows", label: "Flow builder" },
+            { id: "schedules", label: "Cron & sub-agents" },
+            { id: "mcp", label: "Connectors (MCP)" },
+          ].map((t) => (
             <button
-              key={t}
-              onClick={() => setTab(t)}
+              key={t.id}
+              onClick={() => setTab(t.id as any)}
               className="rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors"
-              style={tab === t ? { background: `${SIGNAL}22`, color: SIGNAL, border: `1px solid ${SIGNAL}66` } : { color: "var(--color-ink-3)", border: "1px solid var(--color-line)" }}
+              style={tab === t.id ? { background: `${SIGNAL}22`, color: SIGNAL, border: `1px solid ${SIGNAL}66` } : { color: "var(--color-ink-3)", border: "1px solid var(--color-line)" }}
             >
-              {t === "flows" ? "Flow builder" : "Cron & sub-agents"}
+              {t.label}
             </button>
           ))}
         </div>
@@ -67,10 +71,14 @@ export default function AutomationPage() {
         <div className="min-h-0 flex-1 overflow-hidden px-8 py-6">
           <FlowBuilder />
         </div>
-      ) : (
+      ) : tab === "schedules" ? (
         <div className="grid min-h-0 flex-1 grid-cols-1 gap-6 overflow-y-auto px-8 py-7 xl:grid-cols-2">
           <CronSection />
           <SubagentSection />
+        </div>
+      ) : (
+        <div className="min-h-0 flex-1 overflow-y-auto px-8 py-7">
+          <McpSection />
         </div>
       )}
     </div>
@@ -337,5 +345,237 @@ function SubagentSection() {
         ))
       )}
     </section>
+  );
+}
+
+/* ----------------------------- MCP ------------------------------ */
+
+function McpSection() {
+  const { data, reload } = useFetch<{ servers: any[] }>("/api/mcp", 10000);
+  const servers = data?.servers ?? [];
+  const [showAdd, setShowAdd] = useState(false);
+
+  const toggle = async (server: any) => {
+    await fetch("/api/mcp", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ...server, enabled: !server.enabled }),
+    });
+    reload();
+  };
+
+  const remove = async (id: string) => {
+    if (!confirm("Remove this MCP server?")) return;
+    await fetch(`/api/mcp?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+    reload();
+  };
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold tracking-tight">MCP Connectors</h2>
+        <button
+          onClick={() => setShowAdd(!showAdd)}
+          className="rounded-lg px-4 py-2 text-sm font-semibold text-[#06121f]"
+          style={{ background: SIGNAL }}
+        >
+          {showAdd ? "Close" : "Add server"}
+        </button>
+      </div>
+
+      {showAdd && (
+        <div className="mc-panel p-6 animate-in fade-in slide-in-from-top-4 duration-300">
+          <McpForm onDone={() => { setShowAdd(false); reload(); }} />
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {servers.map((s) => (
+          <McpCard key={s.id} server={s} onToggle={() => toggle(s)} onRemove={() => remove(s.id)} onReload={reload} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function McpCard({ server, onToggle, onRemove, onReload }: { server: any, onToggle: () => void, onRemove: () => void, onReload: () => void }) {
+  const [expanded, setExpanded] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<any>(null);
+
+  const test = async () => {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const res = await fetch("/api/mcp/test", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id: server.id }),
+      });
+      const j = await res.json();
+      setTestResult(j);
+    } catch (e) {
+      setTestResult({ ok: false, error: (e as Error).message });
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  return (
+    <div className="mc-panel flex flex-col p-5">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <h3 className="font-semibold">{server.name}</h3>
+            <span className="rounded bg-[var(--color-surface-3)] px-1.5 py-0.5 text-[10px] text-[var(--color-ink-3)] uppercase tracking-wider">
+              {server.transport}
+            </span>
+          </div>
+          <div className="mt-1 font-mono text-[11px] text-[var(--color-ink-4)] truncate">
+            {server.transport === "stdio" ? `${server.command} ${(server.args || []).join(" ")}` : server.url}
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+           <button
+            onClick={onToggle}
+            className="rounded-md border px-2 py-1 text-xs font-semibold transition-colors"
+            style={server.enabled ? { borderColor: statusColor.ok, color: statusColor.ok, background: `${statusColor.ok}11` } : { color: "var(--color-ink-4)", borderColor: "var(--color-line)" }}
+          >
+            {server.enabled ? "● enabled" : "○ disabled"}
+          </button>
+          <button onClick={onRemove} className="text-[var(--color-ink-4)] hover:text-[var(--color-rose)] transition-colors p-1">✕</button>
+        </div>
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button onClick={test} disabled={testing} className="text-xs text-[var(--color-ink-3)] hover:text-[var(--color-ink-1)]">
+          {testing ? "Testing..." : "Test connection"}
+        </button>
+        <button onClick={() => setExpanded(!expanded)} className="text-xs text-[var(--color-ink-3)] hover:text-[var(--color-ink-1)]">
+          {expanded ? "Hide tools" : `View tools (${server.tools?.length || 0})`}
+        </button>
+      </div>
+
+      {(testResult || server.error) && (
+        <div className={`mt-3 rounded-lg border p-3 text-[11px] font-mono ${(testResult?.ok !== false && !server.error) ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-400" : "border-rose-500/30 bg-rose-500/5 text-rose-400"}`}>
+          {server.error && <div className="mb-1">Error: {server.error}</div>}
+          {testResult && (
+            <>
+              {testResult.ok ? `Connection OK — ${testResult.tools?.length} tools found` : `Failed: ${testResult.error}`}
+            </>
+          )}
+        </div>
+      )}
+
+      {expanded && server.tools && (
+        <div className="mt-4 flex flex-col gap-3 border-t border-white/5 pt-4">
+          {server.tools.map((t: any) => (
+            <div key={t.name} className="flex flex-col gap-1">
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-xs font-semibold text-[var(--color-ink-2)]">{t.name}</span>
+                {t.inputSchema?.properties && (
+                   <span className="text-[9px] text-[var(--color-ink-4)]">
+                     ({Object.keys(t.inputSchema.properties).length} params)
+                   </span>
+                )}
+              </div>
+              <p className="text-[11px] text-[var(--color-ink-4)] leading-relaxed">{t.description}</p>
+            </div>
+          ))}
+          {server.tools.length === 0 && <div className="text-xs text-[var(--color-ink-4)] italic">No tools found or server disabled.</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function McpForm({ onDone }: { onDone: () => void }) {
+  const [name, setName] = useState("");
+  const [transport, setTransport] = useState<"stdio" | "http">("stdio");
+  const [command, setCommand] = useState("");
+  const [args, setArgs] = useState("");
+  const [url, setUrl] = useState("");
+  const [envStr, setEnvStr] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const save = async () => {
+    if (!name || (transport === "stdio" && !command) || (transport === "http" && !url)) return;
+    setBusy(true);
+    try {
+      const env: Record<string, string> = {};
+      envStr.split("\n").forEach(line => {
+        const [k, ...v] = line.split("=");
+        if (k.trim()) env[k.trim()] = v.join("=").trim();
+      });
+
+      const config = {
+        id: name.toLowerCase().replace(/[^a-z0-9]/g, "-"),
+        name,
+        enabled: true,
+        transport,
+        command: transport === "stdio" ? command : undefined,
+        args: transport === "stdio" ? args.split(" ").filter(Boolean) : undefined,
+        env: transport === "stdio" ? env : undefined,
+        url: transport === "http" ? url : undefined,
+      };
+
+      await fetch("/api/mcp", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(config),
+      });
+      onDone();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div className="flex flex-col gap-1.5">
+          <label className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-ink-4)]">Name</label>
+          <input value={name} onChange={(e) => setName(e.target.value)} className="rounded-lg border bg-[var(--color-surface-2)] px-3 py-2 text-sm outline-none" placeholder="e.g. My Custom Server" />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <label className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-ink-4)]">Transport</label>
+          <select value={transport} onChange={(e) => setTransport(e.target.value as any)} className="rounded-lg border bg-[var(--color-surface-2)] px-3 py-2 text-sm outline-none">
+            <option value="stdio">stdio (process)</option>
+            <option value="http">http (SSE)</option>
+          </select>
+        </div>
+      </div>
+
+      {transport === "stdio" ? (
+        <>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-ink-4)]">Command</label>
+            <input value={command} onChange={(e) => setCommand(e.target.value)} className="rounded-lg border bg-[var(--color-surface-2)] px-3 py-2 font-mono text-sm outline-none" placeholder="npx or /path/to/bin" />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-ink-4)]">Arguments</label>
+            <input value={args} onChange={(e) => setArgs(e.target.value)} className="rounded-lg border bg-[var(--color-surface-2)] px-3 py-2 font-mono text-sm outline-none" placeholder="-y @modelcontextprotocol/server-..." />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-ink-4)]">Environment Variables (KEY=VALUE, one per line)</label>
+            <textarea value={envStr} onChange={(e) => setEnvStr(e.target.value)} rows={3} className="rounded-lg border bg-[var(--color-surface-2)] px-3 py-2 font-mono text-sm outline-none" placeholder="GITHUB_TOKEN=..." />
+          </div>
+        </>
+      ) : (
+        <div className="flex flex-col gap-1.5">
+          <label className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-ink-4)]">URL</label>
+          <input value={url} onChange={(e) => setUrl(e.target.value)} className="rounded-lg border bg-[var(--color-surface-2)] px-3 py-2 font-mono text-sm outline-none" placeholder="http://localhost:3000/sse" />
+        </div>
+      )}
+
+      <button
+        onClick={save}
+        disabled={busy}
+        className="self-end rounded-lg px-6 py-2 text-sm font-semibold text-[#06121f]"
+        style={{ background: SIGNAL }}
+      >
+        {busy ? "Saving..." : "Save Server"}
+      </button>
+    </div>
   );
 }
