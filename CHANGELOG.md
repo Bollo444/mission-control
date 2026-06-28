@@ -12,6 +12,7 @@ shipped via Jules PR #1._
 
 | Session | Date | Commits | When | Theme |
 |:--:|---|:--:|---|---|
+| 10 | 2026-06-28 (Sun) | — | All day | Vibe dog, Gemini voice, OmniRoute brief, agent updates, key encryption |
 | 9 | 2026-06-27 (Sat) | 5 | All day | NL automation driver, living canvas, MCP connector node |
 | 8 | 2026-06-26 (Fri) | 2 | All day | Jarvis command orb, jcode swarm cockpit, voice & folder picker |
 | 7 | 2026-06-25 (Thu) | 14 | All day | Codex overhaul (kilo→Codex), terminal fixes, automation node builder |
@@ -21,6 +22,38 @@ shipped via Jules PR #1._
 | 3 | 2026-06-03 (Wed) | 11 | Late morning → evening | Gateway phases, branding & public launch |
 | 2 | 2026-06-02 (Tue) | 4 | Midday | Providers, health monitor & cascade proxy |
 | 1 | 2026-05-31 (Sat) | 7 | Afternoon → evening | Initial fleet console |
+
+---
+
+## Session 10 — 2026-06-28 · Vibe the dog, a real Jarvis voice & the OmniRoute plan
+Built largely by **parallel subagents**. Vibe's mascot becomes an actual dog, Jarvis
+gets a natural neural voice (Gemini), the fleet's CLIs are updated, provider keys are
+now **encrypted at rest**, and the OmniRoute "Fleet Gateway / Backup Generator" plan
+is captured for handoff.
+
+### Vibe — now a dog
+- `components/ide/VibeDog.tsx` reworked from a cat to a **dog**: floppy droopy ear,
+  rounded muzzle + nose, and a gently wagging tail (new `mc-wag` keyframe in
+  `globals.css`). Same size/position/rose accent.
+
+### Jarvis voice — Google Gemini (natural), with fallbacks
+- `app/api/jarvis/tts/route.ts` now tries **Gemini TTS** (`gemini-2.5-flash-preview-tts`,
+  voice "Charon") first — wrapping its raw 24kHz PCM in a WAV header — then falls back to
+  **Cloudflare MeloTTS**, then the browser voice. Needs a free `GEMINI_API_KEY` (Google
+  AI Studio); dormant until the key is added.
+
+### Keys encrypted at rest
+- Enabled `MC_ENCRYPTION_KEY` (in gitignored `.env.local`); all provider keys in
+  `~/.mission-control/settings.json` re-saved as AES-256-GCM `enc:v1:…` ciphertext
+  (`lib/secretbox.ts`). Verified the app still decrypts + makes live calls.
+
+### Fleet updates
+- Updated pi, opencode, openclaw, codex (npm). Hermes upgrade deferred — `uv` couldn't
+  rebuild a native dep (`pywinpty`) without a Rust toolchain; existing Hermes untouched.
+
+### OmniRoute — plan captured
+- `docs/JULES-BRIEF-omniroute.md`: make OmniRoute the primary **Fleet Gateway** with the
+  existing cascade as a health-based **Backup Generator** — phased, ready for Jules.
 
 ---
 

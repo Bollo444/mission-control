@@ -85,8 +85,8 @@ config exists. Ones you don't have installed appear as provisionable personas.
 - **Jarvis command center** (`/`) — the home page is a living **command orb**: a
   breathing reactor core wrapped in Hermes' caduceus, with one orbiting spark per
   fleet agent. **Talk to it** — type and Hermes answers, streamed back and **spoken
-  aloud** (a neural TTS voice via Cloudflare Workers AI, a voice picker, and
-  browser-speech fallback). Press **`/`** to summon a Mass-Effect-style HUD:
+  aloud** — natural neural TTS via **Google Gemini** (primary), falling back to
+  Cloudflare MeloTTS then the browser voice, with a voice picker. Press **`/`** to summon a Mass-Effect-style HUD:
   holographic panels drift in at the edges — Hermes capabilities, the fleet
   (colour-coded per agent), knowledge, ops — each opening a feature in place over
   the dimmed orb. The classic dashboard lives on at **Overview**.
