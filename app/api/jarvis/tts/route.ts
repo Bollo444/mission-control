@@ -77,7 +77,7 @@ async function cloudflareTTS(text: string, lang: string, acct: string, token: st
 }
 
 export async function POST(req: Request) {
-  let body: { text?: string; voice?: string; lang?: string };
+  let body: { text?: string; voice?: string; lang?: string; provider?: string };
   try {
     body = await req.json();
   } catch {
@@ -90,9 +90,14 @@ export async function POST(req: Request) {
   const wav = (buf: Buffer) =>
     new Response(buf, { headers: { "content-type": "audio/wav", "cache-control": "no-store" } });
 
-  // 1) Gemini (primary)
+  // An explicit provider pins us to that engine; omitted → try Gemini then Melo.
+  const provider = body.provider;
+  const wantGemini = provider !== "melotts";
+  const wantMelo = provider !== "gemini";
+
+  // 1) Gemini
   const gemKey = keys.GEMINI_API_KEY || process.env.GEMINI_API_KEY;
-  if (gemKey) {
+  if (wantGemini && gemKey) {
     try {
       const out = await geminiTTS(text, body.voice || GEMINI_VOICE, gemKey);
       if (out) return wav(out);
@@ -101,10 +106,10 @@ export async function POST(req: Request) {
     }
   }
 
-  // 2) Cloudflare MeloTTS (fallback)
+  // 2) Cloudflare MeloTTS
   const acct = keys.CLOUDFLARE_ACCOUNT_ID || process.env.CLOUDFLARE_ACCOUNT_ID;
   const token = keys.CLOUDFLARE_API_TOKEN || process.env.CLOUDFLARE_API_TOKEN;
-  if (acct && token) {
+  if (wantMelo && acct && token) {
     try {
       const out = await cloudflareTTS(text, body.lang || "en", acct, token);
       if (out) return wav(out);

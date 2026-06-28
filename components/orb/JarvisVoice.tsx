@@ -8,6 +8,16 @@ import { hexA } from "@/lib/format";
  * we flag `speaking` so the orb's core quickens. */
 
 const GOLD = "#f5b75a";
+
+// All 30 Gemini TTS prebuilt voices — exposed in the picker as "gemini:<Name>".
+const GEMINI_VOICES = [
+  "Zephyr", "Puck", "Charon", "Kore", "Fenrir", "Leda", "Orus", "Aoede",
+  "Callirrhoe", "Autonoe", "Enceladus", "Iapetus", "Umbriel", "Algieba",
+  "Despina", "Erinome", "Algenib", "Rasalgethi", "Laomedeia", "Achernar",
+  "Alnilam", "Schedar", "Gacrux", "Pulcherrima", "Achird", "Zubenelgenubi",
+  "Vindemiatrix", "Sadachbia", "Sadaltager", "Sulafat",
+];
+
 interface Msg {
   who: "you" | "jarvis";
   text: string;
@@ -19,8 +29,9 @@ export default function JarvisVoice({ onSpeaking }: { onSpeaking: (b: boolean) =
   const [busy, setBusy] = useState(false);
   const [muted, setMuted] = useState(false);
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
-  // Selected voice: "model:melotts" (Cloudflare neural) or "browser:<voiceURI>".
-  const [sel, setSel] = useState("model:melotts");
+  // Selected voice: "gemini:<Name>", "model:melotts" (Cloudflare neural) or
+  // "browser:<voiceURI>". Defaults to Gemini's Charon until the user picks one.
+  const [sel, setSel] = useState("gemini:Charon");
   const endRef = useRef<HTMLDivElement>(null);
   // Default browser voice — a deeper English one for the Jarvis register.
   const voiceRef = useRef<SpeechSynthesisVoice | null>(null);
@@ -102,11 +113,15 @@ export default function JarvisVoice({ onSpeaking }: { onSpeaking: (b: boolean) =
         browserSpeak(text, onDone, voices.find((v) => v.voiceURI === uri) ?? null);
         return;
       }
+      // Neural providers (Gemini / MeloTTS) → audio endpoint, browser fallback.
+      const reqBody = sel.startsWith("gemini:")
+        ? { text, provider: "gemini", voice: sel.slice("gemini:".length) }
+        : { text, provider: "melotts" };
       try {
         const res = await fetch("/api/jarvis/tts", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ text }),
+          body: JSON.stringify(reqBody),
         });
         if (res.ok && (res.headers.get("content-type") || "").startsWith("audio")) {
           const url = URL.createObjectURL(await res.blob());
@@ -278,6 +293,13 @@ export default function JarvisVoice({ onSpeaking }: { onSpeaking: (b: boolean) =
           className="max-w-[60%] truncate rounded-full px-3 py-1.5 text-[11px] outline-none"
           style={{ background: "rgba(8,8,12,0.8)", color: "var(--color-ink-2)", boxShadow: `inset 0 0 0 1px ${hexA(GOLD, 0.35)}` }}
         >
+          <optgroup label="Gemini (neural)">
+            {GEMINI_VOICES.map((name) => (
+              <option key={name} value={`gemini:${name}`}>
+                ◎ {name}
+              </option>
+            ))}
+          </optgroup>
           <optgroup label="Neural model">
             <option value="model:melotts">🜂 MeloTTS · Cloudflare</option>
           </optgroup>

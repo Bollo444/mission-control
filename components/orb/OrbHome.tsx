@@ -76,13 +76,24 @@ export default function OrbHome() {
         <OracleOrb agents={agents} dim={dim} speaking={speaking} />
       </div>
 
-      {/* Invisible core hit-area — click the orb to summon the HUD. */}
+      {/* Core hit-area — click the orb to summon the HUD (same as "/"). */}
       {!dim && (
         <button
           onClick={() => setHud(true)}
           aria-label="Open command HUD"
-          className="absolute left-1/2 top-1/2 h-[18vmin] w-[18vmin] -translate-x-1/2 -translate-y-1/2 rounded-full"
-        />
+          title="Open command HUD"
+          className="group absolute left-1/2 top-1/2 z-20 grid h-[20vmin] w-[20vmin] -translate-x-1/2 -translate-y-1/2 cursor-pointer place-items-center rounded-full transition-transform duration-300 ease-out hover:scale-105"
+        >
+          {/* faint glow ring that blooms on hover — discovery affordance */}
+          <span
+            className="pointer-events-none h-full w-full rounded-full opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+            style={{
+              background:
+                "radial-gradient(circle, rgba(245,183,90,0.16) 0%, rgba(245,183,90,0.06) 45%, transparent 70%)",
+              boxShadow: "inset 0 0 60px -20px rgba(245,183,90,0.5)",
+            }}
+          />
+        </button>
       )}
 
       {/* Talk to Jarvis — type and it answers; the core quickens while it speaks. */}

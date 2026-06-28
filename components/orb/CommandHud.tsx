@@ -114,7 +114,7 @@ export default function CommandHud({
               </span>
             </div>
 
-            <div className="flex flex-col gap-0.5">
+            <div className="flex max-h-[42vh] flex-col gap-0.5 overflow-y-auto pr-1">
               {c.fleet
                 ? fleet.map((a) => (
                     <Row
