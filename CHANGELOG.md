@@ -4,14 +4,15 @@ A detailed record of the project's development: **every commit**, grouped by
 working session and shown newest-first. Each short hash links to the commit on
 GitHub.
 
-**9 sessions · 55 commits · 2026-05-31 → 2026-06-27**
+**9 sessions · 58 commits · 2026-05-31 → 2026-06-27**
 _Latest revision: 2026-06-27 — added Session 9: a **natural-language automation
 driver** (describe it, an agent builds the flow), a **living canvas** (floating
-nodes + electric edges), and a build brief for a **one-node MCP connector hub**._
+nodes + electric edges), and a **one-node MCP connector hub** — speced here and
+shipped via Jules PR #1._
 
 | Session | Date | Commits | When | Theme |
 |:--:|---|:--:|---|---|
-| 9 | 2026-06-27 (Sat) | 2 | All day | NL automation driver, living canvas, MCP connector brief |
+| 9 | 2026-06-27 (Sat) | 5 | All day | NL automation driver, living canvas, MCP connector node |
 | 8 | 2026-06-26 (Fri) | 2 | All day | Jarvis command orb, jcode swarm cockpit, voice & folder picker |
 | 7 | 2026-06-25 (Thu) | 14 | All day | Codex overhaul (kilo→Codex), terminal fixes, automation node builder |
 | 6 | 2026-06-24 (Wed) | 14 | All day | Native harnesses, Hermes/Sentinel/Antigravity surfaces, Discord messaging |
@@ -44,13 +45,22 @@ thing into a **Sim.ai-style connector hub with a single MCP node**.
   flicker in teal, brightening on hover/select (`mc-edge-flow`, scoped `.mc-flow`).
   Both respect `prefers-reduced-motion`.
 
-### MCP connector hub — build brief (roadmap)
+### MCP connector hub — speced, then shipped
 - Added `docs/JULES-BRIEF-mcp-connectors.md`: a complete spec to add **one
   `action.mcp` node** that calls tools on any connected **MCP server** — turning
   the builder into a Sim.ai-style connector library (GitHub, Notion, Supabase,
   web search, filesystem, …) **without** adopting Sim's platform (no Postgres/
   Redis/auth). Stays local-first; OAuth connectors (Gmail/Google) deferred to a
   future credential vault.
+- [`ceeda60`](https://github.com/Bollo444/mission-control/commit/ceeda60) /
+  [`#1`](https://github.com/Bollo444/mission-control/pull/1) — **shipped** by an
+  autonomous agent (Google Jules) from that brief: `lib/mcp.ts` (MCP client over
+  `@modelcontextprotocol/sdk`, stdio + http, cached clients, reconnect-once),
+  `app/api/mcp` + `/test` routes (secrets redacted), the `action.mcp` execution
+  in `lib/flows.ts`, the FlowBuilder node (dynamic server/tool selects + schema
+  hints), a **Connectors (MCP)** tab to add/enable/remove servers, and a seeded
+  `~/.mission-control/mcp.json` (servers default **off**). Pulled to `main`,
+  `npm install` + build + tsc verified clean.
 
 ---
 

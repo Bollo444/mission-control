@@ -147,8 +147,10 @@ config exists. Ones you don't have installed appear as provisionable personas.
   if/then conditions and actions (run agent, shell, Discord, log) into chains and run them.
   **Describe it in plain language** and an agent (routed through the gateway) drafts the
   whole graph onto the canvas for you to review and run. Nodes gently float and the wired
-  edges read like current is flowing through them. (Roadmap: a single **MCP connector node**
-  to turn any MCP server's tools into flow steps — see `docs/JULES-BRIEF-mcp-connectors.md`.)
+  edges read like current is flowing through them. A single **MCP connector node**
+  (`action.mcp`) turns any connected **MCP server's** tools into flow steps — a Sim.ai-style
+  connector hub (filesystem, fetch, GitHub, Notion, Supabase, web search, …) managed from a
+  **Connectors (MCP)** tab. Local-first and opt-in; servers are off until you enable them.
 - **Session conversations** — click any session (fleet-wide or per-agent) to read
   the actual transcript.
 - **Sentinel hat swarm** — pick an objective + which security hats
