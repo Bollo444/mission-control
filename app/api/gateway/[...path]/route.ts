@@ -3,6 +3,7 @@ import { getGatewayToken } from "@/lib/settings";
 import { recordTokens } from "@/lib/usage";
 import { logEvent } from "@/lib/logbook";
 import { responsesToChat, parseChat, buildResponsesSSE } from "@/lib/responses-bridge";
+import { forwardChat, omnirouteModels } from "@/lib/omniroute";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -47,6 +48,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ path: s
 
   // OpenAI Responses API (Codex). Translate to chat, cascade, emit a synthetic
   // Responses SSE stream the Codex client accepts.
+  // responses path: bypass OmniRoute, cascadeChat handles the Codex bridge.
   if (sub === "responses") {
     const rbody = (await req.json().catch(() => ({}))) as Record<string, unknown>;
     const chatBody = responsesToChat(rbody);
@@ -70,7 +72,27 @@ export async function POST(req: Request, { params }: { params: Promise<{ path: s
   }
 
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
-  const result = await cascadeChat(body, { agentId, sessionId });
+
+  // 1. Probe + Forward to OmniRoute (Fleet Gateway)
+  let result: any = null;
+  let response: Response | null = await forwardChat(body, req.headers);
+  let isFailover = false;
+
+  if (response) {
+    result = { ok: true, response, served: { provider: "omniroute", model: String(body.model ?? "auto") }, attempts: 1 };
+  } else {
+    // 2. Fall back to cascadeChat (Backup Generator)
+    isFailover = true;
+    result = await cascadeChat(body, { agentId, sessionId });
+    if (isFailover) {
+      logEvent({
+        source: "gateway",
+        level: "warn",
+        event: "failover engaged",
+        detail: `OmniRoute unreachable — Backup Generator served ${result.ok ? `${result.served.provider}/${result.served.model}` : "error"}`
+      });
+    }
+  }
 
   if (!result.ok) {
     return Response.json({ error: result.error }, { status: result.status });
@@ -78,9 +100,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ path: s
   const u = result.response;
   const headers: Record<string, string> = {
     "Content-Type": u.headers.get("content-type") || "application/json",
-    "X-MC-Served-By": `${result.served.provider}/${result.served.model}`,
+    "X-MC-Served-By": result.served.provider === "omniroute"
+      ? "omniroute"
+      : `backup/${result.served.provider}/${result.served.model}`,
     "X-MC-Attempts": String(result.attempts),
   };
+  if (isFailover) {
+    headers["X-MC-Failover"] = "1";
+  }
   // Non-streaming: capture token usage for the budget gauges, then pass through.
   if (body.stream !== true) {
     const text = await u.text();
@@ -127,9 +154,18 @@ export async function GET(req: Request, { params }: { params: Promise<{ path: st
     return Response.json({ error: "Unauthorized — use your Mission Control gateway token as the API key." }, { status: 401 });
   }
   if (sub === "models") {
+    const backupModels = gatewayModels().map((m) => ({ id: m.id, object: "model", owned_by: m.owned_by }));
+    const primaryModels = await omnirouteModels();
+
+    // Merge, favoring primary but keeping backup as standby visible
+    const all = [
+      ...primaryModels.map(m => ({ ...m, object: "model" })),
+      ...backupModels.filter(b => !primaryModels.some(p => p.id === b.id))
+    ];
+
     return Response.json({
       object: "list",
-      data: gatewayModels().map((m) => ({ id: m.id, object: "model", owned_by: m.owned_by })),
+      data: all,
     });
   }
   return Response.json({ error: `Unsupported path: ${sub}` }, { status: 404 });

@@ -312,4 +312,4 @@ export function gatewayModels(): { id: string; owned_by: string }[] {
   return out;
 }
 
-export { CHAT };
+export { CHAT, AUTO };

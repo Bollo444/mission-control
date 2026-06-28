@@ -19,25 +19,38 @@ function rateColor(r: number | null): string {
   return r > 0.9 ? "#5cd6a0" : r > 0.6 ? "#e0b341" : "#ff6b6b";
 }
 
+interface OmniStatus {
+  up: boolean;
+  latencyMs: number;
+  failoverActive: boolean;
+  lastFailover?: string;
+  omnirouteBase: string;
+}
+
 export default function GatewayPage() {
   const [win, setWin] = useState("7d");
-  const { data } = useFetch<{ window: string; rows: AnalyticsRow[]; generatedAt: string }>(
+  const { data: analytics } = useFetch<{ window: string; rows: AnalyticsRow[]; generatedAt: string }>(
     `/api/analytics?window=${win}`,
     5000
   );
-  const rows = data?.rows ?? [];
+  const { data: status } = useFetch<OmniStatus>("/api/omniroute/status", 5000);
+
+  const rows = analytics?.rows ?? [];
   const totalReq = rows.reduce((n, r) => n + r.requests, 0);
   const totalOk = rows.reduce((n, r) => n + r.successes, 0);
   const totalTok = rows.reduce((n, r) => n + r.tokens, 0);
   const maxReq = Math.max(1, ...rows.map((r) => r.requests));
 
+  const isUp = status?.up ?? false;
+  const failover = status?.failoverActive ?? false;
+
   return (
     <Screen
       header={
         <PageHeader
-          eyebrow="Fleet Gateway"
-          title="Gateway Analytics"
-          sub="Per-provider volume, success rate, latency, and tokens for everything routed through the gateway."
+          eyebrow="Primary Router"
+          title="Fleet Gateway"
+          sub="OmniRoute-powered primary routing with transparent Backup Generator failover."
           right={
             <div className="flex overflow-hidden rounded-lg border">
               {WINDOWS.map((w) => (
@@ -60,6 +73,72 @@ export default function GatewayPage() {
       }
     >
       <div className="px-8 py-7">
+        {/* Status Banner */}
+        <div className="mc-panel mb-6 flex items-center justify-between px-6 py-4">
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-2">
+              <span
+                className={`h-2 w-2 rounded-full ${isUp ? 'mc-live-dot' : 'bg-[var(--color-ink-4)]'}`}
+                style={isUp ? { background: 'var(--color-green)' } : {}}
+              />
+              <span className="text-sm font-medium">
+                Fleet Gateway <span className="text-[var(--color-ink-4)] lowercase">● {isUp ? 'online' : 'offline'}</span>
+              </span>
+            </div>
+            <div className="flex items-center gap-2 border-l pl-6">
+              <span
+                className={`h-2 w-2 rounded-full ${failover ? 'mc-live-dot' : ''}`}
+                style={{ background: failover ? 'var(--color-amber)' : 'var(--color-surface-3)' }}
+              />
+              <span className="text-sm font-medium">
+                Backup Generator <span className="text-[var(--color-ink-4)] lowercase">● {failover ? 'ACTIVE' : 'standby'}</span>
+              </span>
+            </div>
+          </div>
+          {isUp && status?.latencyMs && (
+            <span className="text-[10px] tabular-nums text-[var(--color-ink-4)] uppercase tracking-wider">
+              {status.latencyMs}ms latency
+            </span>
+          )}
+        </div>
+
+        {/* OmniRoute Iframe */}
+        <div className="mc-panel mb-8 overflow-hidden">
+          <div className="border-b px-5 py-3 flex items-center justify-between">
+            <span className="text-sm font-semibold">OmniRoute Control Panel</span>
+            <span className="text-[10px] text-[var(--color-ink-4)] uppercase tracking-wider">
+              {status?.omnirouteBase ?? 'http://localhost:20128'}
+            </span>
+          </div>
+          <div className="h-[520px] bg-[var(--color-surface)] relative">
+            {isUp ? (
+              <iframe
+                src={status?.omnirouteBase?.replace('/v1', '') ?? 'http://localhost:20128'}
+                className="w-full h-full border-none"
+                title="OmniRoute UI"
+              />
+            ) : (
+              <div className="absolute inset-0 grid place-items-center p-12 text-center">
+                <div className="max-w-md">
+                  <div className="text-4xl mb-4 text-[var(--color-ink-4)]">⬚</div>
+                  <h3 className="text-lg font-medium mb-2">Fleet Gateway Unreachable</h3>
+                  <p className="text-sm text-[var(--color-ink-3)] mb-6">
+                    OmniRoute is not responding at {status?.omnirouteBase ?? 'http://localhost:20128'}.
+                    Automatic failover to the Backup Generator is active.
+                  </p>
+                  <code className="block bg-black/30 rounded px-4 py-2 text-xs text-[var(--color-signal)] border border-[var(--color-signal)]/20">
+                    pm2 start mc-omniroute
+                  </code>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="mb-4 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--color-ink-4)]">
+          Backup Generator Telemetry
+        </div>
+
         {/* summary */}
         <div className="mc-panel mb-6 flex flex-wrap gap-10 px-6 py-5">
           <Stat value={totalReq.toLocaleString()} label="requests" />
@@ -74,11 +153,10 @@ export default function GatewayPage() {
 
         {/* per-provider */}
         <section className="mc-panel overflow-hidden">
-          <div className="border-b px-5 py-3 text-sm font-semibold">By provider</div>
+          <div className="border-b px-5 py-3 text-sm font-semibold">Standby History (By provider)</div>
           {rows.length === 0 ? (
             <div className="px-5 py-10 text-center text-sm text-[var(--color-ink-4)]">
-              No gateway traffic in this window yet. Point an agent at the gateway
-              (Settings → Fleet Gateway) to populate it.
+              No backup traffic in this window yet. The generator is idling.
             </div>
           ) : (
             <div className="divide-y">
@@ -110,7 +188,7 @@ export default function GatewayPage() {
             </div>
           )}
           <div className="border-t px-5 py-2 text-[10px] text-[var(--color-ink-4)]">
-            Aggregated from the gateway usage ledger. Endpoint + token live in Settings → Fleet Gateway.
+            Aggregated from the Backup Generator usage ledger. Keys are configured in Settings.
           </div>
         </section>
       </div>

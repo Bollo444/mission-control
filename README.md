@@ -749,10 +749,20 @@ For a personal always-on instance, a process manager + an authenticating tunnel:
 ```bash
 npm run build
 pm2 start "npm run start" --name mission-control       # serves 127.0.0.1:4317
+
+# Start OmniRoute (the Fleet Gateway) as a sibling process:
+# (Assumes OmniRoute is cloned to a sibling directory)
+cd ../omniroute
+pm2 start "bun run start" --name mc-omniroute          # serves 127.0.0.1:20128
+
 pm2 save                                                # restart on sign-in/boot
+
 # expose privately behind an authenticating tunnel, e.g. Cloudflare Access:
 pm2 start cloudflared --name mc-tunnel -- tunnel --config <path>\tunnel.yml run <tunnel>
 ```
+
+> **Windows Watchdog:** To keep the Fleet Gateway resilient on Windows, mirror the
+> `tunnel-watchdog.ps1` pattern for the `mc-omniroute` process.
 
 The health-monitor scheduler runs inside the long-lived `next start` process, so
 under PM2 it ticks every 6h with no extra cron. Keep the

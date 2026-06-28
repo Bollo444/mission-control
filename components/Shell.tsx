@@ -212,7 +212,7 @@ export default function Shell({
             <span className="grid h-6 w-6 place-items-center rounded-md text-[13px]">
               ⇄
             </span>
-            Gateway
+            Fleet Gateway
           </NavLink>
           <NavLink href="/logs" active={pathname === "/logs"}>
             <span className="grid h-6 w-6 place-items-center rounded-md text-[13px]">
