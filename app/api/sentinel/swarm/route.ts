@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { deployGatewayRun } from "@/lib/subagents";
 import { HATS, getHat, hatSystemPrompt } from "@/lib/sentinel-hats";
+import { collectTarget } from "@/lib/target-fetch";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,7 +17,7 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  let body: { objective?: string; hats?: string[] };
+  let body: { objective?: string; hats?: string[]; target?: string };
   try {
     body = await req.json();
   } catch {
@@ -32,6 +33,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "select at least one hat" }, { status: 400 });
   }
 
+  // Optional target — a repo URL, page URL, or local path. Collected once and
+  // shared across every hat so they reason over real facts, not a description.
+  let contextBlock = "";
+  const target = (body.target ?? "").trim();
+  if (target) {
+    const ctx = await collectTarget(target);
+    if (ctx.kind !== "none" && ctx.summary) {
+      contextBlock = `\n\n--- Auto-collected recon for ${target} (${ctx.kind}) ---\n${ctx.summary}\n--- end recon ---`;
+    }
+  }
+
   // Hats run through the headless gateway (free fleet) — sentinel.py itself is
   // interactive and can't run autonomously. Each is a security-framed prompt.
   const deployed = hatIds.map((id) => {
@@ -39,12 +51,12 @@ export async function POST(req: Request) {
     const run = deployGatewayRun({
       label: `${hat.name} hat`,
       system: hatSystemPrompt(hat),
-      user: `Objective: ${objective.trim()}`,
+      user: `Objective: ${objective}${contextBlock}`,
       agentId: "sentinel",
       agentName: "Sentinel",
     });
     return run.id;
   });
 
-  return NextResponse.json({ ok: true, deployed, errors: [] });
+  return NextResponse.json({ ok: true, deployed, errors: [], target: target || null });
 }

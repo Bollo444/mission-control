@@ -61,6 +61,7 @@ function RunCard({ run }: { run: Run }) {
 
 export default function SentinelSwarm() {
   const [objective, setObjective] = useState("");
+  const [target, setTarget] = useState("");
   const [selected, setSelected] = useState<Set<string>>(
     () => new Set(["red", "blue", "purple"])
   );
@@ -90,7 +91,7 @@ export default function SentinelSwarm() {
       const res = await fetch("/api/sentinel/swarm", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ objective, hats: [...selected] }),
+        body: JSON.stringify({ objective, target, hats: [...selected] }),
       });
       const json = await res.json();
       if (!json.ok) setErr(json.error ?? "deploy failed");
@@ -118,6 +119,16 @@ export default function SentinelSwarm() {
         placeholder="Objective — e.g. assess the auth service at 10.0.0.5 (authorized)…"
         className="mt-2 w-full resize-y rounded-lg border bg-[var(--color-surface-2)] px-3 py-2 text-sm outline-none placeholder:text-[var(--color-ink-4)] focus:border-[var(--color-ink-4)]"
       />
+
+      <input
+        value={target}
+        onChange={(e) => setTarget(e.target.value)}
+        placeholder="Target (optional) — github.com/owner/repo · https://site · C:\path\to\code"
+        className="mt-2 w-full rounded-lg border bg-[var(--color-surface-2)] px-3 py-2 font-mono text-xs outline-none placeholder:text-[var(--color-ink-4)] focus:border-[var(--color-ink-4)]"
+      />
+      <p className="mt-1 text-[10px] text-[var(--color-ink-4)]">
+        If set, the repo/page/path is fetched and its recon is fed to every hat. Authorized targets only.
+      </p>
 
       <div className="mt-3 flex flex-wrap gap-2">
         {HATS.map((h) => {

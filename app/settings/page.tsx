@@ -178,37 +178,41 @@ export default function SettingsPage() {
 
           <section className="mc-panel p-5">
             <h2 className="mb-1 text-sm font-semibold">Theme</h2>
+            <p className="mb-3 text-xs text-[var(--color-ink-4)]">
+              {theme.manual
+                ? "Pinned. Auto resumes the 6-hour time-of-day rotation."
+                : "Auto — rotates every 6 hours by time of day. Pick one to pin it."}
+            </p>
             <div className="flex flex-wrap gap-2">
-              {theme.allThemes.slice(0, 4).map((t: ThemePalette) => (
-                <button
-                  key={t.id}
-                  onClick={() => theme.setThemeById(t.id)}
-                  className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors"
-                  style={{
-                    borderColor:
-                      theme.currentTheme.id === t.id
-                        ? t.signal
-                        : "var(--color-line)",
-                    background:
-                      theme.currentTheme.id === t.id
-                        ? `${hexA(t.signal, 0.12)}`
-                        : "transparent",
-                    color:
-                      theme.currentTheme.id === t.id
-                        ? t.signal
-                        : "var(--color-ink)",
-                  }}
-                >
-                  <span
-                    className="inline-block h-3 w-3 shrink-0 rounded"
-                    style={{ background: t.signal }}
-                  />
-                  {t.name}
-                </button>
-              ))}
+              {theme.allThemes.map((t: ThemePalette) => {
+                const active = theme.manual && theme.currentTheme.id === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => theme.setThemeById(t.id)}
+                    className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors"
+                    style={{
+                      borderColor: active ? t.signal : "var(--color-line)",
+                      background: active ? `${hexA(t.signal, 0.12)}` : "transparent",
+                      color: active ? t.signal : "var(--color-ink)",
+                    }}
+                  >
+                    <span
+                      className="inline-block h-3 w-3 shrink-0 rounded"
+                      style={{ background: t.signal }}
+                    />
+                    {t.name}
+                  </button>
+                );
+              })}
               <button
-                onClick={() => theme.setThemeById(theme.currentTheme.id)}
-                className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm text-[var(--color-ink-3)] transition-colors hover:border-[var(--color-ink-4)]"
+                onClick={() => theme.setAuto()}
+                className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors"
+                style={{
+                  borderColor: !theme.manual ? "var(--color-signal)" : "var(--color-line)",
+                  background: !theme.manual ? hexA("#ffffff", 0.06) : "transparent",
+                  color: !theme.manual ? "var(--color-signal)" : "var(--color-ink-3)",
+                }}
               >
                 Auto
               </button>

@@ -116,7 +116,7 @@ const SUNSET_ORANGE: ThemePalette = {
   signal: "#ff8c00",
   signalDim: "#7a4300",
   amber: "#ff8c00",
-  rose: "#ff4750444",
+  rose: "#ff5a44",
   violet: "#c084fc",
   green: "#4ade80",
   glowRgb: "255, 140, 0",
@@ -254,46 +254,66 @@ interface ThemeContextValue {
   currentTheme: ThemePalette;
   currentThemeIndex: number;
   allThemes: ThemePalette[];
+  /** True when the user has pinned a theme (auto-rotation paused). */
+  manual: boolean;
   setTheme: (theme: ThemePalette) => void;
   setThemeById: (id: string) => void;
+  /** Clear the manual pin and resume quarter-day auto-rotation. */
+  setAuto: () => void;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
+const PIN_KEY = "mc-theme-pinned"; // stores the pinned theme id, or absent = auto
+
+function readPin(): ThemePalette | undefined {
+  if (typeof window === "undefined") return undefined;
+  try {
+    const id = localStorage.getItem(PIN_KEY);
+    return id ? THEME_PALETTES.find((t) => t.id === id) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function ThemeProvider({ children }: { children: ReactNode }) {
+  // Resolve the pin synchronously in the initializers so the rotation effect
+  // below never sees a stale manual=false on the first commit and clobbers it.
   const [currentTheme, setCurrentTheme] = useState<ThemePalette>(() => {
     if (typeof window === "undefined") return MUSTARD_GOLD;
-    return getCurrentTheme();
+    return readPin() ?? getCurrentTheme();
   });
   const [currentThemeIndex, setCurrentThemeIndex] = useState(getCurrentThemeIndex());
+  const [manual, setManual] = useState(() => Boolean(readPin()));
 
   // Apply theme on mount and when theme changes
   useEffect(() => {
     applyTheme(currentTheme);
   }, [currentTheme]);
 
-  // Check for quarter-day changes
+  // Auto-rotate on quarter-day boundaries — but ONLY while unpinned. A pinned
+  // theme must survive these checks (this is what previously reverted picks).
   useEffect(() => {
+    if (manual) return;
     const checkTheme = () => {
       const newIndex = getCurrentThemeIndex();
-      if (newIndex !== currentThemeIndex) {
-        setCurrentThemeIndex(newIndex);
-        const newTheme = THEME_PALETTES[newIndex];
-        setCurrentTheme(newTheme);
-      }
+      setCurrentThemeIndex(newIndex);
+      setCurrentTheme(THEME_PALETTES[newIndex]);
     };
-
-    // Check immediately
     checkTheme();
-
-    // Check every minute for quarter boundary
     const interval = setInterval(checkTheme, 60000);
     return () => clearInterval(interval);
-  }, [currentThemeIndex]);
+  }, [manual]);
 
   const setTheme = (theme: ThemePalette) => {
+    setManual(true);
     setCurrentTheme(theme);
     setCurrentThemeIndex(THEME_PALETTES.indexOf(theme));
+    try {
+      localStorage.setItem(PIN_KEY, theme.id);
+    } catch {
+      /* ignore */
+    }
   };
 
   const setThemeById = (id: string) => {
@@ -301,13 +321,24 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     if (theme) setTheme(theme);
   };
 
+  const setAuto = () => {
+    try {
+      localStorage.removeItem(PIN_KEY);
+    } catch {
+      /* ignore */
+    }
+    setManual(false); // re-enables the rotation effect, which snaps to the clock theme
+  };
+
   const value = useMemo(() => ({
     currentTheme,
     currentThemeIndex,
     allThemes: THEME_PALETTES,
+    manual,
     setTheme,
     setThemeById,
-  }), [currentTheme, currentThemeIndex]);
+    setAuto,
+  }), [currentTheme, currentThemeIndex, manual]);
 
   return (
     <ThemeContext.Provider value={value}>

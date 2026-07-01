@@ -58,6 +58,20 @@ export const HATS: Hat[] = [
     lens: "Builders — attack surface from the developer's lens",
     role: "the YELLOW hat (builder). From the system/app builder's perspective, surface design-level risks and the attack surface they create",
   },
+  {
+    id: "orange",
+    name: "Orange",
+    color: "#ff8c3a",
+    lens: "Builder+attacker bridge — threat modeling, secure-coding uplift",
+    role: "the ORANGE hat (builder+attacker bridge). Translate offensive findings into threat models and secure-coding guidance that levels up the builders",
+  },
+  {
+    id: "black",
+    name: "Black",
+    color: "#6e7178",
+    lens: "Adversary emulation — full-scope TTPs, social engineering, physical",
+    role: "the BLACK hat (adversary emulation). Emulate a real threat actor end-to-end: chained TTPs, social-engineering and physical vectors, and covert objectives",
+  },
 ];
 
 export function getHat(id: string): Hat | undefined {

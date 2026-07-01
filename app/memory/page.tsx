@@ -7,8 +7,9 @@ import { PageHeader, Screen, Stat } from "@/components/ui";
 import ActivityFeed from "@/components/ActivityFeed";
 import SharedEditor from "@/components/SharedEditor";
 import MemorySwarm, { type SwarmMode } from "@/components/MemorySwarm";
+import VaultGraph from "@/components/VaultGraph";
 
-type MemoryView = "list" | SwarmMode;
+type MemoryView = "list" | SwarmMode | "graph";
 
 export default function MemoryPage() {
   const { data } = useFetch<MemoryResp>("/api/memory", 8000);
@@ -26,7 +27,7 @@ export default function MemoryPage() {
   useEffect(() => {
     try {
       const v = localStorage.getItem("mc-memory-view");
-      if (v === "list" || v === "neural" || v === "orbit" || v === "stream") setView(v);
+      if (v === "list" || v === "neural" || v === "orbit" || v === "stream" || v === "graph") setView(v);
     } catch {
       /* ignore */
     }
@@ -70,10 +71,10 @@ export default function MemoryPage() {
             <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
               <h2 className="flex items-center gap-2 text-sm font-semibold">
                 <span className="mc-live-dot h-2 w-2 rounded-full" style={{ background: "var(--color-green)" }} />
-                Shared activity
+                {view === "graph" ? "Vault graph" : "Shared activity"}
               </h2>
               <div className="flex gap-0.5 rounded-lg border p-0.5 text-[11px]">
-                {(["list", "neural", "orbit", "stream"] as const).map((v) => (
+                {(["list", "neural", "orbit", "stream", "graph"] as const).map((v) => (
                   <button
                     key={v}
                     onClick={() => setView(v)}
@@ -92,6 +93,10 @@ export default function MemoryPage() {
             {view === "list" ? (
               <div className="max-h-[58vh] overflow-auto pr-2">
                 <ActivityFeed entries={activity} accentFor={accentFor} />
+              </div>
+            ) : view === "graph" ? (
+              <div className="h-[58vh]">
+                <VaultGraph />
               </div>
             ) : (
               <div className="h-[58vh]">
