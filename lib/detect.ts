@@ -45,7 +45,12 @@ export function resolveBinary(def: AgentDef): string | null {
   }
   if (!def.bin) return null;
   const pathEnv = process.env.PATH || process.env.Path || "";
-  const exts = process.platform === "win32" ? ["", ".exe", ".cmd", ".bat"] : [""];
+  // Windows: prefer real executable extensions over the bare name. npm drops an
+  // extensionless Unix shell shim (e.g. ...\npm\opencode) next to opencode.cmd;
+  // spawning that shim via ConPTY fails with error 193 (bad exe format). Trying
+  // .exe/.cmd/.bat first lets resolveCommand wrap the .cmd through cmd.exe. Bare
+  // "" stays last as a fallback for genuinely extensionless executables.
+  const exts = process.platform === "win32" ? [".exe", ".cmd", ".bat", ""] : [""];
   for (const dir of pathEnv.split(path.delimiter)) {
     if (!dir) continue;
     for (const ext of exts) {
