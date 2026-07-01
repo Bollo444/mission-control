@@ -112,8 +112,8 @@ const PERSONAS: Record<string, Persona> = {
     role: "Chair · orchestration & synthesis",
     lens: "the through-line",
     keywords: ["plan", "priorit", "decision", "summary", "orchestrat", "next", "strategy", "roadmap", "who"],
-    status: (c) =>
-      `Chairing on synthesis; jcode co-chairs dispatch. We're ${c.ready}/${c.total} agents live, ${c.sessions} sessions on record, vault last touched ${c.lastActivity ? relTime(c.lastActivity) : "never"}. Reads first, then jcode parallelizes the work — we end with owners.`,
+    status: () =>
+      `Chairing on synthesis; jcode co-chairs dispatch. Reads first, then jcode parallelizes the work — we end with named owners, not open questions. (Numbers are up top; I won't re-read them.)`,
     concern: (c) =>
       c.offline > c.ready
         ? `Most of the roster is dark — ${c.offline} offline vs ${c.ready} live. We're a team on paper but not in process yet.`
@@ -126,7 +126,7 @@ const PERSONAS: Record<string, Persona> = {
     question: (c) =>
       `For the room and the user: if we could only fix one thing before next sync — ${c.offline ? "provisioning" : "memory hygiene"} or throughput — which earns its keep?`,
     respond: (c, msg) =>
-      `Synthesizing: I hear "${trim(msg)}". Mapping it to an owner — I'll sequence it against our ${c.sessions} live sessions and the ${c.offline} agents still to provision, then hand legs to whoever's strongest on it.`,
+      `Synthesizing: I hear "${trim(msg)}". Mapping it to an owner and sequencing the legs — then handing each to whoever's strongest on it.`,
   },
 
   hermes: {
@@ -156,7 +156,7 @@ const PERSONAS: Record<string, Persona> = {
     lens: "measurement & data",
     keywords: ["python", "data", "notebook", "analy", "pipeline", "math", "metric", "measure", "model", "compose"],
     status: (c) =>
-      `Reading the numbers: CPU ${c.cpu}%, mem ${c.mem}%${c.disk != null ? `, disk ${c.disk}%` : ""}. Headroom looks ${c.cpu < 70 && c.mem < 80 ? "healthy" : "tight"} on a ${c.cores}-core host.`,
+      `Headroom looks ${c.cpu < 70 && c.mem < 80 ? "healthy" : "tight"} right now — I'd rather track the trend than restate the snapshot each round.`,
     concern: (c) =>
       c.activity < 5
         ? `We have almost no telemetry — ${c.activity} activity entries total. We're flying on vibes, not data.`
@@ -168,7 +168,7 @@ const PERSONAS: Record<string, Persona> = {
       ]),
     question: (c) => (c.activity < 20 ? `Can we agree to log one metric per action so next month is measurable?` : null),
     respond: (c, msg) =>
-      `Quantifying "${trim(msg)}": before we act, what's the baseline and the target metric? Right now I can see CPU ${c.cpu}% / mem ${c.mem}% and ${c.sessions} sessions — give me a number to move and I'll track it.`,
+      `Quantifying "${trim(msg)}": what's the baseline and the target number? Give me a metric to move and I'll track it against the trend.`,
   },
 
   opencode: {
@@ -599,7 +599,7 @@ const TOPICS: Topic[] = [
     thread: (c) => [
       {
         id: "pi",
-        text: `Headroom's tight — CPU ${c.cpu}%, mem ${c.mem}% on a ${c.cores}-core host. We're closer to the wall than I'd like.`,
+        text: `Headroom's tight right now — we're closer to the wall than I'd like. Worth freeing capacity before we pile on more work.`,
       },
       {
         id: "vibe",
@@ -712,10 +712,10 @@ function opener(c: Ctx): string {
       `Quick all-hands. Most of the roster's dark (${c.ready}/${c.total} up). I'll keep this tight and we triage the rest.`,
     ]);
   if (staleVault(c))
-    return `All-hands — ${c.ready}/${c.total} live, ${c.sessions} sessions on record, but the vault's gone quiet (last touch ${c.lastActivity ? relTime(c.lastActivity) : "never"}). That's our first thread.`;
+    return `All-hands — ${c.ready}/${c.total} live, but the vault's gone quiet (last touch ${c.lastActivity ? relTime(c.lastActivity) : "never"}). That's our first thread.`;
   return pick([
-    `All-hands. ${c.ready}/${c.total} live, ${c.sessions} sessions on record, CPU ${c.cpu}% / mem ${c.mem}%. Let's keep it to what actually needs us.`,
-    `Room's convened — ${c.ready}/${c.total} up, host looks ${c.cpu < 70 && c.mem < 80 ? "healthy" : "tight"}. Two or three real items, then we dispatch.`,
+    `All-hands. ${c.ready}/${c.total} live. Let's keep it to what actually needs us — two or three real items.`,
+    `Room's convened — ${c.ready}/${c.total} up. Two or three real items, then we dispatch.`,
   ]);
 }
 
@@ -791,7 +791,71 @@ export async function replyToMessage(report: SystemReport, message: string): Pro
     buffer.push(`${meta(id).name}: ${final}`);
     turns.push(turn(id, "reply", final));
   }
+
+  // Auto-flow: don't stop at reactions. The room delegates to owners and the
+  // chair lands a decision, so one message plays through to a conclusion with no
+  // "continue" needed. This tail is TEMPLATED (no LLM) so auto-flow never burns
+  // tokens per round — only the reaction turns above hit a model.
+  const owners = ids.filter((id) => id !== "claude" && id !== "jcode");
+  if (owners.length) {
+    const names = owners.slice(0, 3).map((o) => meta(o).name);
+    turns.push(
+      turn(
+        "jcode",
+        "reply",
+        `Dispatching in parallel — ${list(names)} take the legs. I'll track each thread in the vault and bounce blockers back to the chair.`
+      )
+    );
+    const acks = shuffle(ACKS);
+    owners.slice(0, 2).forEach((o, i) => turns.push(turn(o, "reply", acks[i % acks.length])));
+    turns.push(
+      turn(
+        "claude",
+        "close",
+        `Decision — ${list(names)} own it; report back here as each leg lands. Rationale goes to Shared Knowledge so we resume from fact, not memory.`
+      )
+    );
+  } else {
+    turns.push(
+      turn(
+        "claude",
+        "close",
+        `Decision — nothing to fan out on that; we hold and pick it back up if the numbers move. Noted to Shared Knowledge.`
+      )
+    );
+  }
   return turns;
+}
+
+/** Owner acknowledgements for the delegation round — cheap, in-character. */
+const ACKS = [
+  "On it — I'll take the first pass and surface a diff, not a discussion.",
+  "Taking this leg. I'll report back the moment it's done or blocked.",
+  "Owned. Running it in the background and bouncing the result to the chair.",
+  "Got it — starting now; I'll ping the room when there's something to look at.",
+];
+
+/**
+ * A single in-character nudge to keep the boardroom alive when the user goes
+ * quiet: a live agent raises the next thread or asks the user something. The
+ * client fires this on an idle timer so the room never freezes waiting on input,
+ * and an answer folds into the next reply thread without derailing anything.
+ * Templated + cheap.
+ */
+export function ambientTurn(report: SystemReport): MeetingTurn {
+  const c = deriveCtx(report);
+  // Prefer a live agent so "who's talking" tracks who's actually up.
+  const live = ORDER.filter((id) => c.online(id));
+  const id = pick(live.length ? live : ORDER);
+  const q = PERSONAS[id]?.question(c) ?? null;
+  const text =
+    q ??
+    pick([
+      `While we keep moving — anything you want reprioritized, or should we push on?`,
+      `Chair check: the room's still working. Jump in whenever; it won't derail the thread.`,
+      `One for you: what does "done" look like for this so we know when to stop?`,
+    ]);
+  return turn(id, "reply", text);
 }
 
 function pickGeneralists(n: number): string[] {

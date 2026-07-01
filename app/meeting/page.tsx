@@ -7,7 +7,7 @@ import type {
   MeetingRosterEntry,
   MeetingTurn,
 } from "@/lib/types";
-import { hexA, stateColor } from "@/lib/format";
+import { hexA } from "@/lib/format";
 import { getSkin } from "@/components/skins";
 import { getVoicePref, pickVoice } from "@/lib/voices";
 
@@ -60,6 +60,7 @@ export default function MeetingPage() {
   const endRef = useRef<HTMLDivElement>(null);
   const voicesRef = useRef<SpeechSynthesisVoice[]>([]);
   const streamRef = useRef<EventSource | null>(null);
+  const nudgeCountRef = useRef(0);
 
   // Restore a meeting in progress so switching tabs (or reloading) never resets
   // the boardroom. We only read once, before the first paint-driven effects.
@@ -221,10 +222,38 @@ export default function MeetingPage() {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [revealed, busy, partial]);
 
+  // Keep the room alive: when you've gone quiet and everything's revealed, a live
+  // agent raises the next thread or asks you something (auto-flow, no "continue").
+  // Capped so it nudges a few times then rests until you speak again — never a
+  // runaway loop (and it's templated, so it doesn't burn tokens).
+  useEffect(() => {
+    if (!started || busy || voiceOn) return;
+    if (revealed < turns.length) return; // still playing the current thread
+    if (nudgeCountRef.current >= 3) return; // said its piece; wait for you
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch("/api/meeting", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ ambient: true }),
+        });
+        const json = (await res.json()) as { turns: MeetingTurn[] };
+        if (json.turns?.length) {
+          nudgeCountRef.current += 1;
+          setTurns((cur) => [...cur, ...json.turns]);
+        }
+      } catch {
+        /* offline / non-fatal */
+      }
+    }, 22_000);
+    return () => clearTimeout(t);
+  }, [started, busy, voiceOn, revealed, turns.length]);
+
   const speak = useCallback(
     async (message: string) => {
       const text = message.trim();
       if (!text || busy) return;
+      nudgeCountRef.current = 0; // your input re-engages the room fully
       setInput("");
       const len = turns.length;
       const userTurn: MeetingTurn = {
@@ -257,6 +286,10 @@ export default function MeetingPage() {
 
   const shown = turns.slice(0, revealed);
   const nextSpeaker = revealed < turns.length ? turns[revealed] : null;
+  // Who's "working" right now = anyone with a turn still queued/being revealed.
+  const workingIds = new Set(
+    turns.slice(revealed).map((t) => t.agentId).filter((id) => id !== "user")
+  );
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -407,7 +440,7 @@ export default function MeetingPage() {
             </h2>
             <div className="flex flex-col gap-1.5">
               {(meta?.roster ?? []).map((r) => (
-                <RosterTile key={r.id} r={r} />
+                <RosterTile key={r.id} r={r} working={workingIds.has(r.id)} />
               ))}
             </div>
           </div>
@@ -452,10 +485,18 @@ function PhaseDivider({ label }: { label: string }) {
 
 function Avatar({ agentId, accent, glyph, size = 34 }: { agentId: string; accent: string; glyph: string; size?: number }) {
   if (agentId === "user") {
+    // Subtle glow so you can always find yourself in the transcript when the
+    // whole room is firing at once.
     return (
       <span
         className="grid shrink-0 place-items-center rounded-full text-sm font-bold"
-        style={{ width: size, height: size, background: hexA(accent, 0.16), color: accent, boxShadow: `inset 0 0 0 1px ${hexA(accent, 0.4)}` }}
+        style={{
+          width: size,
+          height: size,
+          background: hexA(accent, 0.2),
+          color: accent,
+          boxShadow: `inset 0 0 0 1px ${hexA(accent, 0.6)}, 0 0 14px 2px ${hexA(accent, 0.5)}`,
+        }}
       >
         {glyph}
       </span>
@@ -562,8 +603,13 @@ function Dots() {
   );
 }
 
-function RosterTile({ r }: { r: MeetingRosterEntry }) {
+function RosterTile({ r, working }: { r: MeetingRosterEntry; working: boolean }) {
   const { Mascot } = getSkin(r.id);
+  // Light: red = offline/disconnected · yellow (pulsing) = working right now ·
+  // green = idle / standing by. So you can see at a glance who's on the job.
+  const offline = r.state === "offline";
+  const dotColor = offline ? "#f06a7a" : working ? "#f5b75a" : "#5cd6a0";
+  const dotLabel = offline ? "offline · disconnected" : working ? "working" : "idle · standby";
   const chairLabel = r.chair ? (r.role.toLowerCase().startsWith("co-chair") ? "co-chair" : "chair") : null;
   return (
     <div
@@ -594,9 +640,12 @@ function RosterTile({ r }: { r: MeetingRosterEntry }) {
         <div className="truncate text-[10px] text-[var(--color-ink-4)]">{r.role}</div>
       </div>
       <span
-        className="h-2 w-2 shrink-0 rounded-full"
-        title={r.state}
-        style={{ background: stateColor(r.state) }}
+        className={`h-2 w-2 shrink-0 rounded-full${working && !offline ? " mc-live-dot" : ""}`}
+        title={dotLabel}
+        style={{
+          background: dotColor,
+          boxShadow: working && !offline ? `0 0 6px 1px ${hexA(dotColor, 0.7)}` : undefined,
+        }}
       />
     </div>
   );

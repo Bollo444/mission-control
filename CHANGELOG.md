@@ -65,6 +65,23 @@ All built and shipped under PM2 on prod 4317.
   OmniRoute dashboard ↗"** link. (OmniRoute's own dashboard login is set via its
   bundled `omniroute-reset-password`.)
 
+### Team Meeting — auto-flowing, live roster, less noise
+- **Auto-flow (no more "continue").** One message now plays through to a
+  conclusion on its own: `replyToMessage` no longer stops after a single round —
+  after the agents react, jcode delegates to named owners, they ack, and the chair
+  lands a decision + "report back." The delegation/close tail is templated (no LLM)
+  so auto-flow stays cheap.
+- **The room stays alive.** New `ambientTurn` + `{ambient:true}` endpoint; the
+  meeting page fires it on a ~22s idle timer so a live agent raises the next thread
+  or asks you something when you go quiet. Capped at 3 nudges, and reset the moment
+  you speak — so answering never derails the thread and it never loops forever.
+- **Roster status lights** (right rail): red = offline/disconnected · pulsing
+  yellow = working right now · green = idle/standby, so you can see who's on the job.
+- **Less redundancy.** Claude/pi/openers stopped re-reading the CPU / core-count /
+  session numbers that are already in the metrics header (saves noise + tokens).
+- **Your icon glows** in the transcript so you can find yourself when the whole
+  room is firing at once.
+
 ### Embedded terminal — copy/paste
 - The xterm terminal (`NativeTerminal`) forwarded **Ctrl+C straight to the PTY as
   SIGINT**, so it killed the session instead of copying. Added a key handler:
