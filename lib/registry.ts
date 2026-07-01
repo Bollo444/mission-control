@@ -57,6 +57,20 @@ export interface AgentDef {
   docsNote?: string;
 }
 
+/**
+ * Antigravity IDE (a VS Code fork) CLI shim. Installed as "Antigravity IDE"
+ * (note the space) with a standard VS Code CLI at bin/antigravity-ide.cmd —
+ * opens files/folders in the real IDE, manages extensions, tunnel, etc.
+ */
+const ANTIGRAVITY_CLI = home(
+  "AppData",
+  "Local",
+  "Programs",
+  "Antigravity IDE",
+  "bin",
+  "antigravity-ide.cmd"
+);
+
 /** Launcher for the local Sentinel security swarm (workspace under ./sentinel). */
 const SENTINEL_LAUNCHER =
   process.platform === "win32"
@@ -211,10 +225,8 @@ export const AGENTS: AgentDef[] = [
     accent: "#6ea8fe",
     glyph: "▲",
     primary: true,
-    bin: "antigravity",
-    binPaths: [
-      home("AppData", "Local", "Programs", "Antigravity", "bin", "antigravity.cmd"),
-    ],
+    bin: "antigravity-ide",
+    binPaths: [ANTIGRAVITY_CLI],
     configPaths: [
       home(".antigravity", "argv.json"),
       home(".antigravity"),
@@ -224,10 +236,10 @@ export const AGENTS: AgentDef[] = [
     sessionsDir: home(".antigravitycli"),
     sessionFormat: "generic",
     openCommand: {
-      cmd: home("AppData", "Local", "Programs", "Antigravity", "bin", "antigravity.cmd"),
+      cmd: ANTIGRAVITY_CLI,
       args: [],
     },
-    launch: { cmd: "antigravity", args: ["."], askCwd: true },
+    launch: { cmd: ANTIGRAVITY_CLI, args: ["."], askCwd: true },
     install: {
       manager: "native",
       command: "winget install Google.Antigravity",

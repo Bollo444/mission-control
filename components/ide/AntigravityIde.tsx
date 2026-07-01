@@ -13,6 +13,7 @@ import { hexA, relTime, stateColor } from "@/lib/format";
 import { AntigravityMascot } from "@/components/skins/mascots";
 import { AntigravityBg } from "@/components/skins/backgrounds";
 import FleetTerminal from "./FleetTerminal";
+import NativeTerminal from "./NativeTerminal";
 import AntigravityWorkspace from "./AntigravityWorkspace";
 import WindowControls from "./WindowControls";
 import LaunchControls from "@/components/LaunchControls";
@@ -59,6 +60,7 @@ export default function AntigravityIde({ agent }: { agent: AgentDetail }) {
   const [order, setOrder] = useState<string[]>([]);
   const [active, setActive] = useState<string>("welcome");
   const [termOpen, setTermOpen] = useState(true);
+  const [termTab, setTermTab] = useState<"cli" | "fleet">("cli");
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [cursor, setCursor] = useState({ line: 1, col: 1 });
   const [saving, setSaving] = useState(false);
@@ -587,21 +589,34 @@ export default function AntigravityIde({ agent }: { agent: AgentDetail }) {
             )}
           </div>
 
-          {/* integrated terminal */}
+          {/* integrated terminal — real Antigravity CLI shell + the fleet console */}
           {termOpen && (
             <div className="h-64 shrink-0 border-t border-white/10">
-              <div className="flex h-8 items-center gap-4 border-b border-white/10 px-4 text-[11px] uppercase tracking-wider">
-                <span style={{ color: ACCENT }}>● Terminal</span>
-                <span className="text-[var(--color-ink-4)]">live system check + commands</span>
+              <div className="flex h-8 items-center gap-1 border-b border-white/10 px-2 text-[11px] uppercase tracking-wider">
+                <TermTab on={termTab === "cli"} accent={ACCENT} onClick={() => setTermTab("cli")}>
+                  ▸ Antigravity CLI
+                </TermTab>
+                <TermTab on={termTab === "fleet"} accent={ACCENT} onClick={() => setTermTab("fleet")}>
+                  ✦ Fleet
+                </TermTab>
+                <span className="ml-3 hidden text-[var(--color-ink-4)] sm:inline">
+                  {termTab === "cli" ? "real shell · antigravity-ide on PATH" : "live system check + commands"}
+                </span>
                 <span className="ml-auto text-[var(--color-ink-4)]">
                   fleet · {readyCount}/{fleetTotal} ready
                 </span>
-                <button onClick={() => setTermOpen(false)} className="text-[var(--color-ink-4)] hover:text-[var(--color-ink)]">
+                <button onClick={() => setTermOpen(false)} className="ml-3 text-[var(--color-ink-4)] hover:text-[var(--color-ink)]">
                   ✕
                 </button>
               </div>
-              <div className="h-[calc(16rem-2rem)]">
-                <FleetTerminal prompt="antigravity" accent={ACCENT} onOpenFile={openFile} />
+              {/* Both stay mounted (display toggled) so neither session resets on tab switch. */}
+              <div className="relative h-[calc(16rem-2rem)]">
+                <div className="absolute inset-0" style={{ display: termTab === "cli" ? "block" : "none" }}>
+                  <NativeTerminal session="antigravity-cli" kind="antigravity-cli" accent={ACCENT} />
+                </div>
+                <div className="absolute inset-0" style={{ display: termTab === "fleet" ? "block" : "none" }}>
+                  <FleetTerminal prompt="antigravity" accent={ACCENT} onOpenFile={openFile} />
+                </div>
               </div>
             </div>
           )}
@@ -672,6 +687,32 @@ function Tab({ active, onClick, children }: { active: boolean; onClick: () => vo
         background: active ? "#0a0d16" : "transparent",
         color: active ? "var(--color-ink)" : "var(--color-ink-4)",
         boxShadow: active ? `inset 0 -2px 0 ${ACCENT}` : "none",
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function TermTab({
+  on,
+  accent,
+  onClick,
+  children,
+}: {
+  on: boolean;
+  accent: string;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="rounded-t px-2.5 py-1 text-[10.5px] font-semibold tracking-wider transition-colors"
+      style={{
+        color: on ? accent : "var(--color-ink-4)",
+        background: on ? hexA(accent, 0.12) : "transparent",
+        boxShadow: on ? `inset 0 -2px 0 ${accent}` : "none",
       }}
     >
       {children}

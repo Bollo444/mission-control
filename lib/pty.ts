@@ -75,10 +75,28 @@ function refreshHermesUpdateCache(): void {
 }
 
 /** Resolve the binary for an allow-listed kind. Returns null if not found. */
-function resolveCommand(kind: string): { cmd: string; args: string[]; cwd: string } | null {
+function resolveCommand(
+  kind: string
+): { cmd: string; args: string[]; cwd: string; env?: Record<string, string> } | null {
   if (kind === "shell") {
     const cmd = process.platform === "win32" ? "powershell.exe" : process.env.SHELL || "bash";
     return { cmd, args: [], cwd: home() };
+  }
+
+  // Antigravity's integrated terminal: a REAL shell with the Antigravity IDE
+  // CLI (`antigravity-ide`) prepended to PATH, so the dashboard terminal can
+  // drive the real installed IDE — `antigravity-ide .` opens the workspace,
+  // `antigravity-ide notes.md` opens a vault note, plus extensions/tunnel/etc.
+  // Antigravity is a GUI IDE (VS Code fork), not a REPL, so we spawn a shell
+  // rather than the CLI as PID 1 (which would print usage and exit at once).
+  if (kind === "antigravity-cli") {
+    const cmd = process.platform === "win32" ? "powershell.exe" : process.env.SHELL || "bash";
+    const a = getAgent("antigravity");
+    const bin = a ? resolveBinary(a) : null;
+    const env = bin
+      ? { PATH: path.dirname(bin) + path.delimiter + (process.env.PATH || process.env.Path || "") }
+      : undefined;
+    return { cmd, args: [], cwd: home(), env };
   }
   // Any registered agent's native CLI: prefer an existing absolute binPath,
   // else fall back to its PATH command name. Spawns the agent's real harness so
@@ -135,6 +153,22 @@ export function getOrCreateSession(
   // that would flash a console window on Windows. See refreshHermesUpdateCache.
   if (kind === "hermes") refreshHermesUpdateCache();
 
+  // Base env, then apply any per-kind overrides (e.g. antigravity-cli's PATH).
+  // Overrides win case-insensitively so a "PATH" override replaces Windows' "Path".
+  const spawnEnv: Record<string, string> = {
+    ...(process.env as Record<string, string>),
+    TERM: "xterm-256color",
+    ...(kind === "hermes" ? { HERMES_QUIET: "1", NO_UPDATE_NOTIFIER: "1" } : {}),
+  };
+  if (resolved.env) {
+    for (const [k, v] of Object.entries(resolved.env)) {
+      for (const ex of Object.keys(spawnEnv)) {
+        if (ex.toLowerCase() === k.toLowerCase()) delete spawnEnv[ex];
+      }
+      spawnEnv[k] = v;
+    }
+  }
+
   let proc: pty.IPty;
   try {
     proc = pty.spawn(resolved.cmd, resolved.args, {
@@ -142,21 +176,10 @@ export function getOrCreateSession(
       cols: size.cols || 80,
       rows: size.rows || 24,
       cwd: resolved.cwd,
-      env: {
-        ...process.env,
-        TERM: "xterm-256color",
-        // Best-effort env-flag suppression for Hermes startup noise (hermes kind only).
-        // The definitive flash fix is refreshHermesUpdateCache() above, which keeps
-        // banner.py's prefetch_update_check() on the cache hit path so it never reaches
-        // the git subprocess calls. These vars are belt-and-suspenders for any other
-        // startup subprocess that may check them:
-        //   HERMES_QUIET — confirmed used in hermes (cli.py, gateway/run.py) for noise suppression
-        //   NO_UPDATE_NOTIFIER — common convention; not confirmed in hermes source but harmless
-        ...(kind === "hermes" ? {
-          HERMES_QUIET: "1",
-          NO_UPDATE_NOTIFIER: "1",
-        } : {}),
-      } as Record<string, string>,
+      // spawnEnv (above) carries TERM, the per-kind PATH override, and the
+      // hermes noise-suppression flags (HERMES_QUIET / NO_UPDATE_NOTIFIER —
+      // belt-and-suspenders behind refreshHermesUpdateCache()).
+      env: spawnEnv,
       // ConPTY is windowless — no console window flashes on spawn. windowsHide
       // isn't in node-pty's option type, so cast to pass it through.
       // Note: useConpty is deprecated/ignored in @lydell/node-pty (see node-pty.d.ts);
