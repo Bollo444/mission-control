@@ -4,7 +4,22 @@ import * as path from "node:path";
 import * as pty from "@lydell/node-pty";
 import { getAgent } from "./registry";
 import { resolveBinary } from "./detect";
-import { home } from "./paths";
+import { home, WORKSPACE_DIR } from "./paths";
+
+/**
+ * Working directory for agent CLI sessions. Coding agents shouldn't open in the
+ * home root (they scan/index the cwd, and e.g. vibe warns "running in home is
+ * not recommended"), so agents get a dedicated workspace dir, created on demand.
+ * Falls back to home only if the dir can't be created.
+ */
+function agentCwd(): string {
+  try {
+    fs.mkdirSync(WORKSPACE_DIR, { recursive: true });
+    return WORKSPACE_DIR;
+  } catch {
+    return home();
+  }
+}
 
 /* ------------------------------------------------------------------ *
  * Server-side PTY session manager. Each named session owns one real    *
@@ -96,7 +111,7 @@ function resolveCommand(
     const env = bin
       ? { PATH: path.dirname(bin) + path.delimiter + (process.env.PATH || process.env.Path || "") }
       : undefined;
-    return { cmd, args: [], cwd: home(), env };
+    return { cmd, args: [], cwd: agentCwd(), env };
   }
   // Any registered agent's native CLI: prefer an existing absolute binPath,
   // else fall back to its PATH command name. Spawns the agent's real harness so
@@ -115,9 +130,9 @@ function resolveCommand(
   // agent's own TUI still renders in the embedded terminal.
   if (process.platform === "win32" && /\.(cmd|bat)$/i.test(resolved)) {
     const comspec = process.env.ComSpec || "cmd.exe";
-    return { cmd: comspec, args: ["/c", resolved, ...launchArgs], cwd: home() };
+    return { cmd: comspec, args: ["/c", resolved, ...launchArgs], cwd: agentCwd() };
   }
-  return { cmd: resolved, args: launchArgs, cwd: home() };
+  return { cmd: resolved, args: launchArgs, cwd: agentCwd() };
 }
 
 export interface SessionInfo {

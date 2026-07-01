@@ -15,6 +15,13 @@ export function home(...parts: string[]): string {
 export const VAULT_DIR =
   process.env.MC_VAULT_DIR || home("MissionControlVault");
 
+/**
+ * Default working directory for agent terminals launched from the dashboard.
+ * Agents must NOT open in the home root: some coding CLIs refuse or crash there
+ * (opencode dies at startup; vibe warns). Env-overridable. Created on demand.
+ */
+export const WORKSPACE_DIR = process.env.MC_WORKSPACE_DIR || home("workspace");
+
 /** Where the dashboard persists its own settings (model routing, overrides). */
 export const MC_CONFIG_DIR = home(".mission-control");
 export const MC_SETTINGS_FILE = path.join(MC_CONFIG_DIR, "settings.json");
