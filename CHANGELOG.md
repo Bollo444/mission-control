@@ -56,11 +56,13 @@ All built and shipped under PM2 on prod 4317.
 - **vibe** wouldn't start — `active_model` was a Mistral model, but the Mistral key
   401s so vibe dropped it ("model not found in configuration"). Repointed to
   `minimaxai/minimax-m3` (NVIDIA, valid key); the TUI launches.
-- **opencode** had no default model → the CLI threw a generic `Effect.tryPromise`
-  error. Set `model` to a free `opencode/deepseek-v4-flash-free`; headless
-  `opencode run` works. Its **interactive TUI still crashes at raw-mode init in the
-  embedded ConPTY** on both 1.17.11 and 1.17.4 — an upstream opencode issue; headless
-  is the workaround.
+- **opencode** — its interactive TUI crashes at raw-mode init in the embedded
+  ConPTY (both 1.17.11 and 1.17.4 — upstream). Rather than launch the dead TUI, the
+  opencode terminal is now a **real shell** with opencode on PATH (new `SHELL_MODE`
+  map in `lib/pty.ts`; the page reads "Terminal · OpenCode" with an
+  `opencode run "…"` hint), so it's usable via opencode's non-interactive commands.
+  Model set to `opencode/deepseek-v4-flash-free` (opencode-zen's free backend can be
+  flaky; `opencode auth login` or a gateway model is the fallback).
 
 ---
 

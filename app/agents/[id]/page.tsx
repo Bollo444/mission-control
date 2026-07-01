@@ -204,9 +204,15 @@ export default function AgentPage() {
               failing PTY for a missing binary. Show an install hint instead. */}
           <section className="mc-panel overflow-hidden">
             <div className="flex items-center justify-between border-b px-5 py-3">
-              <SectionTitle accent={accent}>Native TUI · {a.name}</SectionTitle>
+              <SectionTitle accent={accent}>
+                {a.id === "opencode" ? "Terminal" : "Native TUI"} · {a.name}
+              </SectionTitle>
               <span className="text-[11px] text-[var(--color-ink-4)]">
-                {s.installed ? `live ${a.id} session · survives navigation` : "not installed"}
+                {a.id === "opencode"
+                  ? 'shell · opencode on PATH — run  opencode run "…"'
+                  : s.installed
+                    ? `live ${a.id} session · survives navigation`
+                    : "not installed"}
               </span>
             </div>
             {s.installed ? (

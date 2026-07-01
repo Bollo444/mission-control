@@ -89,6 +89,16 @@ function refreshHermesUpdateCache(): void {
   }
 }
 
+/**
+ * Session kinds that open a shell with an agent's CLI on PATH instead of the
+ * agent's native TUI (which either doesn't exist or can't run in ConPTY).
+ * Maps the session kind to the registry agent id whose bin dir is added to PATH.
+ */
+const SHELL_MODE: Record<string, string> = {
+  "antigravity-cli": "antigravity",
+  opencode: "opencode",
+};
+
 /** Resolve the binary for an allow-listed kind. Returns null if not found. */
 function resolveCommand(
   kind: string
@@ -98,15 +108,18 @@ function resolveCommand(
     return { cmd, args: [], cwd: home() };
   }
 
-  // Antigravity's integrated terminal: a REAL shell with the Antigravity IDE
-  // CLI (`antigravity-ide`) prepended to PATH, so the dashboard terminal can
-  // drive the real installed IDE — `antigravity-ide .` opens the workspace,
-  // `antigravity-ide notes.md` opens a vault note, plus extensions/tunnel/etc.
-  // Antigravity is a GUI IDE (VS Code fork), not a REPL, so we spawn a shell
-  // rather than the CLI as PID 1 (which would print usage and exit at once).
-  if (kind === "antigravity-cli") {
+  // Shell-mode kinds: run a REAL shell with the agent's CLI prepended to PATH
+  // instead of its native TUI. Used when the TUI isn't viable in the embedded
+  // ConPTY:
+  //   • antigravity-cli — Antigravity is a GUI IDE (VS Code fork), no TUI; the
+  //     shell lets the dashboard drive it (`antigravity-ide .`, open a note, …).
+  //   • opencode — its TUI crashes at raw-mode init in ConPTY (both 1.17.x),
+  //     so it's usable only headlessly (`opencode run "…"`). A shell exposes that.
+  // Map: session kind -> agent id whose bin dir is prepended to PATH.
+  const shellModeAgent = SHELL_MODE[kind];
+  if (shellModeAgent) {
     const cmd = process.platform === "win32" ? "powershell.exe" : process.env.SHELL || "bash";
-    const a = getAgent("antigravity");
+    const a = getAgent(shellModeAgent);
     const bin = a ? resolveBinary(a) : null;
     const env = bin
       ? { PATH: path.dirname(bin) + path.delimiter + (process.env.PATH || process.env.Path || "") }
