@@ -102,7 +102,7 @@ export default function GatewayPage() {
           )}
         </div>
 
-        {/* OmniRoute Iframe */}
+        {/* OmniRoute control panel — link out (OmniRoute blocks iframing) */}
         <div className="mc-panel mb-8 overflow-hidden">
           <div className="border-b px-5 py-3 flex items-center justify-between">
             <span className="text-sm font-semibold">OmniRoute Control Panel</span>
@@ -110,13 +110,31 @@ export default function GatewayPage() {
               {status?.omnirouteBase ?? 'http://localhost:20128'}
             </span>
           </div>
-          <div className="h-[520px] bg-[var(--color-surface)] relative">
+          <div className="h-80 bg-[var(--color-surface)] relative">
             {isUp ? (
-              <iframe
-                src={status?.omnirouteBase?.replace('/v1', '') ?? 'http://localhost:20128'}
-                className="w-full h-full border-none"
-                title="OmniRoute UI"
-              />
+              <div className="absolute inset-0 grid place-items-center p-12 text-center">
+                <div className="max-w-md">
+                  <div className="mb-3 text-3xl">🛰️</div>
+                  <h3 className="text-lg font-medium mb-1">OmniRoute is running</h3>
+                  <p className="text-sm text-[var(--color-ink-3)] mb-6">
+                    Its control panel can&apos;t be embedded here (OmniRoute sends
+                    <code className="mx-1 rounded bg-black/30 px-1">X-Frame-Options: DENY</code>),
+                    so it opens in a new tab.
+                  </p>
+                  <a
+                    href={status?.omnirouteBase?.replace('/v1', '') ?? 'http://localhost:20128'}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-[#0b0c0f] transition-transform hover:-translate-y-px"
+                    style={{ background: 'var(--color-signal)' }}
+                  >
+                    Open OmniRoute dashboard ↗
+                  </a>
+                  <div className="mt-3 text-[11px] text-[var(--color-ink-4)]">
+                    {status?.omnirouteBase?.replace('/v1', '') ?? 'http://localhost:20128'}
+                  </div>
+                </div>
+              </div>
             ) : (
               <div className="absolute inset-0 grid place-items-center p-12 text-center">
                 <div className="max-w-md">

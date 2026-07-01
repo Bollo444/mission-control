@@ -52,6 +52,19 @@ All built and shipped under PM2 on prod 4317.
   home is not recommended"). Agent PTY sessions now open in `MC_WORKSPACE_DIR` (default
   `~/workspace`, created on demand); a bare shell still opens at home. `21720d9`.
 
+### Fleet Gateway — OmniRoute now actually running
+- The "Fleet Gateway" showed **offline** because OmniRoute (the third-party primary
+  router, github.com/diegosouzapw/OmniRoute) was speced but never installed — only
+  the MC-side integration + Backup-Generator failover existed. Installed it
+  (`npm i -g omniroute`, Node-based, runs on win-arm64), started it under PM2 as
+  **`mc-omniroute`** on `:20128` (`pm2 save`d). MC now reports `{up:true, failover:off}`
+  and the page shows **online**. (Gotcha: a leftover orphan from the manual test held
+  20128 → PM2 crash-looped on EADDRINUSE; fixed by clearing the port before a clean start.)
+- `app/gateway/page.tsx`: the embedded OmniRoute panel can never load — OmniRoute
+  sends `X-Frame-Options: DENY` — so the dead iframe is replaced with an **"Open
+  OmniRoute dashboard ↗"** link. (OmniRoute's own dashboard login is set via its
+  bundled `omniroute-reset-password`.)
+
 ### Agent config repairs (user dotfiles, outside this repo)
 - **vibe** wouldn't start — `active_model` was a Mistral model, but the Mistral key
   401s so vibe dropped it ("model not found in configuration"). Repointed to
