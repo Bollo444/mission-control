@@ -65,6 +65,13 @@ All built and shipped under PM2 on prod 4317.
   OmniRoute dashboard ↗"** link. (OmniRoute's own dashboard login is set via its
   bundled `omniroute-reset-password`.)
 
+### Embedded terminal — copy/paste
+- The xterm terminal (`NativeTerminal`) forwarded **Ctrl+C straight to the PTY as
+  SIGINT**, so it killed the session instead of copying. Added a key handler:
+  Ctrl+C copies the selection when there is one (else it still interrupts), Ctrl+V
+  pastes, and Ctrl+Shift+C/V always copy/paste. Covers every embedded terminal
+  (Hermes, opencode, codex, jcode, …) since they all render `NativeTerminal`.
+
 ### Agent config repairs (user dotfiles, outside this repo)
 - **vibe** wouldn't start — `active_model` was a Mistral model, but the Mistral key
   401s so vibe dropped it ("model not found in configuration"). Repointed to

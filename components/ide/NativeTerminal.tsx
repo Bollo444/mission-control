@@ -154,6 +154,32 @@ export default function NativeTerminal({
         // Keystrokes → PTY.
         term.onData((d: string) => void post({ type: "input", data: d }));
 
+        // Clipboard. A real terminal sends Ctrl+C as SIGINT — which is why it was
+        // killing the session instead of copying. Intercept before it reaches the PTY:
+        //   Ctrl+C  → copy the selection if there is one, else fall through to SIGINT
+        //   Ctrl+V  → paste from the clipboard
+        //   Ctrl+Shift+C / Ctrl+Shift+V → always copy / paste
+        term.attachCustomKeyEventHandler((e: KeyboardEvent) => {
+          if (e.type !== "keydown") return true;
+          const mod = e.ctrlKey || e.metaKey;
+          if (!mod) return true;
+          const k = e.key.toLowerCase();
+          if (k === "c") {
+            if (term.hasSelection()) {
+              navigator.clipboard?.writeText(term.getSelection()).catch(() => {});
+              if (!e.shiftKey) term.clearSelection();
+              return false; // copied — do NOT send SIGINT / kill the session
+            }
+            if (e.shiftKey) return false; // Ctrl+Shift+C, nothing selected → swallow
+            return true; // plain Ctrl+C, nothing selected → real interrupt
+          }
+          if (k === "v") {
+            navigator.clipboard?.readText().then((t) => t && term.paste(t)).catch(() => {});
+            return false; // pasted (or no-op) — don't forward the raw ^V
+          }
+          return true;
+        });
+
         const cols = term.cols || 80;
         const rows = term.rows || 24;
         const es = new EventSource(
