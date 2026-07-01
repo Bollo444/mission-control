@@ -752,10 +752,12 @@ For a personal always-on instance, a process manager + an authenticating tunnel:
 npm run build
 pm2 start "npm run start" --name mission-control       # serves 127.0.0.1:4317
 
-# Start OmniRoute (the Fleet Gateway) as a sibling process:
-# (Assumes OmniRoute is cloned to a sibling directory)
-cd ../omniroute
-pm2 start "bun run start" --name mc-omniroute          # serves 127.0.0.1:20128
+# Start OmniRoute (the Fleet Gateway) — a global npm install (Node, not Bun):
+npm i -g omniroute
+pm2 start "$(npm root -g)/omniroute/bin/omniroute.mjs" --name mc-omniroute --interpreter node
+# ^ serves 127.0.0.1:20128 · data + SQLite in ~/.omniroute · dashboard login set
+#   via `omniroute-reset-password`. OmniRoute self-supervises, so before a
+#   `pm2 restart mc-omniroute`, free :20128 first or it crash-loops on EADDRINUSE.
 
 pm2 save                                                # restart on sign-in/boot
 
