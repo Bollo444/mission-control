@@ -112,6 +112,8 @@ config exists. Ones you don't have installed appear as provisionable personas.
   Control does (settings, health, failovers, gateway, agent activity, vault).
 - **Antigravity IDE** — a browser-rendered VS Code-style workspace: multi-file
   tabs, a vault explorer with search, an agent manager, a `Ctrl+K` palette, etc.
+  Its integrated terminal is tabbed: an **Antigravity CLI** shell (drives the real
+  installed IDE — `antigravity-ide .`, open files, extensions) and the **Fleet** console.
 - **Live system terminal** + **OpenClaw System Operations Console** — real host
   telemetry and a safe, built-in command set. Destructive actions are *proposed*,
   never auto-run.

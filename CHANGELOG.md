@@ -4,14 +4,15 @@ A detailed record of the project's development: **every commit**, grouped by
 working session and shown newest-first. Each short hash links to the commit on
 GitHub.
 
-**9 sessions · 58 commits · 2026-05-31 → 2026-06-27**
-_Latest revision: 2026-06-27 — added Session 9: a **natural-language automation
-driver** (describe it, an agent builds the flow), a **living canvas** (floating
-nodes + electric edges), and a **one-node MCP connector hub** — speced here and
-shipped via Jules PR #1._
+**11 sessions · 81 commits · 2026-05-31 → 2026-07-01**
+_Latest revision: 2026-07-01 — added Session 11: **agent-terminal fixes** — opencode
+no longer crash-spams the log (npm-shim resolution), Antigravity gets a real
+IDE-integrated CLI terminal (+ a fixed launch path), agent CLIs open in a workspace
+dir instead of the home root, and the vibe/opencode model configs are repaired._
 
 | Session | Date | Commits | When | Theme |
 |:--:|---|:--:|---|---|
+| 11 | 2026-07-01 (Wed) | 3 | Day | Agent-terminal fixes: opencode spawn, Antigravity IDE terminal, workspace cwd |
 | 10 | 2026-06-28 (Sun) | — | All day | Vibe dog, Gemini voice, OmniRoute brief, agent updates, key encryption |
 | 9 | 2026-06-27 (Sat) | 5 | All day | NL automation driver, living canvas, MCP connector node |
 | 8 | 2026-06-26 (Fri) | 2 | All day | Jarvis command orb, jcode swarm cockpit, voice & folder picker |
@@ -22,6 +23,44 @@ shipped via Jules PR #1._
 | 3 | 2026-06-03 (Wed) | 11 | Late morning → evening | Gateway phases, branding & public launch |
 | 2 | 2026-06-02 (Tue) | 4 | Midday | Providers, health monitor & cascade proxy |
 | 1 | 2026-05-31 (Sat) | 7 | Afternoon → evening | Initial fleet console |
+
+---
+
+## Session 11 — 2026-07-01 · Agent-terminal fixes
+Ran down "a few things broken in mission-control" — the embedded agent terminals.
+All built and shipped under PM2 on prod 4317.
+
+### opencode terminal no longer crash-spams the log
+- `lib/detect.ts` `resolveBinary` tried the bare (extensionless) name before real
+  Windows extensions, so it matched npm's Unix shell shim (`…\npm\opencode`) ahead of
+  `opencode.cmd`. ConPTY spawned the shim → node-pty async-threw `Cannot create
+  process, error code: 193` (bad exe format), uncaught, on every connect. Now tries
+  `.exe/.cmd/.bat` first so the `.cmd` gets wrapped through `cmd.exe`. `be45a4d`.
+
+### Antigravity — a real IDE-integrated terminal
+- The registry pointed at a stale path (`…\Programs\Antigravity\bin\antigravity.cmd`);
+  the IDE is actually installed as **Antigravity IDE** with a VS Code-style CLI at
+  `…\Programs\Antigravity IDE\bin\antigravity-ide.cmd`. Fixed `binPaths`/`openCommand`/
+  `launch` so "Open in the real IDE" works again.
+- New `antigravity-cli` PTY kind — a real shell with `antigravity-ide` on PATH, so the
+  dashboard terminal can drive the installed IDE (`antigravity-ide .`, open a vault
+  note, extensions, tunnel). The IDE panel's integrated terminal is now **tabbed**:
+  *Antigravity CLI* (real PTY) + *Fleet* (the existing `.md`-wired console). `7423428`.
+
+### Agent terminals open in a workspace, not the home root
+- Coding CLIs shouldn't run in the home root (they scan the cwd; vibe warns "running in
+  home is not recommended"). Agent PTY sessions now open in `MC_WORKSPACE_DIR` (default
+  `~/workspace`, created on demand); a bare shell still opens at home. `21720d9`.
+
+### Agent config repairs (user dotfiles, outside this repo)
+- **vibe** wouldn't start — `active_model` was a Mistral model, but the Mistral key
+  401s so vibe dropped it ("model not found in configuration"). Repointed to
+  `minimaxai/minimax-m3` (NVIDIA, valid key); the TUI launches.
+- **opencode** had no default model → the CLI threw a generic `Effect.tryPromise`
+  error. Set `model` to a free `opencode/deepseek-v4-flash-free`; headless
+  `opencode run` works. Its **interactive TUI still crashes at raw-mode init in the
+  embedded ConPTY** on both 1.17.11 and 1.17.4 — an upstream opencode issue; headless
+  is the workaround.
 
 ---
 
