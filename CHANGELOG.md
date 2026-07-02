@@ -82,6 +82,18 @@ All built and shipped under PM2 on prod 4317.
 - **Your icon glows** in the transcript so you can find yourself when the whole
   room is firing at once.
 
+### Background log (troubleshooting)
+- New **`background`** log source in the existing Logs tab (filterable, gold): the
+  fleet's background work now writes there so you can see what's happening and why
+  it stops. Subagent lifecycle logs **started / finished / timed-out (5 min) /
+  spawn-error** with duration + exit code (the 5-min timeout previously logged
+  nothing). The Team Meeting logs each **reply thread dispatched** (with the owners)
+  and each idle **heartbeat**, so a "did it then stopped" is visible at the event level.
+- Meeting heartbeat loosened: the idle keep-alive now runs a generous cadence
+  (first beat ~14s, then ~24s, up to 25) with work-flavored lines + the occasional
+  question, instead of stopping after 3 — so the room stays live. Still templated
+  (zero tokens), and it resets when you speak.
+
 ### Embedded terminal — copy/paste
 - The xterm terminal (`NativeTerminal`) forwarded **Ctrl+C straight to the PTY as
   SIGINT**, so it killed the session instead of copying. Added a key handler:

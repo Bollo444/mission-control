@@ -160,7 +160,7 @@ export function deploySubagent(
     label,
   };
   upsert(run);
-  logEvent({ source: "system", level: "info", event: `subagent deployed: ${def.name}`, detail: task.slice(0, 80) });
+  logEvent({ source: "background", level: "info", event: `subagent started: ${def.name}`, detail: task.slice(0, 80) });
 
   // Windows .cmd/.bat shims (pi, openclaw, kilo, sentinel's launcher) can't be
   // spawned directly — child_process throws EINVAL. Route those through a shell.
@@ -198,13 +198,22 @@ export function deploySubagent(
   child.stdout?.on("data", append);
   child.stderr?.on("data", append);
 
+  let timedOut = false;
   const killTimer = setTimeout(() => {
     try {
       child.kill();
     } catch {
       /* gone */
     }
+    timedOut = true;
     run.output += "\n— timed out after 5 min —";
+    upsert(run);
+    logEvent({
+      source: "background",
+      level: "warn",
+      event: `subagent timed out (5 min): ${def.name}`,
+      detail: task.slice(0, 80),
+    });
   }, RUN_TIMEOUT_MS);
 
   child.on("exit", (code) => {
@@ -214,9 +223,10 @@ export function deploySubagent(
     run.exitCode = code;
     upsert(run);
     logEvent({
-      source: "system",
+      source: "background",
       level: code === 0 ? "success" : "warn",
-      event: `subagent ${code === 0 ? "finished" : "failed"}: ${def.name}`,
+      event: `subagent ${code === 0 ? "finished" : timedOut ? "killed (timeout)" : "failed"}: ${def.name}`,
+      detail: `exit ${code ?? "?"} · ${Math.round((run.endedAt - run.startedAt) / 1000)}s`,
     });
   });
   child.on("error", (e) => {
@@ -225,6 +235,12 @@ export function deploySubagent(
     run.endedAt = Date.now();
     run.output += `\n${e.message}`;
     upsert(run);
+    logEvent({
+      source: "background",
+      level: "error",
+      event: `subagent spawn error: ${def.name}`,
+      detail: e.message.slice(0, 120),
+    });
   });
 
   return { ok: true, run };

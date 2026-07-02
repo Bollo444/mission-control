@@ -13,6 +13,7 @@ const SOURCE_COLOR: Record<string, string> = {
   health: "#5cd6a0",
   gateway: "#f5a25a",
   vault: "#e879c7",
+  background: "#f5b75a",
 };
 const sourceColor = (s: string) => SOURCE_COLOR[s] ?? "#aab1c2";
 

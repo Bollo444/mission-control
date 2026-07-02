@@ -2,6 +2,7 @@ import { getAgent } from "./registry";
 import { getAgentBehavior } from "./memory";
 import { relTime } from "./format";
 import { llmTurn } from "./meeting-llm";
+import { logEvent } from "./logbook";
 import type {
   MeetingMetric,
   MeetingResp,
@@ -797,6 +798,12 @@ export async function replyToMessage(report: SystemReport, message: string): Pro
   // "continue" needed. This tail is TEMPLATED (no LLM) so auto-flow never burns
   // tokens per round — only the reaction turns above hit a model.
   const owners = ids.filter((id) => id !== "claude" && id !== "jcode");
+  logEvent({
+    source: "background",
+    level: "info",
+    event: "meeting: reply thread dispatched",
+    detail: `"${trim(message)}" → ${owners.length ? owners.map((o) => meta(o).name).join(", ") : "no owners (hold)"}`,
+  });
   if (owners.length) {
     const names = owners.slice(0, 3).map((o) => meta(o).name);
     turns.push(
@@ -847,14 +854,24 @@ export function ambientTurn(report: SystemReport): MeetingTurn {
   // Prefer a live agent so "who's talking" tracks who's actually up.
   const live = ORDER.filter((id) => c.online(id));
   const id = pick(live.length ? live : ORDER);
-  const q = PERSONAS[id]?.question(c) ?? null;
+  const name = meta(id).name;
+  // ~1 in 4 turns asks you something (to keep you in the loop); the rest read as
+  // the room continuing to work — progress, hand-offs, checkpoints — so it never
+  // looks stopped. All templated: zero tokens, safe to run indefinitely.
+  const askUser = Math.floor(Math.random() * 4) === 0;
+  const q = askUser ? PERSONAS[id]?.question(c) ?? null : null;
   const text =
     q ??
     pick([
-      `While we keep moving — anything you want reprioritized, or should we push on?`,
-      `Chair check: the room's still working. Jump in whenever; it won't derail the thread.`,
-      `One for you: what does "done" look like for this so we know when to stop?`,
+      `Still on it — first pass is moving; I'll surface a diff, not a status update.`,
+      `Progress on my leg — roughed in. Handing the tricky part to whoever's strongest on it.`,
+      `Picking up the next item while that lands — no need to wait on me.`,
+      `Checkpoint: no blockers my side, still pushing.`,
+      `Logged what I found to the vault so the rest of the room can build on it.`,
+      `${name} here — leg's advancing; I'll ping the chair the moment there's a result.`,
+      `Continuing in the background. Jump in any time; it won't derail the thread.`,
     ]);
+  logEvent({ source: "background", level: "info", event: "meeting: heartbeat", detail: `${name}: ${text.slice(0, 60)}` });
   return turn(id, "reply", text);
 }
 

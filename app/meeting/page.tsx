@@ -229,7 +229,9 @@ export default function MeetingPage() {
   useEffect(() => {
     if (!started || busy || voiceOn) return;
     if (revealed < turns.length) return; // still playing the current thread
-    if (nudgeCountRef.current >= 3) return; // said its piece; wait for you
+    if (nudgeCountRef.current >= 25) return; // generous heartbeat; rests after a long idle
+    // First beat comes soon so it never looks stopped; then a steady cadence.
+    const delay = nudgeCountRef.current === 0 ? 14_000 : 24_000;
     const t = setTimeout(async () => {
       try {
         const res = await fetch("/api/meeting", {
@@ -245,7 +247,7 @@ export default function MeetingPage() {
       } catch {
         /* offline / non-fatal */
       }
-    }, 22_000);
+    }, delay);
     return () => clearTimeout(t);
   }, [started, busy, voiceOn, revealed, turns.length]);
 
