@@ -101,6 +101,21 @@ the meeting's interactive path was de-faked:
   code (the 5-min timeout previously logged nothing). The meeting logs each **live reply
   thread** dispatched (with participants).
 
+### Sessions — "active", not a lifetime file count
+- The fleet **"sessions" metric was misleading** — it counted every historical
+  session file as if it were an active session (186, incl. Claude Code's whole
+  `.jsonl` history), which read as phantom operational overhead. Now `countSessions`
+  counts only sessions **touched in the last 24h** (active); old logs stay on disk
+  as browsable history/memory. Result: **186 → 12** (12 = today's real Claude Code
+  activity).
+- Fixed two mis-counts: **OpenClaw** (`~/.openclaw/workspace` is a git workspace)
+  and **Antigravity** (`~/.antigravitycli` is a symlink to Gemini config) — both set
+  to `sessionFormat: "none"` so they no longer count/list as chat sessions. Files
+  untouched.
+- Archived the genuinely-disposable session history (jcode/vibe/codex, 167 files)
+  to `~/.mission-control/archived-sessions/2026-07-01/` for later summarization —
+  reversible, nothing deleted.
+
 ### Embedded terminal — copy/paste
 - The xterm terminal (`NativeTerminal`) forwarded **Ctrl+C straight to the PTY as
   SIGINT**, so it killed the session instead of copying. Added a key handler:

@@ -234,7 +234,8 @@ export const AGENTS: AgentDef[] = [
     ],
     configFormat: "json",
     sessionsDir: home(".antigravitycli"),
-    sessionFormat: "generic",
+    // A symlink to Gemini config, not chat sessions — don't count/list as sessions.
+    sessionFormat: "none",
     openCommand: {
       cmd: ANTIGRAVITY_CLI,
       args: [],
@@ -271,7 +272,8 @@ export const AGENTS: AgentDef[] = [
     configPaths: [home(".openclaw", "openclaw.json"), home(".openclaw")],
     configFormat: "json",
     sessionsDir: home(".openclaw", "workspace"),
-    sessionFormat: "generic",
+    // A real git workspace, not chat sessions — don't count/list as sessions.
+    sessionFormat: "none",
     launch: { cmd: "openclaw", args: [], askCwd: true },
     install: {
       manager: "npm",

@@ -71,7 +71,13 @@ export function countSessions(def: AgentDef): {
   const files = filesFor(def);
   if (files.length === 0) return { count: 0, lastActive: null };
   const last = Math.max(...files.map((f) => f.mtime));
-  return { count: files.length, lastActive: new Date(last).toISOString() };
+  // `count` is ACTIVE sessions (touched in the last 24h), NOT the full historical
+  // archive. Old logs stay on disk (browsable / memory) but must not inflate the
+  // fleet's "active sessions" metric — a stale file is history, not live load.
+  const RECENT_MS = 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  const active = files.filter((f) => now - f.mtime < RECENT_MS).length;
+  return { count: active, lastActive: new Date(last).toISOString() };
 }
 
 function deriveClaudeTitle(p: string): { title: string; messages: number | null } {
