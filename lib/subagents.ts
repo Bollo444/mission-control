@@ -32,13 +32,16 @@ const STORE = path.join(MC_CONFIG_DIR, "subagents.json");
 const MAX_OUTPUT = 20_000;
 const RUN_TIMEOUT_MS = 5 * 60_000;
 
-/** Headless invocation per agent. Most coding CLIs accept `-p <prompt>`. */
+/** Headless invocation per agent. Most coding CLIs accept `-p <prompt>`, but a
+ *  few use their own non-interactive subcommand (verified this session). */
 function headlessArgs(agentId: string, task: string): string[] {
   switch (agentId) {
+    case "opencode":
+      return ["run", task]; // `opencode run "<task>"`
+    case "codex":
+      return ["exec", task]; // `codex exec "<task>"`
     case "claude":
-      return ["-p", task];
     case "hermes":
-      return ["-p", task];
     default:
       return ["-p", task];
   }
@@ -162,21 +165,24 @@ export function deploySubagent(
   upsert(run);
   logEvent({ source: "background", level: "info", event: `subagent started: ${def.name}`, detail: task.slice(0, 80) });
 
-  // Windows .cmd/.bat shims (pi, openclaw, kilo, sentinel's launcher) can't be
-  // spawned directly — child_process throws EINVAL. Route those through a shell.
-  const needsShell = process.platform === "win32" && /\.(cmd|bat)$/i.test(bin);
+  // Windows .cmd/.bat shims can't be spawned directly (EINVAL), and shell:true
+  // mangles multi-word args (nested-quote hell), so route them through
+  // `cmd.exe /c <bin> <args…>` with NO shell — Node then quotes each arg
+  // correctly, keeping the task a single argument.
+  const isBatch = process.platform === "win32" && /\.(cmd|bat)$/i.test(bin);
 
   // Sentinel's launcher is an interactive REPL: it reads the task from stdin
   // ("Describe a task"), not from a -p flag. Feed those agents via stdin.
   const STDIN_AGENTS = new Set(["sentinel"]);
   const viaStdin = STDIN_AGENTS.has(agentId);
-  const args = viaStdin ? [] : headlessArgs(agentId, task.trim());
+  const rawArgs = viaStdin ? [] : headlessArgs(agentId, task.trim());
+  const file = isBatch ? process.env.ComSpec || "cmd.exe" : bin;
+  const args = isBatch ? ["/c", bin, ...rawArgs] : rawArgs;
 
   let child;
   try {
-    child = spawn(bin, args, {
+    child = spawn(file, args, {
       windowsHide: true,
-      shell: needsShell,
       stdio: [viaStdin ? "pipe" : "ignore", "pipe", "pipe"],
     });
     if (viaStdin && child.stdin) {

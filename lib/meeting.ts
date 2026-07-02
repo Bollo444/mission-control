@@ -422,9 +422,12 @@ export async function* streamMeeting(
     } catch {
       live = null;
     }
-    const text = live ?? t.text;
+    // LIVE ONLY: emit the real model text, or an honest "no response" — never the
+    // templated line. The client seeds turns with blank text and fills from here,
+    // so no fabricated sentence is ever shown during convene.
+    const text = live ?? `— ${t.name}'s model didn't respond via the live gateway —`;
     threadBuffer.push(`${t.name}: ${text}`);
-    if (live && live !== t.text) yield { kind: "turn", index: i, id: t.id, text };
+    yield { kind: "turn", index: i, id: t.id, text };
   }
 }
 

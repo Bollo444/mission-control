@@ -78,11 +78,21 @@ the meeting's interactive path was de-faked:
 - **No scroll-jacking.** New messages don't yank you to the bottom; if you've scrolled
   up, an unread pill ("↓ N new") appears — click to jump. Auto-scroll only when already
   at the bottom.
-- **Roster status lights**: red = offline · pulsing yellow = speaking now · green =
+- **Roster status lights**: red = offline · pulsing yellow = working now · green =
   idle/standby. **Your icon glows** so you can find yourself. Redundant CPU/core/session
   restatements stripped from the dialogue (already in the metrics header).
-- Scope, stated plainly: the room is a real model on live data, **not** agents doing
-  real work. Genuine execution (real jobs → real output + status) is the next build.
+- **Convene is fully live too.** The opening round no longer flashes templated text:
+  turns seed with blank "responding live…" placeholders and fill from real model
+  calls streamed via `/api/meeting/stream` (`streamMeeting` now emits every turn's
+  real text, or an honest "no response").
+- **Real execution (v1).** `@agent <task>` in the box dispatches an **actual
+  subagent CLI run** (`deploySubagent`) — not a discussion turn — and streams the
+  agent's **real output** into the transcript, with the roster light going yellow
+  while the process genuinely runs. Fixed `.cmd` arg handling (route through
+  `cmd.exe /c`, no `shell:true` quote-mangling) and per-agent headless args. Honest
+  caveat: it shows **real** results including real failures — most fleet CLIs don't
+  yet have a working headless mode here (claude → 401 auth; opencode → TUI-only), so
+  useful output needs each agent's headless auth/mode sorted. No fake success.
 
 ### Background log (troubleshooting)
 - New **`background`** log source in the Logs tab (filterable, gold): fleet background

@@ -62,6 +62,8 @@ export default function MeetingPage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const atBottomRef = useRef(true);
   const [unread, setUnread] = useState(0);
+  // Agents with a REAL subagent run in flight right now (drives roster yellow).
+  const [runningIds, setRunningIds] = useState<Set<string>>(new Set());
   const voicesRef = useRef<SpeechSynthesisVoice[]>([]);
   const streamRef = useRef<EventSource | null>(null);
 
@@ -135,10 +137,12 @@ export default function MeetingPage() {
     try {
       const res = await fetch("/api/meeting", { cache: "no-store" });
       const json = (await res.json()) as MeetingResp;
-      setMeta(json);
-      setTurns(json.turns);
+      setMeta(json); // metrics + roster are real
+      // Seed the agenda STRUCTURE only (who speaks / phases) with BLANK text —
+      // never show a templated sentence. Real model text streams in and fills each.
+      setTurns(json.turns.map((t) => ({ ...t, text: "" })));
       setRevealed(0);
-      openUpgradeStream(); // templated room is live now; upgrades patch in as they land
+      openUpgradeStream(); // real LLM turns stream in and fill the blanks
     } finally {
       setLoading(false);
     }
@@ -231,6 +235,51 @@ export default function MeetingPage() {
     if (!atBottomRef.current) setUnread((n) => n + 1);
   }, [revealed]);
 
+  // REAL execution: dispatch an actual subagent CLI run for one agent and stream
+  // its REAL output into the transcript, with the roster light going yellow while
+  // the process is genuinely running. No simulation — this is the real agent.
+  const dispatchReal = useCallback(async (r: MeetingRosterEntry, task: string) => {
+    const mk = (text: string, role: string, id?: string): MeetingTurn => ({
+      id: id ?? `run-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      agentId: r.id, name: r.name, accent: r.accent, glyph: "◆", role, phase: "reply", text,
+    });
+    const res = await fetch("/api/subagents", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ agentId: r.id, task }),
+    }).then((x) => x.json()).catch(() => null);
+
+    if (!res?.ok || !res.run?.id) {
+      setTurns((t) => [...t, mk(`— couldn't start a live ${r.name} run: ${res?.error ?? "unknown error"} —`, "live run")]);
+      setRevealed((n) => n + 1);
+      return;
+    }
+    const runId: string = res.run.id;
+    const turnId = `run-${runId}`;
+    setTurns((t) => [...t, mk("", "live run…", turnId)]);
+    setRevealed((n) => n + 1);
+    setRunningIds((s) => new Set(s).add(r.id));
+
+    const started = Date.now();
+    const iv = setInterval(async () => {
+      const stop = () => {
+        clearInterval(iv);
+        setRunningIds((s) => { const n = new Set(s); n.delete(r.id); return n; });
+      };
+      try {
+        const data = await fetch("/api/subagents", { cache: "no-store" }).then((x) => x.json());
+        const run = (data.runs ?? []).find((x: { id: string }) => x.id === runId);
+        if (run) {
+          setTurns((t) => t.map((x) => x.id === turnId
+            ? { ...x, text: run.output || "", role: run.status === "running" ? "live run…" : `run ${run.status}` }
+            : x));
+          if (run.status !== "running") stop();
+        }
+      } catch { /* transient */ }
+      if (Date.now() - started > 6 * 60_000) stop(); // safety cap
+    }, 2000);
+  }, []);
+
   const speak = useCallback(
     async (message: string) => {
       const text = message.trim();
@@ -249,6 +298,15 @@ export default function MeetingPage() {
       };
       setTurns((t) => [...t, userTurn]);
       setRevealed(len + 1); // show the user's message immediately
+
+      // "@agent <task>" → dispatch a REAL run for that agent (not a discussion).
+      const m = text.match(/^@([a-z][\w-]*)\s+([\s\S]+)/i);
+      const target = m ? (meta?.roster ?? []).find((x) => x.id === m[1].toLowerCase()) : null;
+      if (m && target) {
+        void dispatchReal(target, m[2].trim());
+        return;
+      }
+
       setBusy(true);
       try {
         const res = await fetch("/api/meeting", {
@@ -262,7 +320,7 @@ export default function MeetingPage() {
         setBusy(false);
       }
     },
-    [busy, turns.length]
+    [busy, turns.length, meta, dispatchReal]
   );
 
   // Click an agent (roster logo or a chat avatar/name) → drop @handle into the
@@ -288,10 +346,12 @@ export default function MeetingPage() {
 
   const shown = turns.slice(0, revealed);
   const nextSpeaker = revealed < turns.length ? turns[revealed] : null;
-  // Who's "working" right now = anyone with a turn still queued/being revealed.
-  const workingIds = new Set(
-    turns.slice(revealed).map((t) => t.agentId).filter((id) => id !== "user")
-  );
+  // Who's "working" right now = anyone with a REAL run in flight, plus anyone
+  // with a turn still queued/being revealed. Drives the roster's yellow light.
+  const workingIds = new Set([
+    ...runningIds,
+    ...turns.slice(revealed).map((t) => t.agentId).filter((id) => id !== "user"),
+  ]);
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -568,12 +628,18 @@ function TurnRow({ t, onMention }: { t: MeetingTurn; onMention: (id: string) => 
             </span>
           )}
         </div>
-        <p
-          className="mt-0.5 text-sm leading-relaxed text-[var(--color-ink-2)]"
-          style={isUser ? { color: "var(--color-ink)" } : undefined}
-        >
-          {t.text}
-        </p>
+        {t.text ? (
+          <p
+            className="mt-0.5 text-sm leading-relaxed text-[var(--color-ink-2)]"
+            style={isUser ? { color: "var(--color-ink)" } : undefined}
+          >
+            {t.text}
+          </p>
+        ) : (
+          <p className="mt-0.5 flex items-center gap-1.5 text-sm italic text-[var(--color-ink-4)]">
+            responding live <Dots />
+          </p>
+        )}
       </div>
     </div>
   );
