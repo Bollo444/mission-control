@@ -65,34 +65,31 @@ All built and shipped under PM2 on prod 4317.
   OmniRoute dashboard ↗"** link. (OmniRoute's own dashboard login is set via its
   bundled `omniroute-reset-password`.)
 
-### Team Meeting — auto-flowing, live roster, less noise
-- **Auto-flow (no more "continue").** One message now plays through to a
-  conclusion on its own: `replyToMessage` no longer stops after a single round —
-  after the agents react, jcode delegates to named owners, they ack, and the chair
-  lands a decision + "report back." The delegation/close tail is templated (no LLM)
-  so auto-flow stays cheap.
-- **The room stays alive.** New `ambientTurn` + `{ambient:true}` endpoint; the
-  meeting page fires it on a ~22s idle timer so a live agent raises the next thread
-  or asks you something when you go quiet. Capped at 3 nudges, and reset the moment
-  you speak — so answering never derails the thread and it never loops forever.
-- **Roster status lights** (right rail): red = offline/disconnected · pulsing
-  yellow = working right now · green = idle/standby, so you can see who's on the job.
-- **Less redundancy.** Claude/pi/openers stopped re-reading the CPU / core-count /
-  session numbers that are already in the metrics header (saves noise + tokens).
-- **Your icon glows** in the transcript so you can find yourself when the whole
-  room is firing at once.
+### Team Meeting — switched to LIVE (no simulation)
+Per a new hard rule (no simulated/fake-live data — recorded in `~/.claude/CLAUDE.md`),
+the meeting's interactive path was de-faked:
+- **No scripted dialogue.** Removed the fabricated "delegation → owner acks →
+  decision" arc and the templated fake "heartbeat" work-lines. Every reply turn is now
+  a **real model call** (parallelized — a full reply lands in ~10s instead of ~90s),
+  grounded in the real system report; if a model doesn't answer it **says so plainly**
+  instead of a canned persona line. Idle is **honestly quiet** — no fake busywork.
+- **Click-to-@mention.** Click an agent in the roster, or its avatar/name in the
+  transcript, to drop `@handle` in the box — reply to one agent directly, in public.
+- **No scroll-jacking.** New messages don't yank you to the bottom; if you've scrolled
+  up, an unread pill ("↓ N new") appears — click to jump. Auto-scroll only when already
+  at the bottom.
+- **Roster status lights**: red = offline · pulsing yellow = speaking now · green =
+  idle/standby. **Your icon glows** so you can find yourself. Redundant CPU/core/session
+  restatements stripped from the dialogue (already in the metrics header).
+- Scope, stated plainly: the room is a real model on live data, **not** agents doing
+  real work. Genuine execution (real jobs → real output + status) is the next build.
 
 ### Background log (troubleshooting)
-- New **`background`** log source in the existing Logs tab (filterable, gold): the
-  fleet's background work now writes there so you can see what's happening and why
-  it stops. Subagent lifecycle logs **started / finished / timed-out (5 min) /
-  spawn-error** with duration + exit code (the 5-min timeout previously logged
-  nothing). The Team Meeting logs each **reply thread dispatched** (with the owners)
-  and each idle **heartbeat**, so a "did it then stopped" is visible at the event level.
-- Meeting heartbeat loosened: the idle keep-alive now runs a generous cadence
-  (first beat ~14s, then ~24s, up to 25) with work-flavored lines + the occasional
-  question, instead of stopping after 3 — so the room stays live. Still templated
-  (zero tokens), and it resets when you speak.
+- New **`background`** log source in the Logs tab (filterable, gold): fleet background
+  work writes there so you can see what's happening and why it stops. Subagent lifecycle
+  logs **started / finished / timed-out (5 min) / spawn-error** with duration + exit
+  code (the 5-min timeout previously logged nothing). The meeting logs each **live reply
+  thread** dispatched (with participants).
 
 ### Embedded terminal — copy/paste
 - The xterm terminal (`NativeTerminal`) forwarded **Ctrl+C straight to the PTY as

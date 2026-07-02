@@ -771,108 +771,34 @@ export async function replyToMessage(report: SystemReport, message: string): Pro
       ? ["claude", "jcode", ...pickGeneralists(1)]
       : [...scored.slice(0, 3).map((x) => x.id), "jcode", "claude"];
 
-  const turns: MeetingTurn[] = [];
-  const buffer: string[] = [];
-  for (const id of ids) {
-    let text: string | null = null;
-    try {
-      text = await withTimeout(
-        llmTurn(id, {
-          report,
-          phase: "reply",
-          userMessage: message,
-          priorTurns: buffer.slice(-3),
-        }),
-        TURN_TIMEOUT_MS
-      );
-    } catch {
-      text = null;
-    }
-    const final = text ?? PERSONAS[id].respond(c, message); // fallback to template
-    buffer.push(`${meta(id).name}: ${final}`);
-    turns.push(turn(id, "reply", final));
-  }
+  // Run the reaction round in PARALLEL — every turn is a real model call, but
+  // firing them concurrently keeps a live reply fast (~one turn's latency, not
+  // the sum of all). Order is preserved by mapping back over `ids`.
+  const texts = await Promise.all(
+    ids.map(async (id) => {
+      try {
+        return await withTimeout(
+          llmTurn(id, { report, phase: "reply", userMessage: message, priorTurns: [] }),
+          TURN_TIMEOUT_MS
+        );
+      } catch {
+        return null;
+      }
+    })
+  );
+  const turns: MeetingTurn[] = ids.map((id, i) =>
+    // LIVE ONLY: real model reply, or an honest "no response" — never a canned
+    // persona line dressed as the agent, and no fabricated delegation/decision.
+    turn(id, "reply", texts[i] ?? `— ${meta(id).name}'s model didn't respond via the live gateway —`)
+  );
 
-  // Auto-flow: don't stop at reactions. The room delegates to owners and the
-  // chair lands a decision, so one message plays through to a conclusion with no
-  // "continue" needed. This tail is TEMPLATED (no LLM) so auto-flow never burns
-  // tokens per round — only the reaction turns above hit a model.
-  const owners = ids.filter((id) => id !== "claude" && id !== "jcode");
   logEvent({
     source: "background",
     level: "info",
-    event: "meeting: reply thread dispatched",
-    detail: `"${trim(message)}" → ${owners.length ? owners.map((o) => meta(o).name).join(", ") : "no owners (hold)"}`,
+    event: "meeting: reply thread (live)",
+    detail: `"${trim(message)}" → ${ids.filter((i) => i !== "claude" && i !== "jcode").map((i) => meta(i).name).join(", ") || "chairs only"}`,
   });
-  if (owners.length) {
-    const names = owners.slice(0, 3).map((o) => meta(o).name);
-    turns.push(
-      turn(
-        "jcode",
-        "reply",
-        `Dispatching in parallel — ${list(names)} take the legs. I'll track each thread in the vault and bounce blockers back to the chair.`
-      )
-    );
-    const acks = shuffle(ACKS);
-    owners.slice(0, 2).forEach((o, i) => turns.push(turn(o, "reply", acks[i % acks.length])));
-    turns.push(
-      turn(
-        "claude",
-        "close",
-        `Decision — ${list(names)} own it; report back here as each leg lands. Rationale goes to Shared Knowledge so we resume from fact, not memory.`
-      )
-    );
-  } else {
-    turns.push(
-      turn(
-        "claude",
-        "close",
-        `Decision — nothing to fan out on that; we hold and pick it back up if the numbers move. Noted to Shared Knowledge.`
-      )
-    );
-  }
   return turns;
-}
-
-/** Owner acknowledgements for the delegation round — cheap, in-character. */
-const ACKS = [
-  "On it — I'll take the first pass and surface a diff, not a discussion.",
-  "Taking this leg. I'll report back the moment it's done or blocked.",
-  "Owned. Running it in the background and bouncing the result to the chair.",
-  "Got it — starting now; I'll ping the room when there's something to look at.",
-];
-
-/**
- * A single in-character nudge to keep the boardroom alive when the user goes
- * quiet: a live agent raises the next thread or asks the user something. The
- * client fires this on an idle timer so the room never freezes waiting on input,
- * and an answer folds into the next reply thread without derailing anything.
- * Templated + cheap.
- */
-export function ambientTurn(report: SystemReport): MeetingTurn {
-  const c = deriveCtx(report);
-  // Prefer a live agent so "who's talking" tracks who's actually up.
-  const live = ORDER.filter((id) => c.online(id));
-  const id = pick(live.length ? live : ORDER);
-  const name = meta(id).name;
-  // ~1 in 4 turns asks you something (to keep you in the loop); the rest read as
-  // the room continuing to work — progress, hand-offs, checkpoints — so it never
-  // looks stopped. All templated: zero tokens, safe to run indefinitely.
-  const askUser = Math.floor(Math.random() * 4) === 0;
-  const q = askUser ? PERSONAS[id]?.question(c) ?? null : null;
-  const text =
-    q ??
-    pick([
-      `Still on it — first pass is moving; I'll surface a diff, not a status update.`,
-      `Progress on my leg — roughed in. Handing the tricky part to whoever's strongest on it.`,
-      `Picking up the next item while that lands — no need to wait on me.`,
-      `Checkpoint: no blockers my side, still pushing.`,
-      `Logged what I found to the vault so the rest of the room can build on it.`,
-      `${name} here — leg's advancing; I'll ping the chair the moment there's a result.`,
-      `Continuing in the background. Jump in any time; it won't derail the thread.`,
-    ]);
-  logEvent({ source: "background", level: "info", event: "meeting: heartbeat", detail: `${name}: ${text.slice(0, 60)}` });
-  return turn(id, "reply", text);
 }
 
 function pickGeneralists(n: number): string[] {

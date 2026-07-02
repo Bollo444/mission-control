@@ -58,9 +58,12 @@ export default function MeetingPage() {
   const [partial, setPartial] = useState(0);
   const [hydrated, setHydrated] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const atBottomRef = useRef(true);
+  const [unread, setUnread] = useState(0);
   const voicesRef = useRef<SpeechSynthesisVoice[]>([]);
   const streamRef = useRef<EventSource | null>(null);
-  const nudgeCountRef = useRef(0);
 
   // Restore a meeting in progress so switching tabs (or reloading) never resets
   // the boardroom. We only read once, before the first paint-driven effects.
@@ -218,44 +221,20 @@ export default function MeetingPage() {
     return () => synth.cancel();
   }, [voiceOn, revealed, turns]);
 
+  // Auto-scroll ONLY when you're already at the bottom (never steal your place).
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    if (atBottomRef.current) endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [revealed, busy, partial]);
 
-  // Keep the room alive: when you've gone quiet and everything's revealed, a live
-  // agent raises the next thread or asks you something (auto-flow, no "continue").
-  // Capped so it nudges a few times then rests until you speak again — never a
-  // runaway loop (and it's templated, so it doesn't burn tokens).
+  // New turn landed while you're scrolled up → bump the unread badge instead.
   useEffect(() => {
-    if (!started || busy || voiceOn) return;
-    if (revealed < turns.length) return; // still playing the current thread
-    if (nudgeCountRef.current >= 25) return; // generous heartbeat; rests after a long idle
-    // First beat comes soon so it never looks stopped; then a steady cadence.
-    const delay = nudgeCountRef.current === 0 ? 14_000 : 24_000;
-    const t = setTimeout(async () => {
-      try {
-        const res = await fetch("/api/meeting", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ ambient: true }),
-        });
-        const json = (await res.json()) as { turns: MeetingTurn[] };
-        if (json.turns?.length) {
-          nudgeCountRef.current += 1;
-          setTurns((cur) => [...cur, ...json.turns]);
-        }
-      } catch {
-        /* offline / non-fatal */
-      }
-    }, delay);
-    return () => clearTimeout(t);
-  }, [started, busy, voiceOn, revealed, turns.length]);
+    if (!atBottomRef.current) setUnread((n) => n + 1);
+  }, [revealed]);
 
   const speak = useCallback(
     async (message: string) => {
       const text = message.trim();
       if (!text || busy) return;
-      nudgeCountRef.current = 0; // your input re-engages the room fully
       setInput("");
       const len = turns.length;
       const userTurn: MeetingTurn = {
@@ -285,6 +264,27 @@ export default function MeetingPage() {
     },
     [busy, turns.length]
   );
+
+  // Click an agent (roster logo or a chat avatar/name) → drop @handle into the
+  // box so you can reply to one agent directly, in public.
+  const mention = useCallback((id: string) => {
+    setInput((cur) => `${cur}${cur && !cur.endsWith(" ") ? " " : ""}@${id} `);
+    inputRef.current?.focus();
+  }, []);
+
+  // Don't yank the reader to the bottom on every new message — only auto-scroll
+  // when you're already there; otherwise count unread and offer a jump button.
+  const jumpToBottom = useCallback(() => {
+    atBottomRef.current = true;
+    setUnread(0);
+    endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, []);
+  const onTranscriptScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    atBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+    if (atBottomRef.current) setUnread(0);
+  }, []);
 
   const shown = turns.slice(0, revealed);
   const nextSpeaker = revealed < turns.length ? turns[revealed] : null;
@@ -358,8 +358,8 @@ export default function MeetingPage() {
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-6 overflow-hidden px-8 py-7 xl:grid-cols-[1fr_300px]">
         {/* transcript + input */}
         <div className="flex min-w-0 flex-col overflow-hidden">
-          <div className="mc-panel flex min-h-0 flex-1 flex-col overflow-hidden">
-            <div className="flex-1 overflow-auto px-5 py-4">
+          <div className="mc-panel relative flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div ref={scrollRef} onScroll={onTranscriptScroll} className="flex-1 overflow-auto px-5 py-4">
               {!started ? (
                 <div className="grid h-full place-items-center px-6 text-center">
                   <div className="max-w-md">
@@ -383,7 +383,7 @@ export default function MeetingPage() {
                   Convening the room…
                 </div>
               ) : (
-                <Transcript turns={shown} />
+                <Transcript turns={shown} onMention={mention} />
               )}
               {started && nextSpeaker &&
                 (voiceOn ? (
@@ -394,6 +394,18 @@ export default function MeetingPage() {
               {started && busy && !nextSpeaker && <ThinkingDots />}
               <div ref={endRef} />
             </div>
+
+            {/* Unread jump pill — appears only when you've scrolled up and new
+                turns arrived; click to fly to the newest. Never auto-scrolls. */}
+            {unread > 0 && (
+              <button
+                onClick={jumpToBottom}
+                className="absolute bottom-24 left-1/2 -translate-x-1/2 rounded-full px-3.5 py-1.5 text-xs font-semibold shadow-lg transition-transform hover:-translate-y-px"
+                style={{ background: SIGNAL, color: "#06121f" }}
+              >
+                ↓ {unread} new message{unread > 1 ? "s" : ""}
+              </button>
+            )}
 
             {/* topic chips + input — only after the meeting is convened */}
             {started && (
@@ -412,12 +424,13 @@ export default function MeetingPage() {
               </div>
               <div className="flex items-center gap-2">
                 <input
+                  ref={inputRef}
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") void speak(input);
                   }}
-                  placeholder="Speak to the room…"
+                  placeholder="Speak to the room… (click an agent to @mention)"
                   className="min-w-0 flex-1 rounded-lg border bg-[var(--color-surface-2)] px-3 py-2 text-sm outline-none placeholder:text-[var(--color-ink-4)] focus:border-[var(--color-ink-4)]"
                 />
                 <button
@@ -442,7 +455,7 @@ export default function MeetingPage() {
             </h2>
             <div className="flex flex-col gap-1.5">
               {(meta?.roster ?? []).map((r) => (
-                <RosterTile key={r.id} r={r} working={workingIds.has(r.id)} />
+                <RosterTile key={r.id} r={r} working={workingIds.has(r.id)} onMention={mention} />
               ))}
             </div>
           </div>
@@ -459,7 +472,7 @@ export default function MeetingPage() {
   );
 }
 
-function Transcript({ turns }: { turns: MeetingTurn[] }) {
+function Transcript({ turns, onMention }: { turns: MeetingTurn[]; onMention: (id: string) => void }) {
   const out: React.ReactNode[] = [];
   let lastPhase = "";
   let seenReply = false;
@@ -471,7 +484,7 @@ function Transcript({ turns }: { turns: MeetingTurn[] }) {
       if (t.phase === "reply") seenReply = true;
     }
     lastPhase = t.phase;
-    out.push(<TurnRow key={t.id} t={t} />);
+    out.push(<TurnRow key={t.id} t={t} onMention={onMention} />);
   });
   return <div className="flex flex-col">{out}</div>;
 }
@@ -515,16 +528,39 @@ function Avatar({ agentId, accent, glyph, size = 34 }: { agentId: string; accent
   );
 }
 
-function TurnRow({ t }: { t: MeetingTurn }) {
+function TurnRow({ t, onMention }: { t: MeetingTurn; onMention: (id: string) => void }) {
   const isUser = t.agentId === "user";
+  // Click an agent's avatar or name → @mention them in the box (public reply).
+  const canMention = !isUser;
   return (
     <div className="mc-rise flex gap-3 py-2">
-      <Avatar agentId={t.agentId} accent={t.accent} glyph={t.glyph} />
+      {canMention ? (
+        <button
+          onClick={() => onMention(t.agentId)}
+          title={`@${t.agentId} — reply to ${t.name}`}
+          className="shrink-0 rounded-full transition-transform hover:-translate-y-px"
+        >
+          <Avatar agentId={t.agentId} accent={t.accent} glyph={t.glyph} />
+        </button>
+      ) : (
+        <Avatar agentId={t.agentId} accent={t.accent} glyph={t.glyph} />
+      )}
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-semibold" style={{ color: t.accent }}>
-            {t.name}
-          </span>
+          {canMention ? (
+            <button
+              onClick={() => onMention(t.agentId)}
+              title={`@${t.agentId} — reply to ${t.name}`}
+              className="text-sm font-semibold hover:underline"
+              style={{ color: t.accent }}
+            >
+              {t.name}
+            </button>
+          ) : (
+            <span className="text-sm font-semibold" style={{ color: t.accent }}>
+              {t.name}
+            </span>
+          )}
           <span className="text-[10px] uppercase tracking-wider text-[var(--color-ink-4)]">{t.role}</span>
           {t.phase === "close" && (
             <span className="rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase" style={{ background: hexA(t.accent, 0.16), color: t.accent }}>
@@ -605,7 +641,7 @@ function Dots() {
   );
 }
 
-function RosterTile({ r, working }: { r: MeetingRosterEntry; working: boolean }) {
+function RosterTile({ r, working, onMention }: { r: MeetingRosterEntry; working: boolean; onMention: (id: string) => void }) {
   const { Mascot } = getSkin(r.id);
   // Light: red = offline/disconnected · yellow (pulsing) = working right now ·
   // green = idle / standing by. So you can see at a glance who's on the job.
@@ -615,7 +651,14 @@ function RosterTile({ r, working }: { r: MeetingRosterEntry; working: boolean })
   const chairLabel = r.chair ? (r.role.toLowerCase().startsWith("co-chair") ? "co-chair" : "chair") : null;
   return (
     <div
-      className="flex items-center gap-2.5 rounded-lg border bg-[var(--color-surface-2)] px-2.5 py-2"
+      role="button"
+      tabIndex={0}
+      onClick={() => onMention(r.id)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") onMention(r.id);
+      }}
+      title={`@${r.id} — mention ${r.name} in the room`}
+      className="flex cursor-pointer items-center gap-2.5 rounded-lg border bg-[var(--color-surface-2)] px-2.5 py-2 transition-colors hover:bg-[var(--color-surface-3)]"
       style={{ borderColor: r.chair ? hexA(r.accent, 0.4) : "var(--color-line-soft)" }}
     >
       <span
