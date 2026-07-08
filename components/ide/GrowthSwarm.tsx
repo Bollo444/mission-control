@@ -2,11 +2,13 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { useFetch } from "@/lib/useFetch";
-import { HATS } from "@/lib/sentinel-hats";
+import { HATS } from "@/lib/growth-hats";
 
 /* ------------------------------------------------------------------ *
- * Sentinel hat swarm — pick an objective + which security hats, fire   *
- * them in parallel as headless sub-agents, watch their findings stream.*
+ * Claude's growth-audit swarm — pick an objective + which business-      *
+ * presence hats, fire them in parallel as headless sub-agents, watch     *
+ * findings stream. Scoped to agentId "growth" in /api/subagents so it    *
+ * never mixes with the Sentinel security hat swarm's runs.               *
  * ------------------------------------------------------------------ */
 
 interface Run {
@@ -19,7 +21,7 @@ interface Run {
   label?: string;
 }
 
-const ACCENT = "#d65db1";
+const ACCENT = "#e0915f";
 
 function statusColor(s: Run["status"]): string {
   if (s === "running") return "#f5b75a";
@@ -60,18 +62,18 @@ function RunCard({ run }: { run: Run }) {
   );
 }
 
-export default function SentinelSwarm() {
+export default function GrowthSwarm() {
   const [objective, setObjective] = useState("");
-  const [target, setTarget] = useState("");
+  const [targets, setTargets] = useState("");
   const [selected, setSelected] = useState<Set<string>>(
-    () => new Set(["red", "blue", "purple"])
+    () => new Set(["visibility", "social", "reputation"])
   );
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   const { data, reload } = useFetch<{ runs: Run[] }>("/api/subagents", 4000);
   const hatRuns = useMemo(
-    () => (data?.runs ?? []).filter((r) => r.agentId === "sentinel" && r.label?.endsWith("hat")),
+    () => (data?.runs ?? []).filter((r) => r.agentId === "growth" && r.label?.endsWith("hat")),
     [data]
   );
 
@@ -89,10 +91,10 @@ export default function SentinelSwarm() {
     if (selected.size === 0) { setErr("Pick at least one hat."); return; }
     setBusy(true);
     try {
-      const res = await fetch("/api/sentinel/swarm", {
+      const res = await fetch("/api/growth/swarm", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ objective, target, hats: [...selected] }),
+        body: JSON.stringify({ objective, targets, hats: [...selected] }),
       });
       const json = await res.json();
       if (!json.ok) setErr(json.error ?? "deploy failed");
@@ -102,14 +104,14 @@ export default function SentinelSwarm() {
     } finally {
       setBusy(false);
     }
-  }, [objective, selected, reload]);
+  }, [objective, targets, selected, reload]);
 
   return (
     <section className="mc-panel p-5">
       <div className="mb-1 flex items-center gap-2">
-        <span className="text-sm font-semibold" style={{ color: ACCENT }}>⬡ Hat Swarm</span>
+        <span className="text-sm font-semibold" style={{ color: ACCENT }}>◈ Growth Swarm</span>
         <span className="text-[11px] text-[var(--color-ink-4)]">
-          parallel security hats over the 754 playbooks · authorized targets only
+          parallel business-presence hats — SEO, social, reviews, site, brand, competitors
         </span>
       </div>
 
@@ -117,18 +119,20 @@ export default function SentinelSwarm() {
         value={objective}
         onChange={(e) => setObjective(e.target.value)}
         rows={2}
-        placeholder="Objective — e.g. assess the auth service at 10.0.0.5 (authorized)…"
+        placeholder="Objective — e.g. free growth audit for Acme Plumbing ahead of an outreach call…"
         className="mt-2 w-full resize-y rounded-lg border bg-[var(--color-surface-2)] px-3 py-2 text-sm outline-none placeholder:text-[var(--color-ink-4)] focus:border-[var(--color-ink-4)]"
       />
 
-      <input
-        value={target}
-        onChange={(e) => setTarget(e.target.value)}
-        placeholder="Target (optional) — github.com/owner/repo · https://site · C:\path\to\code"
-        className="mt-2 w-full rounded-lg border bg-[var(--color-surface-2)] px-3 py-2 font-mono text-xs outline-none placeholder:text-[var(--color-ink-4)] focus:border-[var(--color-ink-4)]"
+      <textarea
+        value={targets}
+        onChange={(e) => setTargets(e.target.value)}
+        rows={2}
+        placeholder={"Targets (optional, one per line) — https://business-site.com\nhttps://instagram.com/handle · https://facebook.com/page"}
+        className="mt-2 w-full resize-y rounded-lg border bg-[var(--color-surface-2)] px-3 py-2 font-mono text-xs outline-none placeholder:text-[var(--color-ink-4)] focus:border-[var(--color-ink-4)]"
       />
       <p className="mt-1 text-[10px] text-[var(--color-ink-4)]">
-        If set, the repo/page/path is fetched and its recon is fed to every hat. Authorized targets only.
+        Each reachable URL is fetched and shared with every hat. Most social platforms are JS-rendered and won&apos;t
+        fetch cleanly — hats are instructed to say what to check by hand rather than invent numbers for those.
       </p>
 
       <div className="mt-3 flex flex-wrap gap-2">

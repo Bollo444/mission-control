@@ -16,6 +16,7 @@ import NativeTerminal from "@/components/ide/NativeTerminal";
 import ClaudeMascots from "@/components/ide/ClaudeMascots";
 import VibeDog from "@/components/ide/VibeDog";
 import SentinelSwarm from "@/components/ide/SentinelSwarm";
+import GrowthSwarm from "@/components/ide/GrowthSwarm";
 import { getSkin, typeFontClass } from "@/components/skins";
 import AntigravityIde from "@/components/ide/AntigravityIde";
 import OpenClawConsole from "@/components/ide/OpenClawConsole";
@@ -179,6 +180,9 @@ export default function AgentPage() {
 
           {/* Sentinel's parallel security hat swarm */}
           {a.id === "sentinel" && <SentinelSwarm />}
+
+          {/* Claude's parallel growth-audit hat swarm */}
+          {a.id === "claude" && <GrowthSwarm />}
 
           {/* Tools */}
           <section className="mc-panel p-5">
