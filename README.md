@@ -158,6 +158,11 @@ config exists. Ones you don't have installed appear as provisionable personas.
 - **Sentinel hat swarm** — pick an objective + which security hats
   (red/blue/purple/green/white/yellow) and run them in parallel; each returns a
   distinct, lens-specific assessment through the free gateway.
+- **Claude growth-audit swarm** — the same hat-swarm pattern, aimed at a business
+  instead of a security target: Visibility (SEO/local), Social, Reputation, Website,
+  Content, Competitive — each a distinct color, its own agentId, and never mixes with
+  Sentinel's runs. Feed it a site + social URLs and it grounds findings in what was
+  actually fetched instead of inventing numbers.
 - **Antigravity workspace** — the in-browser IDE browses real project folders and
   edits files (`/api/workspace`, sandboxed to your home directory).
 - **Discord fleet bot** — one optional bot handed off to every agent: a channel
@@ -828,6 +833,7 @@ app/
     hermes/…              pty (ConPTY bridge), sessions, sessions/[id], artifacts, skills, toolsets, profiles
     codex/…               config (align to gateway), plugins, mcp, sessions, prompts, review, cloud
     sentinel/swarm         deploy parallel security hats · subagents · cron · flows (automation)
+    growth/swarm            deploy parallel business-audit hats (Claude) · agentId-scoped vs. sentinel
     workspace/route.ts     Antigravity IDE file browse/read/write (home-confined)
     discord/route.ts       fleet bot status · save creds · reconnect · test
 lib/
@@ -841,7 +847,7 @@ lib/
   flows.ts                automation node-graph model + executor
   pty.ts                  server-side ConPTY session manager (native agent TUIs)
   hermes-data.ts          reads the Hermes home (config.yaml, skills, profiles, state.db via sql.js)
-  subagents.ts            headless sub-agent deploy + gateway-run tracking · sentinel-hats.ts · cron.ts
+  subagents.ts            headless sub-agent deploy + gateway-run tracking · sentinel-hats.ts · growth-hats.ts · cron.ts
   discord.ts              optional Discord fleet bot (discord.js) — dormant without a token
   usage.ts                gateway usage ledger (RPM/RPD/TPM/TPD + daily history) · limits.ts
   livelimits.ts           live provider limits (x-ratelimit headers + OpenRouter credits)
@@ -852,7 +858,7 @@ instrumentation.ts        Next.js boot hook — health scheduler, cron, Discord 
 components/
   Shell, AgentCard, ActivityFeed, ConfigViewer, MemoryEditor, EdgeFileDrawer, …
   ide/    NativeTerminal (shared ConPTY xterm), HermesConsole + hermes/*, AntigravityIde + AntigravityWorkspace,
-          OpenClawConsole, SentinelSwarm, ClaudeMascots / VibeDog / WanderMascots, FleetTerminal
+          OpenClawConsole, SentinelSwarm, GrowthSwarm, ClaudeMascots / VibeDog / WanderMascots, FleetTerminal
   skins/  one bespoke animated background + mascot per agent
 ```
 

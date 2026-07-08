@@ -4,14 +4,17 @@ A detailed record of the project's development: **every commit**, grouped by
 working session and shown newest-first. Each short hash links to the commit on
 GitHub.
 
-**11 sessions · 81 commits · 2026-05-31 → 2026-07-01**
-_Latest revision: 2026-07-01 — added Session 11: **agent-terminal fixes** — opencode
-no longer crash-spams the log (npm-shim resolution), Antigravity gets a real
-IDE-integrated CLI terminal (+ a fixed launch path), agent CLIs open in a workspace
-dir instead of the home root, and the vibe/opencode model configs are repaired._
+**12 sessions · 82 commits · 2026-05-31 → 2026-07-08**
+_Latest revision: 2026-07-08 — added Session 12: **Claude growth-audit swarm** — a
+second hat swarm, this one aimed at auditing a real business's online presence
+(SEO/local, social, reputation, website, content, competitive) instead of a security
+target. Mirrors the Sentinel hat-swarm pattern with a disjoint color palette and its
+own agentId so runs can never mix with Sentinel's — which also surfaced and fixed a
+latent bug where both swarms' runs could've collided on label alone._
 
 | Session | Date | Commits | When | Theme |
 |:--:|---|:--:|---|---|
+| 12 | 2026-07-08 (Wed) | `b97cf6e` | Day | Claude growth-audit hat swarm, separate agentId from Sentinel |
 | 11 | 2026-07-01 (Wed) | 3 | Day | Agent-terminal fixes: opencode spawn, Antigravity IDE terminal, workspace cwd |
 | 10 | 2026-06-28 (Sun) | — | All day | Vibe dog, Gemini voice, OmniRoute brief, agent updates, key encryption |
 | 9 | 2026-06-27 (Sat) | 5 | All day | NL automation driver, living canvas, MCP connector node |
@@ -23,6 +26,33 @@ dir instead of the home root, and the vibe/opencode model configs are repaired._
 | 3 | 2026-06-03 (Wed) | 11 | Late morning → evening | Gateway phases, branding & public launch |
 | 2 | 2026-06-02 (Tue) | 4 | Midday | Providers, health monitor & cascade proxy |
 | 1 | 2026-05-31 (Sat) | 7 | Afternoon → evening | Initial fleet console |
+
+---
+
+## Session 12 — 2026-07-08 · Claude growth-audit hat swarm
+Sentinel's hat swarm is security-only (754 pentest/IR/forensics playbooks) — it has
+no social, SEO, or review tooling, so it can't be repurposed for a business audit.
+Built a second, parallel hat swarm on the same pattern but aimed at a business's
+online presence instead, for owners as a free value-add.
+
+- **`lib/growth-hats.ts`** — six hats (Visibility/SEO, Social, Reputation, Website,
+  Content, Competitive), each with a color deliberately disjoint from Sentinel's
+  palette (teal/pink/coral/sky/lime/indigo vs. red/blue/purple/green/white/orange).
+- **`app/api/growth/swarm/route.ts`** — deploys one headless Claude sub-agent per
+  selected hat via the existing `deployGatewayRun`; fetches up to 6 target URLs
+  (site + social profiles, reusing `collectTarget`) and shares that recon across
+  every hat, tagged `agentId: "growth"`. Hat prompts explicitly forbid inventing
+  metrics (follower counts, review counts, rankings) not present in the fetched
+  recon — say what to check by hand instead.
+- **`components/ide/GrowthSwarm.tsx`** — UI panel on the Claude agent page, same
+  hat-swarm UX as Sentinel's.
+- **Fixed a latent cross-contamination bug**: `SentinelSwarm.tsx`'s run filter only
+  checked `label.endsWith("hat")`, which would've pulled Growth-swarm runs into
+  Sentinel's feed (and vice versa) the moment a second swarm existed. Both
+  components now also filter on `agentId` ("sentinel" / "growth").
+- Verified live: build + PM2 reload, hit `/api/growth/swarm`, deployed a Visibility
+  hat against a real URL — confirmed it grounded findings in the actually-fetched
+  page content rather than fabricating anything. `b97cf6e`.
 
 ---
 
