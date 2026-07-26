@@ -7,7 +7,8 @@
     "dev": "next dev -p 4317",
     "build": "next build",
     "start": "next start -p 4317",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "vitest run"
   },
   "dependencies": {
     "@iarna/toml": "2.2.5",
@@ -31,6 +32,7 @@
     "@types/react-dom": "19.0.3",
     "postcss": "8.4.49",
     "tailwindcss": "^4.3.0",
-    "typescript": "5.7.3"
+    "typescript": "5.7.3",
+    "vitest": "^4.1.10"
   }
 }

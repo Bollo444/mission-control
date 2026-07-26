@@ -28,7 +28,7 @@ export const INTERVAL_MIN = Math.max(
   Number(process.env.MC_HEALTH_INTERVAL_MIN) || 360
 );
 
-function emptyState(): HealthState {
+export function emptyState(): HealthState {
   return {
     lastCheckedAt: null,
     intervalMinutes: INTERVAL_MIN,
@@ -226,12 +226,12 @@ async function probeProvider(provId: string, keys: Keys): Promise<ProbeResult> {
  *  strip ":free": on OpenRouter the ":free" id is a distinct routable model, so
  *  collapsing it onto the paid base id would report a removed free variant as
  *  available. We only tolerate OpenCode Zen's optional "opencode/" namespace. */
-function norm(s: string): string {
+export function norm(s: string): string {
   return s.toLowerCase().replace(/^opencode\//, "").trim();
 }
 
 /** true=present, false=confirmed missing, null=unverified (no live list). */
-function modelStatus(ids: string[] | null, model: string): boolean | null {
+export function modelStatus(ids: string[] | null, model: string): boolean | null {
   if (!ids) return null;
   const set = new Set(ids.map(norm));
   return set.has(norm(model));
