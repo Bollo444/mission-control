@@ -106,25 +106,77 @@ export function PiMascot({ size = 64, className }: MProps) {
   );
 }
 
-/* OpenCode — a mechanical aperture/iris of rotating blades. */
-export function OpenCodeMascot({ size = 64, className }: MProps) {
-  const blades = Array.from({ length: 6 });
+/* Cline — the actual emblem: a pulsing diamond glyph. */
+export function ClineEmblem({ size = 64, className }: MProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 100 100" className={className} aria-hidden>
-      <circle cx="50" cy="50" r="38" fill="none" stroke="#9d8cff" strokeWidth="2" strokeOpacity="0.5" />
+      <text
+        x="50"
+        y="58"
+        textAnchor="middle"
+        dominantBaseline="central"
+        fontSize="72"
+        fontWeight="700"
+        fill="#9d8cff"
+        className="mc-anim-breathe"
+        style={{ transformOrigin: "50px 50px" }}
+      >
+        ◆
+      </text>
+    </svg>
+  );
+}
+
+/* Cline — a purple diamond lattice with a pulsing core (headless autonomous agent). */
+export function ClineMascot({ size = 64, className }: MProps) {
+  const petals = Array.from({ length: 4 });
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" className={className} aria-hidden>
+      <circle cx="50" cy="50" r="38" fill="none" stroke="#9d8cff" strokeWidth="2" strokeOpacity="0.4" />
       <g className="mc-anim-spin" style={{ transformOrigin: "50px 50px" }}>
-        {blades.map((_, i) => (
-          <path
+        {petals.map((_, i) => (
+          <rect
             key={i}
-            d="M50 50 L50 14 A36 36 0 0 1 81 32 Z"
+            x="46"
+            y="14"
+            width="8"
+            height="36"
+            rx="4"
             fill="#9d8cff"
-            fillOpacity={0.14 + (i % 3) * 0.08}
+            fillOpacity={0.1 + (i % 2) * 0.06}
+            transform={`rotate(${i * 45} 50 50)`}
+          />
+        ))}
+      </g>
+      <path d="M50 32 L62 50 L50 68 L38 50 Z" fill="#9d8cff" fillOpacity="0.18" stroke="#9d8cff" strokeWidth="1.5" />
+      <circle cx="50" cy="50" r="6" fill="#15102a" stroke="#9d8cff" strokeWidth="2" />
+      <circle cx="50" cy="50" r="2.5" fill="#d6c9ff" className="mc-anim-breathe" style={{ transformOrigin: "50px 50px" }} />
+    </svg>
+  );
+}
+
+/* ZCode — a magenta bloom: layered petals around a glowing core (GLM IDE). */
+export function ZCodeMascot({ size = 64, className }: MProps) {
+  const petals = Array.from({ length: 6 });
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" className={className} aria-hidden>
+      <circle cx="50" cy="50" r="38" fill="none" stroke="#f04d8b" strokeWidth="2" strokeOpacity="0.45" />
+      <g className="mc-anim-spin" style={{ transformOrigin: "50px 50px", animationDuration: "18s" }}>
+        {petals.map((_, i) => (
+          <ellipse
+            key={i}
+            cx="50"
+            cy="30"
+            rx="9"
+            ry="22"
+            fill="#f04d8b"
+            fillOpacity={0.1 + (i % 3) * 0.05}
             transform={`rotate(${i * 60} 50 50)`}
           />
         ))}
       </g>
-      <circle cx="50" cy="50" r="12" fill="#140f22" stroke="#9d8cff" strokeWidth="2" />
-      <circle cx="50" cy="50" r="4" fill="#cdbcff" className="mc-anim-breathe" style={{ transformOrigin: "50px 50px" }} />
+      <circle cx="50" cy="50" r="12" fill="#160410" stroke="#f04d8b" strokeWidth="2" />
+      <circle cx="50" cy="50" r="4" fill="#ffb8d6" className="mc-anim-breathe" style={{ transformOrigin: "50px 50px" }} />
     </svg>
   );
 }
@@ -192,17 +244,6 @@ export function VibeMascot({ size = 64, className }: MProps) {
   );
 }
 
-/* Kilo — nested counter-rotating squares, blueprint-precise. */
-export function KiloMascot({ size = 64, className }: MProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 100 100" className={className} aria-hidden>
-      <rect x="22" y="22" width="56" height="56" fill="none" stroke="#c0c6d4" strokeWidth="2" strokeOpacity="0.5" className="mc-anim-spin" style={{ transformOrigin: "50px 50px" }} />
-      <rect x="30" y="30" width="40" height="40" fill="none" stroke="#c0c6d4" strokeWidth="2" style={{ transformOrigin: "50px 50px", animation: "mc-spin-rev 16s linear infinite" }} />
-      <rect x="40" y="40" width="20" height="20" fill="#c0c6d4" fillOpacity="0.18" stroke="#dfe3ec" strokeWidth="1.5" className="mc-anim-breathe" style={{ transformOrigin: "50px 50px" }} />
-    </svg>
-  );
-}
-
 /* OpenClaw — a mechanical grappling pincer that clamps open/closed around a
    targeting core, ringed by a slow dashed reticle. */
 export function OpenClawMascot({ size = 64, className }: MProps) {
@@ -251,10 +292,10 @@ export const MASCOTS: Record<string, (p: MProps) => React.ReactElement> = {
   claude: ClaudeMascot,
   hermes: HermesMascot,
   pi: PiMascot,
-  opencode: OpenCodeMascot,
+  cline: ClineMascot,
   antigravity: AntigravityMascot,
+  zcode: ZCodeMascot,
   jcode: JcodeMascot,
   vibe: VibeMascot,
-  kilo: KiloMascot,
   openclaw: OpenClawMascot,
 };

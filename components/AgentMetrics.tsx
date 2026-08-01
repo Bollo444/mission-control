@@ -41,10 +41,9 @@ const PRESETS: Record<string, string[]> = {
   claude: ["sessions", "model", "fleetReady", "vaultActivity"],
   hermes: ["sessions", "model", "uptime", "status"],
   pi: ["cpu", "mem", "disk", "cores"],
-  opencode: ["provider", "model", "sessions", "status"],
+  cline: ["provider", "model", "sessions", "status"],
   jcode: ["vaultActivity", "sessions", "fleetReady", "lastActive"],
   vibe: ["model", "provider", "mem", "sessions"],
-  kilo: ["configs", "version", "model", "tools"],
 };
 const FALLBACK = ["sessions", "configs", "lastActive", "model"];
 

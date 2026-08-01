@@ -9,7 +9,7 @@ import ChaosColorMode from "@/components/ChaosColorMode";
 export const metadata: Metadata = {
   title: "Mission Control · Agent Fleet",
   description:
-    "Unified command center for 9 AI coding agents — Claude Code, Hermes, Pi, OpenCode, Antigravity, OpenClaw, jcode, Vibe, Kilo — with a live system terminal, an Obsidian shared-memory vault, and a team-meeting boardroom.",
+    "Unified command center for 9 AI coding agents — Claude Code, Hermes, Pi, Cline, Antigravity, ZCode, OpenClaw, jcode, Vibe — with a live system terminal, an Obsidian shared-memory vault, and a team-meeting boardroom.",
 };
 
 export default function RootLayout({

@@ -4,7 +4,10 @@ import { relTime } from "./format";
 import { llmTurn } from "./meeting-llm";
 import { logEvent } from "./logbook";
 import type {
+  DecisionActionKind,
+  MeetingDecision,
   MeetingMetric,
+  MeetingReplyResp,
   MeetingResp,
   MeetingRosterEntry,
   MeetingTurn,
@@ -172,23 +175,26 @@ const PERSONAS: Record<string, Persona> = {
       `Quantifying "${trim(msg)}": what's the baseline and the target number? Give me a metric to move and I'll track it against the trend.`,
   },
 
-  opencode: {
-    role: "Provider-agnostic routing & cost",
-    lens: "model routing & cost",
-    keywords: ["provider", "model", "route", "routing", "cost", "lsp", "terminal", "tui", "open", "token", "budget"],
-    status: () => `Provider-agnostic and watching the routing table — any agent can swap models without re-plumbing.`,
+  cline: {
+    role: "Headless dispatch & parallel runs",
+    lens: "headless execution & cost",
+    keywords: ["provider", "model", "route", "routing", "cost", "lsp", "token", "budget", "dispatch", "parallel", "worktree", "headless", "background", "unattended", "automate"],
+    status: () => `Headless dispatch is live — meeting decisions and flows can run a real \`cline "<task>"\` without a person at the keyboard.`,
     concern: (c) =>
       c.offline >= 4
-        ? `Half the roster being offline means routing has nowhere to send work — redundancy is theoretical right now.`
-        : null,
+        ? `Half the roster being offline means headless dispatch has nowhere to send work — redundancy is theoretical right now.`
+        : c.idleReady.length
+          ? `${list(c.idleReady)} are live but idle — I can put that capacity to work running unattended tasks in parallel worktrees. Hand me one.`
+          : null,
     suggestion: () =>
       pick([
         `Pin a cheap local model as the default route and only escalate to a frontier model when a task actually needs it.`,
         `Document each agent's routed model in settings so we stop guessing who runs on what.`,
+        `Move one repeatable task to a parallel worktree I can run unattended — lint, dep-check, vault digest, or a TODO sweep — so the fleet produces a diff every night, not just on demand.`,
       ]),
-    question: () => `Are we optimizing any route for cost yet, or is everything defaulting to the most expensive model?`,
+    question: () => `What's one recurring task we'd trust to run to completion unattended — no human in the loop? That's the work I should pick up, not just talk about cost.`,
     respond: (c, msg) =>
-      `Routing "${trim(msg)}": which model tier does it really need? Cheapest viable route first; escalate on failure. With ${c.ready} agents live we can A/B two providers on it.`,
+      `On "${trim(msg)}": if it runs to completion unattended, hand it to me. I'll spin a parallel worktree, finish it headless, and hand back the diff — cheapest viable route first, escalate on failure. With ${c.ready} agents live I can run it alongside the interactive ones without competing for their keyboard.`,
   },
 
   antigravity: {
@@ -328,8 +334,40 @@ function trim(s: string, n = 80): string {
   return t.length > n ? t.slice(0, n) + "…" : t;
 }
 
+/**
+ * Match a human owner string (e.g. "OpenClaw (wiring)", "Pi (measures) → Codex") to
+ * the first roster agent ID it mentions. Returns null if no match.
+ */
+function resolveOwnerToAgentId(owner: string, roster: MeetingRosterEntry[]): string | null {
+  const lower = owner.toLowerCase();
+  // Try exact ID match first (word-boundary), then substring.
+  for (const r of roster) {
+    const id = r.id;
+    if (lower === id || new RegExp(`\\b${id}\\b`, "i").test(lower)) return id;
+  }
+  return null;
+}
+
+/**
+ * Infer the best action type from a decision's action text + owner.
+ * The meeting engine uses this so the client knows HOW to execute, not just WHAT.
+ */
+function inferActionKind(action: string, owner: string): DecisionActionKind {
+  const text = `${action} ${owner}`.toLowerCase();
+  // Recurring / scheduled → cron
+  if (/\b(recur|schedul|nightly|daily|every\s+\d|cron|periodic|recurring)\b/.test(text)) return "cron";
+  // MCP / connector / tool → mcp
+  if (/\b(mcp|connector|tool\s+call|integrat|notion|github|supabase|slack|webhook)\b/.test(text)) return "mcp";
+  // Flow / pipeline / chain / automation → flow.create
+  if (/\b(flow|pipeline|chain|automat|node\s+graph|if\/then|worklow)\b/.test(text)) return "flow.create";
+  // Shell / cleanup / disk / temp / install / uninstall → shell
+  if (/\b(shell|clean|reclaim|temp|cache|disk|uninstall|install|run\s+command|script)\b/.test(text)) return "shell";
+  // Default → agent (subagent dispatch)
+  return "agent";
+}
+
 // Speaking order keeps the chair first/last and groups the named primaries early.
-const ORDER = ["hermes", "claude", "pi", "opencode", "antigravity", "openclaw", "jcode", "vibe", "codex", "sentinel"];
+const ORDER = ["hermes", "claude", "pi", "cline", "antigravity", "openclaw", "jcode", "vibe", "codex", "sentinel"];
 
 function meta(id: string) {
   const a = getAgent(id);
@@ -491,7 +529,15 @@ export function buildMeetingTemplated(report: SystemReport): MeetingResp {
     return { id, ...m, state: line?.state ?? "offline", chair: id === "claude" || id === "jcode" };
   });
 
-  return { generatedAt: new Date().toISOString(), metrics, roster, turns };
+  // Surface decisions with resolved agent IDs so the client can dispatch them.
+  const resolvedDecisions: MeetingDecision[] = decisions.map((d) => ({
+    ...d,
+    agentId: resolveOwnerToAgentId(d.owner, roster),
+    actionKind: inferActionKind(d.action, d.owner),
+    status: "pending" as const,
+  }));
+
+  return { generatedAt: new Date().toISOString(), metrics, roster, turns, decisions: resolvedDecisions };
 }
 
 /* ---- Topic-driven discussion ----------------------------------------- *
@@ -520,9 +566,9 @@ const TOPICS: Topic[] = [
         text: `Before we fan anything out — we're ${c.ready}/${c.total} actually live. ${list(c.offlineNames)} ${c.offline === 1 ? "is" : "are"} dark, so there's nowhere to dispatch half the work.`,
       },
       {
-        id: "opencode",
+        id: "cline",
         text: pick([
-          `That's the routing side too, jcode — with ${c.offline} offline, redundancy is theoretical; failover has nothing to fall back to.`,
+          `That's the dispatch side too, jcode — with ${c.offline} offline, redundancy is theoretical; failover has nowhere to fall back to.`,
           `Same problem from where I sit: an offline agent is a route that 404s. Provision first, optimise cost second.`,
         ]),
       },
@@ -577,6 +623,36 @@ const TOPICS: Topic[] = [
     decision: (c) => ({ action: `put ${c.idleReady[0]} on a real task`, owner: "Hermes (drafts the run)" }),
   },
   {
+    // Cline's executable remit: when the fleet is healthy enough to spare cycles,
+    // Cline runs an unattended sweep in a parallel worktree and hands back the
+    // diff. This decision dispatches a REAL cline headless run via the
+    // subagent system — not a discussion, an actual background CLI invocation.
+    id: "sweep",
+    fires: (c) => c.ready >= 2 && c.online("cline"),
+    weight: (c) => 18 + c.ready * 2,
+    thread: (c) => [
+      {
+        id: "cline",
+        text: pick([
+          `With ${c.ready} live I can steal an unattended cycle. Put me on a TODO sweep — I'll open a parallel worktree, work the list headless, and hand back a reviewed diff. No keyboard needed.`,
+          `Idle cycles should earn themselves a diff. Let me run a headless pass in a separate worktree — lint, dep-check, or stale-branch cleanup — and surface only the result for sign-off.`,
+        ]),
+      },
+      {
+        id: "codex",
+        text: `Standardize what "the sweep" means so I'm not reviewing ad hoc output: pin a checklist, route it through a sandbox, then apply. No blind merges.`,
+      },
+      {
+        id: "claude",
+        text: pick([
+          `Good earn — Cline owns the unattended run, Codex owns the review gate. We land the diff if it's green; we file the rejection cleanly if it's not.`,
+          `Pair it with done-criteria so the result is reviewable, not a heroic blob. Then it's repeatable — schedule it nightly, not just when we notice.`,
+        ]),
+      },
+    ],
+    decision: (c) => ({ action: `cline: run a headless TODO/lint sweep in a parallel worktree and hand back the diff for review`, owner: "Cline (headless dispatch)" }),
+  },
+  {
     id: "disk",
     fires: (c) => c.disk != null && c.disk >= 80,
     weight: (c) => 60 + ((c.disk ?? 80) - 80),
@@ -626,7 +702,7 @@ const TOPICS: Topic[] = [
         text: `We've got almost no telemetry — ${c.activity} activity ${c.activity === 1 ? "entry" : "entries"} total. We're steering on vibes, not data.`,
       },
       {
-        id: "opencode",
+        id: "cline",
         text: `Same blind spot on cost — you can't optimise a route you never logged.`,
       },
       {
@@ -694,9 +770,9 @@ const TOPICS: Topic[] = [
         text: `Every agent's re-wiring the same primitives — file ops, web, shell. That's ${c.ready} copies of one capability drifting apart. Let me expose them once as MCP tools and the whole fleet inherits them, versioned and reviewed.`,
       },
       {
-        id: "opencode",
+        id: "cline",
         text: pick([
-          `Works on the routing side — one tool surface to keep healthy beats ${c.ready} bespoke integrations.`,
+          `Works on the dispatch side — one tool surface to keep healthy beats ${c.ready} bespoke integrations.`,
           `Agreed: shared tools mean one thing to monitor and fail over, not ${c.ready} of them.`,
         ]),
       },
@@ -753,8 +829,9 @@ function shuffle<T>(arr: T[]): T[] {
 
 /** Route a user message to the most relevant agents and generate replies.
  *  Async + live-LLM: each chosen agent replies through cascadeChat, falling
- *  back to its templated `respond` line if the provider call fails. */
-export async function replyToMessage(report: SystemReport, message: string): Promise<MeetingTurn[]> {
+ *  back to its templated `respond` line if the provider call fails.
+ *  Also extracts actionable decisions from any topics that fire on the message. */
+export async function replyToMessage(report: SystemReport, message: string): Promise<MeetingReplyResp> {
   const c = deriveCtx(report);
   __tid = Date.now() % 100000;
   const lower = message.toLowerCase();
@@ -795,16 +872,34 @@ export async function replyToMessage(report: SystemReport, message: string): Pro
     turn(id, "reply", texts[i] ?? `— ${meta(id).name}'s model didn't respond via the live gateway —`)
   );
 
+  // Extract decisions from topics that fire on the current system state + message.
+  // Only the top-1 actionable decision is surfaced (keeps the reply focused).
+  const roster: MeetingRosterEntry[] = ORDER.map((id) => {
+    const line = report.fleet.agents.find((a) => a.id === id);
+    const m = meta(id);
+    return { id, ...m, state: line?.state ?? "offline", chair: id === "claude" || id === "jcode" };
+  });
+  const firingTopics = TOPICS.filter((t) => t.id !== "proactive" && t.fires(c))
+    .sort((a, b) => b.weight(c) - a.weight(c));
+  const decisions: MeetingDecision[] = firingTopics.length
+    ? [{
+        ...firingTopics[0].decision(c)!,
+        agentId: resolveOwnerToAgentId(firingTopics[0].decision(c)!.owner, roster),
+        actionKind: inferActionKind(firingTopics[0].decision(c)!.action, firingTopics[0].decision(c)!.owner),
+        status: "pending" as const,
+      }]
+    : [];
+
   logEvent({
     source: "background",
     level: "info",
     event: "meeting: reply thread (live)",
     detail: `"${trim(message)}" → ${ids.filter((i) => i !== "claude" && i !== "jcode").map((i) => meta(i).name).join(", ") || "chairs only"}`,
   });
-  return turns;
+  return { turns, decisions };
 }
 
 function pickGeneralists(n: number): string[] {
-  const pool = ["pi", "openclaw", "codex", "antigravity", "opencode", "vibe"];
+  const pool = ["pi", "openclaw", "codex", "antigravity", "cline", "vibe"];
   return shuffle(pool).slice(0, n);
 }

@@ -3,6 +3,8 @@ import path from "node:path";
 import { exec } from "node:child_process";
 import { MC_CONFIG_DIR } from "./paths";
 import { logEvent } from "./logbook";
+import { getFlow, runFlow } from "./flows";
+import { runSelfUpdateCycle } from "./healer";
 
 /* ------------------------------------------------------------------ *
  * A small, dependable cron engine. Jobs run a shell command every N    *
@@ -88,6 +90,43 @@ export function runJob(id: string): Promise<CronJob | null> {
   const job = jobs.find((j) => j.id === id);
   if (!job) return Promise.resolve(null);
   updateJob(id, { lastStatus: "running", lastRun: Date.now() });
+
+  // Handle flow: commands — run the automation flow instead of a shell command.
+  if (job.command.startsWith("flow:")) {
+    const flowId = job.command.slice(5);
+    const flow = getFlow(flowId);
+    if (!flow) {
+      const updated = updateJob(id, { lastRun: Date.now(), lastStatus: "error", lastOutput: `flow not found: ${flowId}` });
+      logEvent({ source: "system", level: "warn", event: `cron: ${job.name}`, detail: `flow not found: ${flowId}` });
+      return Promise.resolve(updated);
+    }
+    return runFlow(flow).then((result) => {
+      const detail = result.steps.map((s) => `${s.ok ? "✓" : "✗"} ${s.type}: ${s.detail.slice(0, 120)}`).join("\n");
+      const updated = updateJob(id, { lastRun: Date.now(), lastStatus: "ok", lastOutput: detail.slice(-4000) });
+      logEvent({ source: "system", level: "info", event: `cron: ${job.name}`, detail: `flow ran: ${flow.name}` });
+      return updated;
+    }).catch((e) => {
+      const updated = updateJob(id, { lastRun: Date.now(), lastStatus: "error", lastOutput: (e as Error).message });
+      logEvent({ source: "system", level: "warn", event: `cron: ${job.name}`, detail: `flow error: ${(e as Error).message}` });
+      return updated;
+    });
+  }
+
+  // Handle self-update: — run Hermes self-update cycle.
+  if (job.command.startsWith("self-update:")) {
+    const triggeredBy = (job.command.slice(12) as "cron" | "manual" | "health-check") || "cron";
+    return runSelfUpdateCycle(triggeredBy).then((results) => {
+      const detail = results.map((r) => `${r.status === "completed" ? "✓" : "✗"} ${r.agentId}: ${r.brief}`).join("\n");
+      const updated = updateJob(id, { lastRun: Date.now(), lastStatus: "ok", lastOutput: detail.slice(-4000) });
+      logEvent({ source: "system", level: "info", event: `cron: ${job.name}`, detail: `self-update cycle: ${results.length} agents checked` });
+      return updated;
+    }).catch((e) => {
+      const updated = updateJob(id, { lastRun: Date.now(), lastStatus: "error", lastOutput: (e as Error).message });
+      logEvent({ source: "system", level: "warn", event: `cron: ${job.name}`, detail: `self-update error: ${(e as Error).message}` });
+      return updated;
+    });
+  }
+
   return new Promise((resolve) => {
     exec(
       job.command,

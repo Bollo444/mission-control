@@ -15,6 +15,8 @@ const nextConfig = {
     "@lydell/node-pty",
     "sql.js",
     "discord.js",
+    "@discordjs/ws",
+    "pm2",
     "@modelcontextprotocol/sdk",
     "worker_threads",
   ],
@@ -22,6 +24,19 @@ const nextConfig = {
   // intended to run only on the loopback interface during local development.
   experimental: {
     serverActions: { bodySizeLimit: "2mb" },
+  },
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      config.externalsPresets = { ...config.externalsPresets, node: true };
+      config.externals = [
+        ...(config.externals || []),
+        /^zlib-sync/,
+        /^cross-spawn/,
+        /^@discordjs\/ws/,
+        /^@discordjs\//,
+      ];
+    }
+    return config;
   },
   async headers() {
     return [

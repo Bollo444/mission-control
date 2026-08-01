@@ -6,6 +6,7 @@ import { getAgent } from "./registry";
 import { resolveBinary } from "./detect";
 import { logEvent } from "./logbook";
 import { cascadeChat } from "./gateway";
+import { checkShellPermission, denyLog } from "./write-gate";
 
 /* ------------------------------------------------------------------ *
  * Deploy a coding agent headless on a one-off task and track it. Each   *
@@ -36,8 +37,12 @@ const RUN_TIMEOUT_MS = 5 * 60_000;
  *  few use their own non-interactive subcommand (verified this session). */
 function headlessArgs(agentId: string, task: string): string[] {
   switch (agentId) {
-    case "opencode":
-      return ["run", task]; // `opencode run "<task>"`
+    case "cline":
+      // `cline "<task>"` — a bare positional prompt defaults to act mode with
+      // auto-approve enabled (zero-interaction headless dispatch). NOT `cline run`,
+      // which is an unknown subcommand. Routes through the Fleet Gateway via the
+      // agent's configured openai-compatible provider.
+      return [task];
     case "codex":
       return ["exec", task]; // `codex exec "<task>"`
     case "claude":
@@ -142,13 +147,39 @@ export function deployGatewayRun(opts: {
 export function deploySubagent(
   agentId: string,
   task: string,
-  label?: string
+  label?: string,
+  opts?: { callerAgentId?: string | null }
 ): { ok: boolean; run?: SubagentRun; error?: string } {
   const def = getAgent(agentId);
   if (!def) return { ok: false, error: `unknown agent: ${agentId}` };
   const bin = resolveBinary(def);
   if (!bin) return { ok: false, error: `${def.name} is not installed.` };
   if (!task.trim()) return { ok: false, error: "task is empty" };
+
+  // Sentinel-gated shell: if a non-Sentinel agent is dispatching another
+  // agent (cascade or inter-agent flow), the running CLI inherits the
+  // blast radius of a shell. The user-driven UI path uses callerAgentId=null
+  // and bypasses this — the human is the trust anchor for ad-hoc dispatches.
+  if (opts?.callerAgentId) {
+    const check = checkShellPermission({
+      callerAgentId: opts.callerAgentId,
+      command: task,
+    });
+    if (!check.ok) {
+      logEvent({
+        source: "write-gate",
+        level: "warn",
+        event: "denied subagent dispatch",
+        detail: denyLog({
+          callerAgentId: opts.callerAgentId,
+          target: `<shell> ${agentId}`,
+          kind: "shell",
+          check,
+        }),
+      });
+      return { ok: false, error: check.reason };
+    }
+  }
 
   const run: SubagentRun = {
     id: `sub_${Date.now().toString(36)}_${Math.floor(Math.random() * 1e4)}`,

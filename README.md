@@ -9,14 +9,17 @@
 > with **PM2**, and reached remotely through a **Cloudflare Tunnel behind Cloudflare
 > Access** — *not* a cloud host ([why](#deployment-always-on)). Free providers
 > (Cloudflare Workers AI · NVIDIA NIM · Groq · Cerebras) do the heavy lifting, with
-> **OpenCode** pointed at the [Fleet Gateway](#fleet-gateway--one-endpoint-every-provider).
+> **Cline** pointed at the [Fleet Gateway](#fleet-gateway--one-endpoint-every-provider).
 > New here? Start at [Quick start](#quick-start).
 
 A single local web dashboard that unifies **nine AI coding agents** running on
 your machine into one command center — with a live system terminal, a shared
 **Obsidian memory vault**, a **team-meeting boardroom**, a multi-provider
-**model-routing** layer, and a self-driving **free-tier health monitor** that
-keeps your agents running when a free model or key drops out from under them.
+**model-routing** layer, a self-driving **free-tier health monitor** that
+keeps your agents running when a free model or key drops out from under them,
+a **self-healing engine** that keeps the host and services healthy, a **behavioral
+learning profile** that adapts to how you work, and a **git repo workspace** for
+dispatching agents on cloned projects.
 
 It reads your agents' actual on-disk configs, detects which are installed,
 aggregates their sessions, routes models, probes provider availability, and
@@ -69,7 +72,7 @@ the health monitor** (see [failover & recovery](#free-tier-health-monitor-failov
 | **OpenClaw** | CLI | Designated system ops — direct PC alteration + code health | — |
 | **Hermes** | CLI | Autonomous runs & **scheduling** | **Triggers the sweep every 6h** |
 | **Pi · PyAgents** | Framework | Data, analysis & **instrumentation** | **Probes each provider's live models** |
-| **OpenCode** | CLI | Provider-agnostic **routing & cost** | **Re-routes agents on failover/recovery** |
+| **Cline** | CLI | Headless dispatch, **routing & cost** | **Re-routes agents on failover/recovery** |
 | Antigravity | IDE | Developer surface (renders a full in-browser IDE) | — |
 | Vibe | CLI | Voice, local models & accessibility | — |
 | **Codex** | CLI | Shared tooling, **review gate** & sandboxed execution | **Reviews & sandboxes shipped work** |
@@ -85,7 +88,9 @@ config exists. Ones you don't have installed appear as provisionable personas.
 - **Jarvis command center** (`/`) — the home page is a living **command orb**: a
   breathing reactor core wrapped in Hermes' caduceus, with one orbiting spark per
   fleet agent. **Talk to it** — type and Hermes answers, streamed back and **spoken
-  aloud** — natural neural TTS via **Google Gemini** (primary), falling back to
+  aloud** — natural neural TTS via **Google Gemini 3.1 Flash** (`gemini-3.1-flash-tts-preview`;
+  the 30 prebuilt voices (Zephyr, Puck, Charon, Kore, ...) are why the orb UI shows those
+  Olympus-themed names), falling back to
   Cloudflare MeloTTS then the browser voice, with a voice picker. Press **`/`** to summon a Mass-Effect-style HUD:
   holographic panels drift in at the edges — Hermes capabilities, the fleet
   (colour-coded per agent), knowledge, ops — each opening a feature in place over
@@ -114,6 +119,8 @@ config exists. Ones you don't have installed appear as provisionable personas.
   tabs, a vault explorer with search, an agent manager, a `Ctrl+K` palette, etc.
   Its integrated terminal is tabbed: an **Antigravity CLI** shell (drives the real
   installed IDE — `antigravity-ide .`, open files, extensions) and the **Fleet** console.
+  A **Repos panel** lists cloned git repositories (detects dirty/clean status), clones
+  from any URL via modal, and dispatches agents on the full workspace path.
 - **Live system terminal** + **OpenClaw System Operations Console** — real host
   telemetry and a safe, built-in command set. Destructive actions are *proposed*,
   never auto-run.
@@ -163,6 +170,36 @@ config exists. Ones you don't have installed appear as provisionable personas.
   Content, Competitive — each a distinct color, its own agentId, and never mixes with
   Sentinel's runs. Feed it a site + social URLs and it grounds findings in what was
   actually fetched instead of inventing numbers.
+- **Meeting decisions pipeline** — the team meeting engine now extracts actionable
+  decisions from the discussion, resolves owner strings to agent IDs, and infers
+  the action kind (`agent` / `flow.run` / `flow.create` / `cron` / `mcp` / `shell`).
+  Decisions appear in `/meeting` with badges and pending/dispatched status.
+- **Automation flow triggers & MCP action** — flows gained `trigger.cron` (schedule a
+  flow to re-run every N minutes), `trigger.meeting` (convene a team meeting when the
+  flow runs), and `action.mcp` (call any connected MCP server's tool directly).
+- **Cron jobs can run flows** — cron jobs whose command is `flow:<flowId>` execute
+  the named automation flow instead of a shell command.
+- **Hermes orchestration upgrade** — the Hermes console now understands `flow:run <id>`
+  and `meeting:decide action | owner X | kind Y` chat commands; `@agent` dispatches
+  with automatic Hermes fallback; decision badges with one-click "Create decision"
+  buttons in the chat stream.
+- **OpenCode replaced by Cline** — the headless fleet slot now belongs to **Cline**
+  (`cline run "<task>"` for zero-interaction dispatch, MCP support, provider-agnostic).
+  The OpenCode Zen free-tier **gateway provider** remains, independent of the agent.
+  **ZCode** (a GLM-powered Electron desktop IDE on this machine) was added as a second
+  `kind: "ide"` launcher alongside Antigravity — no meeting seat, no telemetry.
+- **MCP call endpoint** — `POST /api/mcp/call { server, tool, args }` invokes any
+  connected MCP server's tool directly.
+- **Windows terminal flash fix** — `patches/preload-hide-windows.js` preload forces
+  `windowsHide: true` on all `execSync`/`execFileSync` calls via `NODE_OPTIONS`.
+- **Self-healing engine** — a background daemon that checks PM2, the API endpoint,
+  agent processes, disk space, and config integrity every 60s — with automatic
+  repair (PM2 restart, agent respawn, disk cleanup). Exposed as a live **Health
+  panel** inside the Antigravity IDE with status tiles and a repair history log.
+- **Behavioral learning** — tracks panel opens, agent invocations, prompts, and
+  session boundaries across every visit, then builds a personalized profile (peak
+  hours, favorite panels/agents, workflow sequences, session detection). Shown in
+  the Health panel's learning insights sidebar.
 - **Antigravity workspace** — the in-browser IDE browses real project folders and
   edits files (`/api/workspace`, sandboxed to your home directory).
 - **Discord fleet bot** — one optional bot handed off to every agent: a channel
@@ -464,7 +501,7 @@ roles map to the job:
 - **Hermes (scheduling)** triggers the sweep — **once ~15s after boot, then every
   6 hours**.
 - **Pi (instrumentation)** probes each free provider's live model list.
-- **OpenCode (routing & cost)** performs any re-route and logs it.
+- **Cline (routing & cost)** performs any re-route and logs it.
 
 Every sweep and action is appended to the vault's **Activity Log**, so the
 boardroom and your Obsidian graph show exactly what happened and when.
@@ -516,6 +553,12 @@ throttle or a missing key can't thrash your routing. Paid-provider agents
   failed-over agent shows a **⚠ failover** badge on its routing row.
 
 Tune the cadence with `MC_HEALTH_INTERVAL_MIN` (see below).
+
+> **Also built in: the self-healing engine** (`lib/healer.ts`) keeps Mission Control
+> itself healthy — PM2, the API endpoint, agent processes, disk usage, config
+> integrity, and the Obsidian vault — with auto-repair on 6 of 7 checks. Exposed as a live Health panel in the Antigravity IDE alongside
+> the behavioral learning profile. The two engines are complementary: the health
+> monitor probes *remote providers*; the healer probes *the local host and services*.
 
 ---
 
@@ -824,6 +867,9 @@ app/
   api/
     agents, agents/[id], launch, sessions, memory, settings, system, vault, meeting
     health/route.ts       GET last health state · POST run a sweep now
+    healer/route.ts       GET system health (PM2/api/agents/disk/config) · POST trigger repair
+    learning/route.ts     POST track event · GET /profile (behavioral profile)
+    repos/route.ts        GET list cloned repos · POST clone from URL · DELETE remove repo
     gateway/[...path]      Fleet Gateway — tri-format: /chat/completions, /responses (Codex), /models
     anthropic/[...path]    Anthropic-compatible endpoint (/v1/messages, /v1/models)
     route/openrouter/…    single-provider OpenRouter cascade proxy
@@ -840,6 +886,8 @@ lib/
   registry.ts             agent definitions (identity, detection, launch, install)
   settings.ts             provider catalog, routing (preferred + effective), keys, gateway token, anthropic slots
   health.ts               provider probes, auto-failover/revert, scheduler  ← failover engine
+  healer.ts               self-healing engine: 6 checks + auto-repair (PM2, API, agents, disk, config, vault)
+  learning.ts             usage event store + behavioral profile builder (peak hours, fav tools, workflows)
   gateway.ts              multi-provider cascade gateway (adapters, cooldown, sticky, vision, tools)
   anthropic-bridge.ts     Anthropic ⇄ OpenAI translation for the /api/anthropic endpoint
   responses-bridge.ts     OpenAI Responses ⇄ chat translation for /responses (Codex)
@@ -853,7 +901,7 @@ lib/
   livelimits.ts           live provider limits (x-ratelimit headers + OpenRouter credits)
   secretbox.ts            opt-in AES-256-GCM encryption for keys at rest
   logbook.ts              universal event log — append/read events.log
-  detect / system / meeting / sessions / memory / launch / format / types / paths / voices
+  detect / system / meeting / sessions / memory / launch / format / types / paths (REPO_WORKSPACE_DIR) / voices
 instrumentation.ts        Next.js boot hook — health scheduler, cron, Discord bot (all self-guarded)
 components/
   Shell, AgentCard, ActivityFeed, ConfigViewer, MemoryEditor, EdgeFileDrawer, …

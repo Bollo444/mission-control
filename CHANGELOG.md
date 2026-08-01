@@ -4,28 +4,176 @@ A detailed record of the project's development: **every commit**, grouped by
 working session and shown newest-first. Each short hash links to the commit on
 GitHub.
 
-**12 sessions · 82 commits · 2026-05-31 → 2026-07-08**
-_Latest revision: 2026-07-08 — added Session 12: **Claude growth-audit swarm** — a
-second hat swarm, this one aimed at auditing a real business's online presence
-(SEO/local, social, reputation, website, content, competitive) instead of a security
-target. Mirrors the Sentinel hat-swarm pattern with a disjoint color palette and its
-own agentId so runs can never mix with Sentinel's — which also surfaced and fixed a
-latent bug where both swarms' runs could've collided on label alone._
+**17 sessions · 2026-05-31 → 2026-08-01**
+_Latest revision: 2026-08-01 — added Session 17: __Gemini 3.1 Flash TTS upgrade, healer/learning/repos/mcp-call modules shipped, live site sync, README fleet roster updated for Cline + ZCode.___ _(Prior: Session 16 — Fleet restructuring.)_
 
-| Session | Date | Commits | When | Theme |
-|:--:|---|:--:|---|---|
-| 12 | 2026-07-08 (Wed) | `b97cf6e` | Day | Claude growth-audit hat swarm, separate agentId from Sentinel |
-| 11 | 2026-07-01 (Wed) | 3 | Day | Agent-terminal fixes: opencode spawn, Antigravity IDE terminal, workspace cwd |
-| 10 | 2026-06-28 (Sun) | — | All day | Vibe dog, Gemini voice, OmniRoute brief, agent updates, key encryption |
-| 9 | 2026-06-27 (Sat) | 5 | All day | NL automation driver, living canvas, MCP connector node |
-| 8 | 2026-06-26 (Fri) | 2 | All day | Jarvis command orb, jcode swarm cockpit, voice & folder picker |
-| 7 | 2026-06-25 (Thu) | 14 | All day | Codex overhaul (kilo→Codex), terminal fixes, automation node builder |
-| 6 | 2026-06-24 (Wed) | 14 | All day | Native harnesses, Hermes/Sentinel/Antigravity surfaces, Discord messaging |
-| 5 | 2026-06-23 (Tue) | `3b9dc1e` | Evening | Hermes persistency, gold theme, fade transitions & tabbed panel interior |
-| 4 | 2026-06-23 (Tue) | `f06dcac` | Day | Major overhaul: meeting, Hermes console, automation & theming |
-| 3 | 2026-06-03 (Wed) | 11 | Late morning → evening | Gateway phases, branding & public launch |
-| 2 | 2026-06-02 (Tue) | 4 | Midday | Providers, health monitor & cascade proxy |
-| 1 | 2026-05-31 (Sat) | 7 | Afternoon → evening | Initial fleet console |
+| Session | Date | When | Theme |
+|:--:|---|---|---|
+| 17 | 2026-08-01 (Sat) | Day | Gemini 3.1 Flash TTS upgrade, healer/learning/repos/mcp-call shipped, README sync, live deploy |
+| 16 | 2026-07-30 (Thu) | Day | Fleet restructuring: OpenCode→Cline, ZCode desktop IDE launcher, Kilo cleanup |
+| 15 | 2026-07-30 (Thu) | Day | Meeting decisions, flow triggers (cron/meeting), cron flows, Hermes orchestration, OpenCode IDE, MCP call, windowsHide patch |
+| 14 | 2026-07-29 (Wed) | Day | Self-healing engine, behavioral learning profile, Health panel |
+| 13 | 2026-07-28 (Tue) | Day | Repo workspace, clone UI, agent dispatch, REPO_WORKSPACE_DIR |
+| 12 | 2026-07-08 (Wed) | Day | Claude growth-audit hat swarm, separate agentId from Sentinel |
+| 11 | 2026-07-01 (Wed) | Day | Agent-terminal fixes: opencode spawn, Antigravity IDE terminal, workspace cwd |
+| 10 | 2026-06-28 (Sun) | All day | Vibe dog, Gemini voice, OmniRoute brief, agent updates, key encryption |
+| 9 | 2026-06-27 (Sat) | All day | NL automation driver, living canvas, MCP connector node |
+| 8 | 2026-06-26 (Fri) | All day | Jarvis command orb, jcode swarm cockpit, voice & folder picker |
+| 7 | 2026-06-25 (Thu) | All day | Codex overhaul, terminal fixes, automation node builder |
+| 6 | 2026-06-24 (Wed) | All day | Native harnesses, Hermes/Sentinel/Antigravity surfaces, Discord messaging |
+| 5 | 2026-06-23 (Tue) | Evening | Hermes persistency, gold theme, fade transitions & tabbed panel interior |
+| 4 | 2026-06-23 (Tue) | Day | Major overhaul: meeting, Hermes console, automation & theming |
+| 3 | 2026-06-03 (Wed) | Late morning → evening | Gateway phases, branding & public launch |
+| 2 | 2026-06-02 (Tue) | Midday | Providers, health monitor & cascade proxy |
+| 1 | 2026-05-31 (Sat) | Afternoon → evening | Initial fleet console |
+
+---
+
+## Session 17 — 2026-08-01 · Gemini 3.1 Flash TTS upgrade, live site sync with uncommitted modules, docs refresh
+
+The local checkout had drifted far from the live URL (4 commits + 38 files of
+uncommitted work behind). This session committed the backlog, upgraded the Jarvis
+orb's TTS model to Google's latest, updated the fleet docs to reflect Cline replacing OpenCode + ZCode as a second launcher, and rebuilt/deployed via PM2 so the live tunnel serves current code.
+
+### Gemini 3.1 Flash TTS upgrade
+- **`app/api/jarvis/tts/route.ts`** — bumped `GEMINI_MODEL` from
+  `gemini-2.5-flash-preview-tts` to `gemini-3.1-flash-tts-preview` (Apr 2026
+  release; same 30 prebuilt voices, same 24 kHz PCM → WAV shape, plus audio tags and multi-speaker support). Added an optional `body.model` field so future Pro-tier or newer Flash models can be selected without a redeploy.
+  `geminiTTS()` signature now takes `model` as a parameter; Cloudflare MeloTTS   + browser SpeechSynthesis fallbacks unchanged.
+
+### Healer, learning, repos, MCP call, Hermes self-update shipped
+These modules were untracked or uncommitted and not part of the live build.
+Now committed:
+- **`lib/healer.ts` + `app/api/healer/`** — self-healing engine (PM2, API, agent processes, disk, config, vault checks with auto-repair).
+- **`lib/learning.ts` + `app/api/learning/`** — usage event store + behavioral profile builder (peak hours, fav tools, workflow sequences).
+- **`app/api/repos/`** — list/clone/delete git repos; agent dispatch on cloned workspace paths.
+- **`app/api/mcp/call/`** — call any connected MCP server tool directly.
+- **`app/api/hermes/self-update/`** — Hermes self-update endpoint.
+- **`lib/write-gate.ts` / `lib/write-gate.test.ts`** — write-gate module + tests.
+- Health unit tests (`lib/health.test.ts`, 3 tests) + Vitest config already committed (Session 15/16 overlap).
+
+### Docs refresh (README + CHANGELOG)
+- **Fleet table & health-monitor section** — OpenCode → __Cline__ (headless dispatch, routing & cost, failover/reversion duty); added __ZCode__ as a second IDE launcher row.
+- **Jarvis voice section** — noted the Gemini 3.1 Flash model and explained why the 30 prebuilt voices (Zephyr, Puck, Charon, Kore, …) appear in the orb UI.
+- **Features section** — replaced the stale "OpenCode reclassified as IDE" bullet with a Cline + ZCode summary.
+- **Intro blurb** — OpenCode → Cline.
+- CHANGELOG bumped to __17 sessions__, __2026-05-31 → 2026-08-01__.
+
+Build verified: `npm run build`, `npm test` (Vitest), `pm2 reload mission-control`.
+
+---
+
+## Session 16 — 2026-07-30 · Fleet restructuring — OpenCode removed → Cline added; ZCode added as second IDE launcher; Kilo cleanup
+
+Three fleet changes in one pass: retire OpenCode entirely and replace its headless slot with **Cline**; add **ZCode** as a second desktop-IDE launcher alongside Antigravity (no meeting seat, no telemetry — purely an "Open in your real editor" escape hatch); and sweep the stale Kilo cosmetic leftovers (Kilo was already retired, replaced by Codex, but skins/theme/voice/RouteTransition references lingered).
+
+### OpenCode removed → Cline added (headless fleet slot preserved)
+- **`lib/registry.ts`** — removed the full `opencode` block; added a `cline` entry (`kind: "cli"`, `cline run "<task>"` headless dispatch, MCP support, provider-agnostic, parallel worktrees). `unverified: true` until the user installs `cline` and we confirm the exact flag — degrades to `offline` in the meantime like any missing agent.
+- **`lib/subagents.ts`** — `headlessArgs("opencode")` → `headlessArgs("cline")` returning `["run", task]`.
+- **`lib/healer.ts`** — primary-agent fallback chain now checks `cline` instead of `opencode`.
+- **`lib/meeting.ts`** — `ORDER`, the `meta` table, three topic decisions, and the generalist `pool` all swapped `opencode` → `cline`; role text changed from "Provider-agnostic routing & cost" → "Headless dispatch & parallel runs".
+- **`app/agents/[id]/page.tsx`** — the OpenCode special-case (Terminal vs Native TUI) is now keyed on `cline`; hint text now says `cline run "…" (headless zero-interaction)`.
+- **`app/api/flows/generate/route.ts`** — agentId list in the LLM prompt now includes `cline` instead of `opencode`.
+- **`app/api/agent-note/route.ts`** — curl example uses `X-MC-Agent: cline`.
+- **`components/automation/FlowBuilder.tsx`** — agent picker lists `cline`.
+
+> Provider entries unchanged: `lib/health.ts`, `lib/gateway.ts`, `lib/limits.ts`, `lib/settings.ts`, `app/settings/page.tsx`, and the `norm()` test in `lib/health.test.ts` still reference `opencode` — but those are the **OpenCode Zen free-tier gateway** (an upstream model provider routable via the Fleet Gateway), deliberately kept independent of the agent. Renaming them is a follow-up if you want a Cline-own provider entry.
+
+### ZCode added — second desktop IDE launcher
+ZCode on this machine is an **Electron + GLM desktop app** (`C:/Users/Amari/AppData/Local/Programs/ZCode/ZCode.exe`), not the Rust/GPU "Zed" editor. It's a GUI launcher, not a headless agent — so it sits in the IDE tier with Antigravity, no meeting seat, no telemetry.
+- **`lib/registry.ts`** — new `zcode` entry, `kind: "ide"`, accent `#f04d8b`, `openCommand: { ZCode.exe }`, `sessionFormat: "none"`, `docsNote` says "no meeting seat, no telemetry loop".
+- **`components/ide/AntigravityIde.tsx`** — added an "Open in ZCode ↗" button in the panel title bar (calls `POST /api/launch { id: "zcode" }`, reusing `lib/launch.ts`'s existing `kind === "ide"` path); added a third integrated-terminal tab "ZCode" rendering `<NativeTerminal session="zcode-cli" kind="zcode-cli" />` (a shell with `zcode`/`ZCode.exe` on PATH, CWD = `REPO_WORKSPACE_DIR`).
+- **`lib/pty.ts`** — new `zcode-cli` kind in `SHELL_MODE` mapped to `zcode`; the IDE-shell `cwd` check now includes `zcode-cli` (uses `repoWorkspaceCwd()` like `antigravity-cli`).
+- **Skins** — `components/skins/backgrounds.tsx` (`ZCodeBg` — magenta bloom over a circuit mesh), `components/skins/mascots.tsx` (`ZCodeMascot` — layered petals around a glowing core), `components/skins/index.tsx` (`zcode: { mood: "Bloom", type: "sans", ide: true }`).
+- **`lib/theme.tsx`** + **`components/RouteTransition.tsx`** — new `zcode` accent entry `#f04d8b` (magenta) in all 5 theme palettes + the route-transition agent map. **`lib/voices.ts`** — new `zcode` voice entry.
+
+### Kilo cosmetic leftovers swept
+Kilo was already retired (replaced by Codex in Session 11) but cosmetic references lingered. Removed:
+- **`components/skins/backgrounds.tsx`** + **`mascots.tsx`** — deleted `KiloBg` / `KiloMascot` and the `kilo` keys in both registries.
+- **`components/skins/index.tsx`** — no Kilo entry existed (already gone).
+- **`components/RouteTransition.tsx`**, **`components/AgentMetrics.tsx`**, **`lib/theme.tsx`** — removed the stale `kilo` entries.
+- **`components/ide/HermesConsole.tsx`** — removed `["kilo", "Kilo Code", "#c0c6d4"]` from the FLEET accent map.
+- **`app/layout.tsx`** + **`package.json`** — description strings now name Cline + ZCode instead of OpenCode + Kilo.
+- **`lib/voices.ts`** — removed the `kilo` voice entry.
+- **`lib/pty.ts`** — updated stale comments referencing opencode/kilo shims.
+
+Build verified: `npm run build` ✓, `npm test` ✓ (3 tests).
+
+---
+
+## Session 15 — 2026-07-30 · Meeting decisions pipeline + flow triggers + cron flow execution + Hermes orchestration upgrade + OpenCode reclassify + MCP call endpoint + windowsHide patch
+
+The meeting engine now extracts actionable decisions with resolved agent IDs and inferred action kinds, surfaced in the Meeting page and Hermes console. Flows gained cron/meeting triggers and an MCP action node. Cron jobs can run flows. Hermes Console drives flow runs, meeting decisions, and agent dispatch with Hermes fallback. OpenCode reclassified as IDE. New MCP call endpoint and windowsHide preload patch.
+
+- **`lib/types.ts`** — new `MeetingDecision` type, `DecisionActionKind` enum (agent / flow.run / flow.create / cron / mcp / shell), `MeetingResp` and `MeetingReplyResp` now include `decisions: MeetingDecision[]`
+- **`lib/meeting.ts`** — `resolveOwnerToAgentId()` maps human owner strings to roster agent IDs; `inferActionKind()` classifies decision text into one of six action kinds; `buildMeetingTemplated()` and `replyToMessage()` surface decisions with resolved `agentId`, `actionKind`, and `status: "pending"`
+- **`app/api/meeting/route.ts`** — `POST` now returns `{ turns, decisions }` instead of just `turns`
+- **`app/meeting/page.tsx`** — persists and renders decisions alongside turns; decision badges with action kind
+- **`app/api/flows/generate/route.ts`** — LLM prompt updated with new node types: `trigger.cron` (`everyMinutes`), `trigger.meeting`, `action.mcp` (server, tool, args)
+- **`lib/flows.ts`** — runner handles `trigger.cron` (logs schedule intent), `trigger.meeting` (logs convene request), `action.mcp` (calls `/api/mcp/call`)
+- **`components/automation/FlowBuilder.tsx`** — palette adds Cron trigger (⏱, everyMinutes input) and Meeting trigger (🗣) nodes with inline config
+- **`lib/cron.ts`** — jobs with `command: "flow:<flowId>"` execute the flow via `runFlow()` instead of spawning a shell
+- **`components/ide/HermesConsole.tsx`** — new chat commands: `flow:run <id>`, `meeting:decide action | owner <owner> | kind <kind>`; decision badges with "Create decision" button; `@agent` dispatch with Hermes fallback; rewritten empty-state help
+- **`lib/registry.ts`** — OpenCode `kind: "cli" → "ide"`, launch target = `@opencode-aidesktop/OpenCode.exe`, description "TUI client → Desktop GUI", `openCommand` added
+- **`app/api/mcp/call/route.ts`** — new endpoint `POST { server, tool, args }` → calls MCP server tool directly via `callTool()`
+- **`patches/preload-hide-windows.js`** — Node `--require` preload forcing `windowsHide: true` on `execSync`/`execFileSync` options when undefined (loaded via `NODE_OPTIONS`)
+- **`next.config.mjs`** — `pm2`, `@discordjs/ws` in serverExternalPackages; webpack externals for `zlib-sync`, `cross-spawn`, `@discordjs/*`
+
+Build verified: `npm run build`, `npm test` (3 tests pass).
+
+---
+
+## Session 14 — 2026-07-29 · Self-healing engine + behavioral learning
+
+A health monitor that checks PM2, the API endpoint, agent processes, disk space,
+and config integrity every 60s — plus auto-healing (PM2 restart, agent respawn,
+disk cleanup). A parallel usage tracker records panel opens, agent invocations,
+prompts, and session boundaries, then builds a behavioral profile (peak hours,
+favorite tools, workflow sequences). Both exposed in a new Health panel in the
+Antigravity IDE.
+
+- **`lib/healer.ts`** — self-healing engine: 6 health checks (disk, pm2:mission-control, pm2:tunnel, api:endpoints, agents:installed, config:settings, vault:exists) with automatic repair strategies
+- **`lib/learning.ts`** — usage event store + behavioral profile builder
+  (peak hours, preferred panels/agents, workflow chains, session detection)
+- **`app/api/healer/route.ts`** — `GET /api/healer` (health status),
+  `POST /api/healer` (trigger repair)
+- **`app/api/learning/route.ts`** — `POST /api/learning` (track event),
+  `GET /api/learning/profile` (current profile)
+- **`components/ide/AntigravityIde.tsx`** — Health panel with live status tiles,
+  repair history, learning insights sidebar; Repos panel (clone UI, dispatch agents on repos); auto-tracks events on panel open, file open/save, agent dispatch, search, repo clone/delete via useEffect
+
+**Fixes (same session):**
+- **`lib/healer.ts`** — replaced `require.resolve("pm2/package.json")` with
+  `process.cwd()` path to avoid webpack compiling it to a module ID
+- **`lib/healer.ts`** — stripped ANSI escape codes from PM2 CLI output before
+  JSON parsing (PM2 colorizes warnings with CSI sequences whose `[` characters
+  broke `indexOf("[")`)
+- **`lib/healer.ts`** — switched from `execSync` (routes through `cmd.exe` on
+  Windows, causing terminal flash) to `execFile` with `process.execPath`
+  (spawns `node.exe` directly, no `cmd.exe`, no flash)
+
+Build verified: `npm run build`, PM2 restart, health endpoint returns 200.
+
+---
+
+## Session 13 — 2026-07-28 · Repo workspace + clone UI + agent dispatch
+
+A dedicated `REPO_WORKSPACE_DIR` (`/mnt/c/Users/Amari/mission-control/repos`) for
+git repositories managed from within the Antigravity IDE. The Repos panel lists
+clones, supports `git clone` via modal, and dispatches agents on the full
+workspace path.
+
+- **`lib/paths.ts`** — added `REPO_WORKSPACE_DIR` constant
+- **`lib/pty.ts`** — agent terminals now use repo workspace CWD for
+  antigravity-cli
+- **`app/api/repos/route.ts`** — `GET /api/repos` (list clones with status),
+  `POST /api/repos` (clone URL → repo dir), `DELETE /api/repos` (remove repo
+  dir)
+- **`components/AntigravityIde.tsx`** — Repos panel (scrollable repo cards with
+  dir name, status badge, delete button) + CloneRepoModal (URL input, confirm,
+  error handling, loading spinner)
+
+Build verified: `npm run build`, PM2 restart.
 
 ---
 

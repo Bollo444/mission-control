@@ -263,6 +263,7 @@ const DEFAULT_ROUTING: Record<string, RouteRule> = {
   opencode: { provider: "opencode", model: "big-pickle" },
   antigravity: { provider: "groq", model: "llama-3.3-70b-versatile" },
   openclaw: { provider: "cloudflare", model: "@cf/qwen/qwen2.5-coder-32b-instruct" },
+  cline: { provider: "nim", model: "qwen/qwen3-coder-480b-a35b-instruct" },
   jcode: { provider: "cloudflare", model: "@cf/openai/gpt-oss-120b" },
   vibe: { provider: "mistral", model: "mistral-small-latest" },
   codex: { provider: "cerebras", model: "gpt-oss-120b" },

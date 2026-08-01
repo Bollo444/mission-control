@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 /*
  * Jarvis voice — text → speech, tried in order:
- *   1. Google Gemini TTS (gemini-2.5-flash-preview-tts) — natural, free via an
+ *   1. Google Gemini TTS (gemini-3.1-flash-tts-preview) — natural, free via an
  *      AI Studio key. Returns raw 24kHz/16-bit/mono PCM, which we wrap in a WAV
  *      header. Needs GEMINI_API_KEY.
  *   2. Cloudflare Workers AI MeloTTS — returns WAV. Needs CF token + account.
@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
  * Each rung falls through to the next on missing key / error.
  */
 
-const GEMINI_MODEL = "gemini-2.5-flash-preview-tts";
+const GEMINI_MODEL = "gemini-3.1-flash-tts-preview";
 const GEMINI_VOICE = "Charon"; // deep, measured — the Jarvis register
 
 /** Prepend a 44-byte RIFF/WAVE header to raw PCM so browsers can play it. */
@@ -38,9 +38,14 @@ function pcmToWav(pcm: Buffer, sampleRate = 24000, channels = 1, bits = 16): Buf
   return Buffer.concat([h, pcm]);
 }
 
-async function geminiTTS(text: string, voice: string, key: string): Promise<Buffer | null> {
+async function geminiTTS(
+  text: string,
+  voice: string,
+  key: string,
+  model: string = GEMINI_MODEL,
+): Promise<Buffer | null> {
   const r = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
     {
       method: "POST",
       headers: { "x-goog-api-key": key, "content-type": "application/json" },
@@ -77,7 +82,13 @@ async function cloudflareTTS(text: string, lang: string, acct: string, token: st
 }
 
 export async function POST(req: Request) {
-  let body: { text?: string; voice?: string; lang?: string; provider?: string };
+  let body: {
+    text?: string;
+    voice?: string;
+    lang?: string;
+    provider?: string;
+    model?: string;
+  };
   try {
     body = await req.json();
   } catch {
@@ -99,7 +110,10 @@ export async function POST(req: Request) {
   const gemKey = keys.GEMINI_API_KEY || process.env.GEMINI_API_KEY;
   if (wantGemini && gemKey) {
     try {
-      const out = await geminiTTS(text, body.voice || GEMINI_VOICE, gemKey);
+      // An explicit model overrides the default (e.g. gemini-2.5-pro-preview-tts
+      // for a higher-quality register). Same :generateContent REST + PCM shape.
+      const model = body.model || GEMINI_MODEL;
+      const out = await geminiTTS(text, body.voice || GEMINI_VOICE, gemKey, model);
       if (out) return wav(out);
     } catch {
       /* fall through */

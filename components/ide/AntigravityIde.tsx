@@ -20,7 +20,17 @@ import LaunchControls from "@/components/LaunchControls";
 
 const ACCENT = "#6ea8fe";
 
-type Panel = "explorer" | "workspace" | "search" | "agents" | "scm";
+type Panel = "explorer" | "workspace" | "search" | "agents" | "scm" | "repos" | "health";
+
+interface RepoInfo {
+  name: string;
+  path: string;
+  lastPushed: string | null;
+  branch: string | null;
+  dirty: boolean;
+  valid: boolean;
+  error?: string;
+}
 
 interface SearchHit {
   path: string;
@@ -39,9 +49,11 @@ interface OpenDoc {
 const ACTIVITY = [
   { id: "explorer", icon: "⛶", label: "Explorer · Vault" },
   { id: "workspace", icon: "🗂", label: "Workspace · project files" },
+  { id: "repos", icon: "⬇", label: "Repos · cloned git repos" },
   { id: "search", icon: "⌕", label: "Search vault contents" },
   { id: "agents", icon: "▦", label: "Agent manager" },
   { id: "scm", icon: "⎇", label: "Source control · activity" },
+  { id: "health", icon: "◈", label: "Health · self-heal + learn" },
 ] as const;
 
 function fileLabel(p: string) {
@@ -61,6 +73,13 @@ export default function AntigravityIde({ agent }: { agent: AgentDetail }) {
   const [active, setActive] = useState<string>("welcome");
   const [termOpen, setTermOpen] = useState(true);
   const [termTab, setTermTab] = useState<"cli" | "fleet">("cli");
+  const [repos, setRepos] = useState<RepoInfo[]>([]);
+  const [reposLoading, setReposLoading] = useState(false);
+  const [cloneUrl, setCloneUrl] = useState("");
+  const [cloning, setCloning] = useState(false);
+  const [dispatchRepo, setDispatchRepo] = useState<string | null>(null);
+  const [dispatchAgent, setDispatchAgent] = useState("");
+  const [dispatchTask, setDispatchTask] = useState("");
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [cursor, setCursor] = useState({ line: 1, col: 1 });
   const [saving, setSaving] = useState(false);
@@ -71,6 +90,12 @@ export default function AntigravityIde({ agent }: { agent: AgentDetail }) {
   const [searching, setSearching] = useState(false);
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const gutterRef = useRef<HTMLDivElement>(null);
+  const [healthReport, setHealthReport] = useState<{ ts: string; checks: { name: string; ok: boolean; detail: string; fixable: boolean }[]; allOk: boolean } | null>(null);
+  const [healthLoading, setHealthLoading] = useState(false);
+  const [repairing, setRepairing] = useState(false);
+  const [repairLog, setRepairLog] = useState<{ action: string; ok: boolean; detail: string }[]>([]);
+  const [insights, setInsights] = useState<{ type: string; label: string; detail: string }[]>([]);
+  const [insightsLoading, setInsightsLoading] = useState(false);
 
   const tree = vault?.tree ?? [];
   const files = useMemo(() => tree.filter((n) => !n.dir), [tree]);
@@ -92,6 +117,7 @@ export default function AntigravityIde({ agent }: { agent: AgentDetail }) {
       const json = await res.json();
       const content = res.ok ? json.content : `// could not open ${path}`;
       setDocs((d) => ({ ...d, [path]: { path, name: fileLabel(path), content, saved: content, loading: false } }));
+      track("file:open", path);
     } catch {
       setDocs((d) => ({ ...d, [path]: { path, name: fileLabel(path), content: `// error reading ${path}`, saved: "", loading: false } }));
     }
@@ -121,6 +147,7 @@ export default function AntigravityIde({ agent }: { agent: AgentDetail }) {
         setDocs((d) => ({ ...d, [activeDoc.path]: { ...d[activeDoc.path], saved: d[activeDoc.path].content } }));
         setToast("Saved to vault ✓");
         setTimeout(() => setToast(""), 1800);
+        track("file:save", activeDoc.path);
       } else setToast("Save failed");
     } finally {
       setSaving(false);
@@ -156,6 +183,21 @@ export default function AntigravityIde({ agent }: { agent: AgentDetail }) {
     setToast(m);
     setTimeout(() => setToast(""), 1600);
   }, []);
+
+  // Open the desktop ZCode editor at the repo workspace (escape hatch from the web IDE).
+  const openInZCode = useCallback(async () => {
+    try {
+      const res = await fetch("/api/launch", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id: "zcode", action: "launch" }),
+      });
+      const json = await res.json();
+      flash(json.ok ? "Opening ZCode…" : json.message || "ZCode not found");
+    } catch {
+      flash("Launch failed");
+    }
+  }, [flash]);
 
   const newFile = useCallback(async () => {
     const name = window.prompt("New note path (relative to the vault), e.g. Notes/idea.md");
@@ -223,6 +265,148 @@ export default function AntigravityIde({ agent }: { agent: AgentDetail }) {
     [collapsed]
   );
 
+  const track = useCallback((kind: string, detail?: string) => {
+    fetch("/api/learning", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ kind, detail }),
+    }).catch(() => {});
+  }, []);
+
+  const runHealthCheck = useCallback(async () => {
+    setHealthLoading(true);
+    try {
+      const res = await fetch("/api/healer", { cache: "no-store" });
+      const json = await res.json();
+      setHealthReport(json);
+    } catch {
+      setHealthReport(null);
+    } finally {
+      setHealthLoading(false);
+    }
+  }, []);
+
+  const runRepair = useCallback(async () => {
+    setRepairing(true);
+    try {
+      const res = await fetch("/api/healer", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "repair" }),
+      });
+      const json = await res.json();
+      setHealthReport(json.report);
+      setRepairLog(json.repairs ?? []);
+    } catch {
+      setRepairLog([{ action: "repair", ok: false, detail: "Repair request failed" }]);
+    } finally {
+      setRepairing(false);
+    }
+  }, []);
+
+  const loadInsights = useCallback(async () => {
+    setInsightsLoading(true);
+    try {
+      const res = await fetch("/api/learning", { cache: "no-store" });
+      const json = await res.json();
+      setInsights(json.insights ?? []);
+    } catch {
+      setInsights([]);
+    } finally {
+      setInsightsLoading(false);
+    }
+  }, []);
+
+  const loadRepos = useCallback(async () => {
+    setReposLoading(true);
+    try {
+      const res = await fetch("/api/repos", { cache: "no-store" });
+      const json = await res.json();
+      setRepos(json.repos ?? []);
+    } catch {
+      setRepos([]);
+    } finally {
+      setReposLoading(false);
+    }
+  }, []);
+
+  const cloneRepo = useCallback(async () => {
+    const url = cloneUrl.trim();
+    if (!url) return;
+    setCloning(true);
+    try {
+      const res = await fetch("/api/repos", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      const json = await res.json();
+      if (json.ok) {
+        setCloneUrl("");
+        flash(`Cloned ${json.repo.name} ✓`);
+        track("repo:clone", json.repo.name);
+        await loadRepos();
+      } else {
+        flash(json.error || "Clone failed");
+      }
+    } catch {
+      flash("Clone failed");
+    } finally {
+      setCloning(false);
+    }
+  }, [cloneUrl, loadRepos, flash, track]);
+
+  const deleteRepo = useCallback(
+    async (name: string) => {
+      if (!window.confirm(`Delete "${name}"? This removes the repo from disk.`)) return;
+      try {
+        const res = await fetch(`/api/repos?name=${encodeURIComponent(name)}`, { method: "DELETE" });
+        const json = await res.json();
+        if (json.ok) {
+          flash(`Deleted ${name} ✓`);
+          track("repo:delete", name);
+          await loadRepos();
+        } else flash(json.error || "Delete failed");
+      } catch {
+        flash("Delete failed");
+      }
+    },
+    [loadRepos, flash, track]
+  );
+
+  const dispatchToRepo = useCallback(
+    async (repo: RepoInfo) => {
+      if (!dispatchAgent || !dispatchTask.trim()) return;
+      try {
+        const res = await fetch("/api/subagents", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            agentId: dispatchAgent,
+            task: `In the repository at ${repo.path}, ${dispatchTask.trim()}`,
+          }),
+        });
+        const json = await res.json();
+        if (json.ok) {
+          flash(`Dispatched ${dispatchAgent} on ${repo.name} ✓`);
+          track("agent:dispatch", dispatchAgent);
+          setDispatchRepo(null);
+          setDispatchAgent("");
+          setDispatchTask("");
+        } else flash(json.error || "Dispatch failed");
+      } catch {
+        flash("Dispatch failed");
+      }
+    },
+    [dispatchAgent, dispatchTask, flash, track]
+  );
+
+  // Load panel-specific data on switch.
+  useEffect(() => {
+    if (panel === "repos") void loadRepos();
+    if (panel === "health") { void runHealthCheck(); void loadInsights(); }
+  }, [panel, loadRepos, runHealthCheck, loadInsights]);
+
   // Debounced content search across the whole vault (Search panel only).
   useEffect(() => {
     if (panel !== "search") return;
@@ -234,6 +418,7 @@ export default function AntigravityIde({ agent }: { agent: AgentDetail }) {
     setSearching(true);
     const t = setTimeout(async () => {
       try {
+        track("search:query", q);
         const res = await fetch(`/api/vault?search=${encodeURIComponent(q)}`, { cache: "no-store" });
         const json = await res.json();
         setHits(json.hits ?? []);
@@ -282,8 +467,16 @@ export default function AntigravityIde({ agent }: { agent: AgentDetail }) {
           <span className="text-[var(--color-ink-4)]">— Integrated Workspace</span>
         </div>
         <button
+          onClick={() => void openInZCode()}
+          title="Launch the desktop ZCode editor"
+          className="ml-auto mr-2 rounded-md border border-white/10 px-2 py-0.5 text-[11px] text-[var(--color-ink-3)] hover:bg-white/5"
+          style={{ color: "#f04d8b", borderColor: "rgba(240,77,139,0.4)" }}
+        >
+          ✦ Open in ZCode ↗
+        </button>
+        <button
           onClick={() => setPaletteOpen(true)}
-          className="ml-auto mr-2 rounded-md border border-white/10 px-2 py-0.5 text-[11px] text-[var(--color-ink-4)] hover:bg-white/5"
+          className="ml-2 mr-2 rounded-md border border-white/10 px-2 py-0.5 text-[11px] text-[var(--color-ink-4)] hover:bg-white/5"
         >
           Ctrl+K command palette
         </button>
@@ -299,7 +492,7 @@ export default function AntigravityIde({ agent }: { agent: AgentDetail }) {
               <button
                 key={it.id}
                 title={it.label}
-                onClick={() => setPanel(it.id as Panel)}
+                onClick={() => { setPanel(it.id as Panel); track("panel:switch", it.id); }}
                 className="grid h-9 w-9 place-items-center rounded-md text-lg"
                 style={{
                   color: on ? ACCENT : "var(--color-ink-4)",
@@ -410,6 +603,212 @@ export default function AntigravityIde({ agent }: { agent: AgentDetail }) {
             </SidePanel>
           )}
 
+          {panel === "repos" && (
+            <SidePanel title="Repos · cloned" count={repos.length}>
+              <div className="mx-2 mb-2 flex items-center gap-1">
+                <input
+                  value={cloneUrl}
+                  onChange={(e) => setCloneUrl(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") void cloneRepo(); }}
+                  placeholder="git clone URL…"
+                  disabled={cloning}
+                  className="min-w-0 flex-1 rounded border border-white/10 bg-black/20 px-2 py-1 text-xs outline-none placeholder:text-[var(--color-ink-4)] disabled:opacity-40"
+                />
+                <button
+                  onClick={cloneRepo}
+                  disabled={cloning || !cloneUrl.trim()}
+                  className="grid h-6 w-6 shrink-0 place-items-center rounded border border-white/10 text-[14px] leading-none text-[var(--color-ink-3)] hover:bg-white/5 disabled:opacity-40"
+                  title="Clone"
+                >
+                  ⤓
+                </button>
+              </div>
+              <div className="flex-1 overflow-auto px-1 pb-3">
+                {reposLoading && (
+                  <div className="px-3 py-2 text-xs text-[var(--color-ink-4)]">Loading repos…</div>
+                )}
+                {!reposLoading && repos.length === 0 && (
+                  <div className="px-3 py-2 text-xs text-[var(--color-ink-4)]">No repos cloned yet. Paste a git URL above to clone.</div>
+                )}
+                {repos.map((r) => (
+                  <div key={r.name} className="group mb-1 rounded-lg border border-white/10 bg-white/[0.02] p-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm" style={{ color: r.valid ? ACCENT : "var(--color-ink-4)" }}>
+                        {r.valid ? (r.dirty ? "⬡" : "⎇") : "⊟"}
+                      </span>
+                      <span className="truncate text-[13px] font-medium">{r.name}</span>
+                      {r.dirty && (
+                        <span className="shrink-0 text-[11px] text-[var(--color-orange)]">● dirty</span>
+                      )}
+                    </div>
+                    <div className="mt-1 flex items-center gap-2 text-[11px] text-[var(--color-ink-4)]">
+                      {r.valid && r.branch && <span>⎇ {r.branch}</span>}
+                      {r.lastPushed && <span>{new Date(r.lastPushed).toLocaleDateString()}</span>}
+                    </div>
+                    <div className="mt-1.5 flex flex-wrap gap-1">
+                      <button
+                        onClick={() => { setTermOpen(true); setTermTab("cli"); }}
+                        className="rounded px-2 py-0.5 text-[11px] font-semibold"
+                        style={{ background: hexA(ACCENT, 0.16), color: ACCENT }}
+                      >
+                        ⎇ Terminal
+                      </button>
+                      {r.valid && (
+                        <button
+                          onClick={() => {
+                            setDispatchRepo(r.name);
+                            setDispatchAgent("");
+                            setDispatchTask("");
+                          }}
+                          className="rounded px-2 py-0.5 text-[11px] font-semibold"
+                          style={{ background: hexA(ACCENT, 0.16), color: ACCENT }}
+                        >
+                          ▦ Agent
+                        </button>
+                      )}
+                      <button
+                        onClick={() => deleteRepo(r.name)}
+                        className="ml-auto rounded px-2 py-0.5 text-[11px] text-[var(--color-ink-4)] hover:bg-white/10"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    {dispatchRepo === r.name && (
+                      <div className="mt-2 border-t border-white/10 pt-2">
+                        <select
+                          value={dispatchAgent}
+                          onChange={(e) => setDispatchAgent(e.target.value)}
+                          className="mb-1 w-full rounded border border-white/10 bg-black/20 px-2 py-1 text-xs outline-none"
+                        >
+                          <option value="">Select agent…</option>
+                          {sys?.fleet.agents.filter((a) => a.state === "ready").map((a) => (
+                            <option key={a.id} value={a.id}>{a.name}</option>
+                          ))}
+                        </select>
+                        <textarea
+                          value={dispatchTask}
+                          onChange={(e) => setDispatchTask(e.target.value)}
+                          placeholder="Describe the task…"
+                          rows={2}
+                          className="mb-1 w-full resize-none rounded border border-white/10 bg-black/20 px-2 py-1 text-xs outline-none placeholder:text-[var(--color-ink-4)]"
+                        />
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => dispatchToRepo(r)}
+                            disabled={!dispatchAgent || !dispatchTask.trim()}
+                            className="rounded px-2 py-0.5 text-[11px] font-semibold disabled:opacity-40"
+                            style={{ background: hexA(ACCENT, 0.16), color: ACCENT }}
+                          >
+                            Run on {r.name}
+                          </button>
+                          <button
+                            onClick={() => setDispatchRepo(null)}
+                            className="rounded px-2 py-0.5 text-[11px] text-[var(--color-ink-4)]"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </SidePanel>
+          )}
+
+          {panel === "health" && (
+            <SidePanel title="Health · self-healing + learning" count={0}>
+              <div className="flex-1 overflow-auto px-2 pb-3 text-[12px]">
+                <div className="mb-2 flex gap-1">
+                  <button
+                    onClick={runHealthCheck}
+                    disabled={healthLoading}
+                    className="rounded px-2 py-1 text-[11px] font-semibold disabled:opacity-40"
+                    style={{ background: hexA(ACCENT, 0.16), color: ACCENT }}
+                  >
+                    {healthLoading ? "Checking…" : "⟳ Health check"}
+                  </button>
+                  <button
+                    onClick={runRepair}
+                    disabled={repairing || !healthReport || healthReport.allOk}
+                    className="rounded px-2 py-1 text-[11px] font-semibold disabled:opacity-40"
+                    style={{ background: "rgba(255,68,56,0.16)", color: "#ff4438" }}
+                  >
+                    {repairing ? "Repairing…" : "⚡ Auto-repair"}
+                  </button>
+                </div>
+
+                {healthReport && (
+                  <div className="mb-3 rounded-lg border border-white/10 bg-white/[0.02] p-2">
+                    <div className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider">
+                      <span style={{ color: healthReport.allOk ? "var(--color-green)" : "var(--color-orange)" }}>
+                        {healthReport.allOk ? "◉ All healthy" : "◉ Issues found"}
+                      </span>
+                      <span className="text-[10px] text-[var(--color-ink-4)]">{new Date(healthReport.ts).toLocaleTimeString()}</span>
+                    </div>
+                    {healthReport.checks.map((c) => (
+                      <div key={c.name} className="flex items-start gap-2 py-1">
+                        <span className="mt-0.5 shrink-0" style={{ color: c.ok ? "var(--color-green)" : "var(--color-rose)" }}>
+                          {c.ok ? "●" : "○"}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[11px] font-medium">{c.name}</div>
+                          <div className="truncate text-[10px] text-[var(--color-ink-4)]">{c.detail}</div>
+                        </div>
+                        {!c.ok && c.fixable && (
+                          <span className="shrink-0 text-[10px] text-[var(--color-orange)]">fixable</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {repairLog.length > 0 && (
+                  <div className="mb-3 rounded-lg border border-white/10 bg-white/[0.02] p-2">
+                    <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-ink-4)]">
+                      Repair log
+                    </div>
+                    {repairLog.map((r, i) => (
+                      <div key={i} className="flex items-center gap-2 py-0.5 text-[11px]">
+                        <span style={{ color: r.ok ? "var(--color-green)" : "var(--color-rose)" }}>
+                          {r.ok ? "✓" : "✕"}
+                        </span>
+                        <span className="truncate">{r.detail}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-ink-4)]">
+                  Learning · patterns
+                </div>
+                {insightsLoading && (
+                  <div className="px-2 py-2 text-xs text-[var(--color-ink-4)]">Analyzing usage patterns…</div>
+                )}
+                {!insightsLoading && insights.length === 0 && (
+                  <div className="px-2 py-2 text-xs text-[var(--color-ink-4)]">Keep using the dashboard — insights appear as patterns emerge.</div>
+                )}
+                {insights.map((ins, i) => (
+                  <div key={i} className="mb-1.5 rounded-lg border border-white/10 bg-white/[0.02] p-2">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[var(--color-green)]">◈</span>
+                      <span className="text-[11px] font-medium">{ins.label}</span>
+                    </div>
+                    <div className="pl-4 text-[10px] text-[var(--color-ink-4)]">{ins.detail}</div>
+                  </div>
+                ))}
+                {!insightsLoading && insights.length > 0 && (
+                  <button
+                    onClick={loadInsights}
+                    className="mb-2 mt-1 w-full rounded px-2 py-1 text-[11px] text-[var(--color-ink-4)] hover:bg-white/5"
+                  >
+                    ⟳ Refresh insights
+                  </button>
+                )}
+              </div>
+            </SidePanel>
+          )}
+
           {panel === "search" && (
             <SidePanel title="Search · Vault contents" count={hits.length}>
               <input
@@ -459,13 +858,14 @@ export default function AntigravityIde({ agent }: { agent: AgentDetail }) {
                     </div>
                     <div className="mt-1.5 flex gap-1.5">
                       <button
-                        onClick={() =>
+                        onClick={() => {
                           fetch("/api/launch", {
                             method: "POST",
                             headers: { "content-type": "application/json" },
                             body: JSON.stringify({ id: a.id, action: "launch" }),
-                          })
-                        }
+                          });
+                          track("agent:launch", a.id);
+                        }}
                         className="rounded px-2 py-0.5 text-[11px] font-semibold"
                         style={{ background: hexA(a.accent, 0.16), color: a.accent }}
                       >
@@ -600,7 +1000,9 @@ export default function AntigravityIde({ agent }: { agent: AgentDetail }) {
                   ✦ Fleet
                 </TermTab>
                 <span className="ml-3 hidden text-[var(--color-ink-4)] sm:inline">
-                  {termTab === "cli" ? "real shell · antigravity-ide on PATH" : "live system check + commands"}
+                  {termTab === "cli"
+                    ? "live antigravity TUI · agy on PATH"
+                    : "live system check + commands"}
                 </span>
                 <span className="ml-auto text-[var(--color-ink-4)]">
                   fleet · {readyCount}/{fleetTotal} ready
@@ -609,10 +1011,10 @@ export default function AntigravityIde({ agent }: { agent: AgentDetail }) {
                   ✕
                 </button>
               </div>
-              {/* Both stay mounted (display toggled) so neither session resets on tab switch. */}
+              {/* Both stay mounted (display toggled) so no session resets on tab switch. */}
               <div className="relative h-[calc(16rem-2rem)]">
                 <div className="absolute inset-0" style={{ display: termTab === "cli" ? "block" : "none" }}>
-                  <NativeTerminal session="antigravity-cli" kind="antigravity-cli" accent={ACCENT} />
+                  <NativeTerminal session="antigravity-main" kind="antigravity" accent={ACCENT} />
                 </div>
                 <div className="absolute inset-0" style={{ display: termTab === "fleet" ? "block" : "none" }}>
                   <FleetTerminal prompt="antigravity" accent={ACCENT} onOpenFile={openFile} />
@@ -658,7 +1060,7 @@ export default function AntigravityIde({ agent }: { agent: AgentDetail }) {
             else if (id === "save") void save();
             else if (id === "newfile") void newFile();
             else if (id === "newfolder") void newFolder();
-            else if (id === "explorer" || id === "search" || id === "agents" || id === "scm") setPanel(id);
+            else if (id === "explorer" || id === "workspace" || id === "repos" || id === "search" || id === "agents" || id === "scm" || id === "health") setPanel(id);
           }}
         />
       )}
@@ -720,14 +1122,16 @@ function TermTab({
   );
 }
 
-const IDE_FEATURES: { icon: string; title: string; desc: string; action: "explorer" | "agents" | "scm" | "terminal" | "meeting" | "palette" }[] = [
+const IDE_FEATURES = [
   { icon: "⌨", title: "Command palette", desc: "Jump to any file or action · Ctrl+K", action: "palette" },
   { icon: "▦", title: "Agent manager", desc: "Launch & monitor the fleet inline", action: "agents" },
   { icon: "⎇", title: "Source control", desc: "Watch the vault change live", action: "scm" },
+  { icon: "⬇", title: "Git repos", desc: "Clone repos & dispatch agents", action: "repos" },
+  { icon: "◈", title: "Self-healing + learn", desc: "Health checks, repair, usage insights", action: "health" },
   { icon: "✦", title: "Team meeting", desc: "Convene all nine agents", action: "meeting" },
-  { icon: "▤", title: "Integrated terminal", desc: "Real system check + commands", action: "terminal" },
+  { icon: "▤", title: "Integrated terminal", desc: "Real shell · git on PATH", action: "terminal" },
   { icon: "⛶", title: "Vault explorer", desc: "Edit shared memory directly", action: "explorer" },
-];
+] as const;
 
 function Welcome({
   agent,
@@ -737,7 +1141,7 @@ function Welcome({
   onPalette,
 }: {
   agent: AgentDetail;
-  onPanel: (p: Panel) => void;
+  onPanel: (p: Panel | "workspace" | "repos" | "health") => void;
   onTerminal: () => void;
   onMeeting: () => void;
   onPalette: () => void;
@@ -807,8 +1211,11 @@ const PALETTE_ACTIONS: { id: string; label: string; hint: string }[] = [
   { id: "terminal", label: "Toggle integrated terminal", hint: "action" },
   { id: "save", label: "Save active file", hint: "Ctrl+S" },
   { id: "explorer", label: "Show Explorer", hint: "panel" },
+  { id: "workspace", label: "Show Workspace", hint: "panel" },
+  { id: "repos", label: "Show Repos", hint: "panel" },
   { id: "agents", label: "Show Agent manager", hint: "panel" },
   { id: "scm", label: "Show Source control", hint: "panel" },
+  { id: "health", label: "Show Health & learning", hint: "panel" },
 ];
 
 function CommandPalette({

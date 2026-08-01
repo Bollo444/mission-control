@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {
+  DecisionActionKind,
+  MeetingDecision,
   MeetingMetric,
   MeetingResp,
   MeetingRosterEntry,
@@ -43,12 +45,14 @@ type PersistedMeeting = {
   started: boolean;
   meta: MeetingResp | null;
   turns: MeetingTurn[];
+  decisions: MeetingDecision[];
   revealed: number;
 };
 
 export default function MeetingPage() {
   const [meta, setMeta] = useState<MeetingResp | null>(null);
   const [turns, setTurns] = useState<MeetingTurn[]>([]);
+  const [decisions, setDecisions] = useState<MeetingDecision[]>([]);
   const [revealed, setRevealed] = useState(0);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -78,6 +82,7 @@ export default function MeetingPage() {
           setStarted(true);
           setMeta(p.meta);
           setTurns(p.turns);
+          setDecisions(p.decisions ?? []);
           // Reveal everything that was already on screen — no re-animation.
           setRevealed(p.turns.length);
         }
@@ -93,7 +98,7 @@ export default function MeetingPage() {
     if (!hydrated) return;
     try {
       if (started) {
-        const payload: PersistedMeeting = { started, meta, turns, revealed };
+        const payload: PersistedMeeting = { started, meta, turns, decisions, revealed };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
       } else {
         localStorage.removeItem(STORAGE_KEY);
@@ -141,8 +146,16 @@ export default function MeetingPage() {
       // Seed the agenda STRUCTURE only (who speaks / phases) with BLANK text —
       // never show a templated sentence. Real model text streams in and fills each.
       setTurns(json.turns.map((t) => ({ ...t, text: "" })));
+      setDecisions(json.decisions ?? []);
       setRevealed(0);
       openUpgradeStream(); // real LLM turns stream in and fill the blanks
+
+      // Auto-dispatch the top decision after a short delay so the boardroom
+      // has time to render before work starts.
+      const topDecision = (json.decisions ?? [])[0];
+      if (topDecision?.agentId) {
+        setTimeout(() => void executeDecision(topDecision), 2500);
+      }
     } finally {
       setLoading(false);
     }
@@ -280,6 +293,108 @@ export default function MeetingPage() {
     }, 2000);
   }, []);
 
+  // Execute a meeting decision — routes to the right subsystem based on actionKind.
+  const executeDecision = useCallback(async (d: MeetingDecision) => {
+    if (d.status === "dispatched" || d.status === "running") return;
+    setDecisions((prev) => prev.map((x) => x === d ? { ...x, status: "dispatched" as const } : x));
+
+    try {
+      switch (d.actionKind) {
+        case "agent": {
+          // Dispatch a headless subagent CLI run.
+          const rosterEntry = (meta?.roster ?? []).find((r) => r.id === d.agentId);
+          if (!rosterEntry || rosterEntry.state === "offline") {
+            setDecisions((prev) => prev.map((x) => x === d ? { ...x, status: "error" as const } : x));
+            return;
+          }
+          await dispatchReal(rosterEntry, d.action);
+          setDecisions((prev) => prev.map((x) => x === d ? { ...x, status: "running" as const } : x));
+          return;
+        }
+        case "flow.run": {
+          // Run an existing saved flow.
+          const flowId = d.flowId;
+          if (!flowId) { setDecisions((prev) => prev.map((x) => x === d ? { ...x, status: "error" as const } : x)); return; }
+          const res = await fetch("/api/flows/run", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ id: flowId }),
+          }).then((r) => r.json()).catch(() => null);
+          setDecisions((prev) => prev.map((x) => x === d ? { ...x, status: res?.ok ? "done" : "error" as const } : x));
+          return;
+        }
+        case "flow.create": {
+          // Scaffold a flow from the decision and open the automation page.
+          const flowRes = await fetch("/api/flows/generate", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ prompt: `${d.action}. Owner: ${d.owner}.`, agentId: d.agentId ?? "claude" }),
+          }).then((r) => r.json()).catch(() => null);
+          if (flowRes?.ok && flowRes.flow) {
+            // Save the generated flow.
+            const flowId = `flow_${Math.random().toString(36).slice(2, 9)}`;
+            await fetch("/api/flows", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ id: flowId, name: flowRes.flow.name, nodes: flowRes.flow.nodes, edges: flowRes.flow.edges, updatedAt: "" }),
+            }).catch(() => {});
+            // Log it and mark done — user can review in /automation.
+            logMeetingEvent(`Flow created: ${flowRes.flow.name}`);
+          }
+          setDecisions((prev) => prev.map((x) => x === d ? { ...x, status: flowRes?.ok ? "done" : "error" as const } : x));
+          return;
+        }
+        case "cron": {
+          // Create a recurring cron job.
+          const cronRes = await fetch("/api/cron", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ name: `meeting: ${d.action.slice(0, 60)}`, command: d.action, everyMinutes: d.cronMinutes ?? 60 }),
+          }).then((r) => r.json()).catch(() => null);
+          setDecisions((prev) => prev.map((x) => x === d ? { ...x, status: cronRes?.ok ? "done" : "error" as const } : x));
+          return;
+        }
+        case "mcp": {
+          // Call an MCP server tool directly.
+          if (!d.mcpServer || !d.mcpTool) { setDecisions((prev) => prev.map((x) => x === d ? { ...x, status: "error" as const } : x)); return; }
+          const mcpRes = await fetch("/api/mcp/call", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ server: d.mcpServer, tool: d.mcpTool, args: {} }),
+          }).then((r) => r.json()).catch(() => null);
+          setDecisions((prev) => prev.map((x) => x === d ? { ...x, status: mcpRes?.ok !== false ? "done" : "error" as const } : x));
+          return;
+        }
+        case "shell": {
+          // Run a shell command via the subagent system.
+          const rosterEntry = (meta?.roster ?? []).find((r) => r.id === (d.agentId ?? "openclaw"));
+          if (!rosterEntry || rosterEntry.state === "offline") {
+            setDecisions((prev) => prev.map((x) => x === d ? { ...x, status: "error" as const } : x));
+            return;
+          }
+          await dispatchReal(rosterEntry, d.action);
+          setDecisions((prev) => prev.map((x) => x === d ? { ...x, status: "running" as const } : x));
+          return;
+        }
+      }
+    } catch {
+      setDecisions((prev) => prev.map((x) => x === d ? { ...x, status: "error" as const } : x));
+    }
+  }, [meta, dispatchReal]);
+
+  // Helper to log meeting events via the API.
+  const logMeetingEvent = (event: string) =>
+    void fetch("/api/meeting", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ event }),
+    }).catch(() => {});
+
+  // Change a decision's action kind (user override from the UI).
+  const setActionKind = useCallback((d: MeetingDecision, kind: DecisionActionKind) => {
+    setDecisions((prev) => prev.map((x) => x === d ? { ...x, actionKind: kind, status: "pending" as const } : x));
+  }, []);
+
   const speak = useCallback(
     async (message: string) => {
       const text = message.trim();
@@ -314,13 +429,21 @@ export default function MeetingPage() {
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ message: text }),
         });
-        const json = (await res.json()) as { turns: MeetingTurn[] };
+        const json = (await res.json()) as { turns: MeetingTurn[]; decisions: MeetingDecision[] };
         setTurns((t) => [...t, ...(json.turns ?? [])]);
+        // Merge any new decisions from the reply and auto-dispatch the top one.
+        if (json.decisions?.length) {
+          setDecisions((prev) => [...prev, ...json.decisions]);
+          const topDecision = json.decisions[0];
+          if (topDecision?.agentId) {
+            setTimeout(() => void executeDecision(topDecision), 1500);
+          }
+        }
       } finally {
         setBusy(false);
       }
     },
-    [busy, turns.length, meta, dispatchReal]
+    [busy, turns.length, meta, dispatchReal, executeDecision]
   );
 
   // Click an agent (roster logo or a chat avatar/name) → drop @handle into the
@@ -526,6 +649,98 @@ export default function MeetingPage() {
             Each agent speaks through what it genuinely excels at, grounded in the live system check. Ask a
             question and the room routes it to whoever is most relevant — the chair (Claude) synthesizes.
           </div>
+          {decisions.length > 0 && (
+            <div className="mc-panel p-4">
+              <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--color-ink-4)]">
+                Action plan · {decisions.filter((d) => d.status === "done").length}/{decisions.length} done
+              </h2>
+              <div className="flex flex-col gap-2">
+                {decisions.map((d, i) => {
+                  const agent = (meta?.roster ?? []).find((r) => r.id === d.agentId);
+                  const isRunning = d.status === "dispatched" || d.status === "running";
+                  const isDone = d.status === "done";
+                  const isError = d.status === "error";
+                  const kindLabel: Record<DecisionActionKind, string> = {
+                    agent: "agent",
+                    "flow.run": "flow",
+                    "flow.create": "build flow",
+                    cron: "cron",
+                    mcp: "mcp",
+                    shell: "shell",
+                  };
+                  const execLabel: Record<DecisionActionKind, string> = {
+                    agent: "Run agent",
+                    "flow.run": "Run flow",
+                    "flow.create": "Build flow",
+                    cron: "Set up cron",
+                    mcp: "Call MCP",
+                    shell: "Run shell",
+                  };
+                  return (
+                    <div
+                      key={`${d.action}-${i}`}
+                      className="rounded-lg border px-3 py-2 text-xs"
+                      style={{
+                        borderColor: isDone
+                          ? "rgba(92,214,160,0.3)"
+                          : isError
+                            ? "rgba(240,106,122,0.3)"
+                            : isRunning
+                              ? "rgba(245,183,90,0.3)"
+                              : "var(--color-line-soft)",
+                        background: isDone
+                          ? "rgba(92,214,160,0.05)"
+                          : isError
+                            ? "rgba(240,106,122,0.05)"
+                            : isRunning
+                              ? "rgba(245,183,90,0.05)"
+                              : "var(--color-surface-2)",
+                      }}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="font-medium text-[var(--color-ink-2)] leading-snug">{d.action}</div>
+                          <div className="mt-0.5 flex items-center gap-1.5 text-[var(--color-ink-4)]">
+                            {agent?.name ?? d.owner}
+                            <span
+                              className="rounded px-1 py-px text-[8px] font-semibold uppercase"
+                              style={{ background: "rgba(255,255,255,0.06)", color: "var(--color-ink-4)" }}
+                            >
+                              {kindLabel[d.actionKind]}
+                            </span>
+                            {isDone && " ✓"}
+                            {isRunning && " …"}
+                            {isError && " ✗"}
+                          </div>
+                        </div>
+                        {!isRunning && !isDone && !isError && (
+                          <div className="flex shrink-0 items-center gap-1">
+                            <select
+                              value={d.actionKind}
+                              onChange={(e) => setActionKind(d, e.target.value as DecisionActionKind)}
+                              className="rounded border bg-transparent px-1 py-0.5 text-[9px] text-[var(--color-ink-4)] outline-none"
+                              style={{ borderColor: "var(--color-line)" }}
+                            >
+                              {(Object.keys(kindLabel) as DecisionActionKind[]).map((k) => (
+                                <option key={k} value={k}>{kindLabel[k]}</option>
+                              ))}
+                            </select>
+                            <button
+                              onClick={() => void executeDecision(d)}
+                              className="shrink-0 rounded px-2 py-1 text-[10px] font-semibold transition-colors hover:brightness-110"
+                              style={{ background: SIGNAL, color: "#06121f" }}
+                            >
+                              {execLabel[d.actionKind]}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </aside>
       </div>
     </div>

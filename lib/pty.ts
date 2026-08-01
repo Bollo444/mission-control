@@ -4,7 +4,7 @@ import * as path from "node:path";
 import * as pty from "@lydell/node-pty";
 import { getAgent } from "./registry";
 import { resolveBinary } from "./detect";
-import { home, WORKSPACE_DIR } from "./paths";
+import { home, REPO_WORKSPACE_DIR, WORKSPACE_DIR } from "./paths";
 
 /**
  * Working directory for agent CLI sessions. Coding agents shouldn't open in the
@@ -18,6 +18,17 @@ function agentCwd(): string {
     return WORKSPACE_DIR;
   } catch {
     return home();
+  }
+}
+
+/** Working directory for the Antigravity CLI shell — the repo workspace.
+ *  Created on demand so the terminal is ready for git operations immediately. */
+function repoWorkspaceCwd(): string {
+  try {
+    fs.mkdirSync(REPO_WORKSPACE_DIR, { recursive: true });
+    return REPO_WORKSPACE_DIR;
+  } catch {
+    return agentCwd();
   }
 }
 
@@ -95,8 +106,8 @@ function refreshHermesUpdateCache(): void {
  * Maps the session kind to the registry agent id whose bin dir is added to PATH.
  */
 const SHELL_MODE: Record<string, string> = {
-  "antigravity-cli": "antigravity",
-  opencode: "opencode",
+  "zcode-cli": "zcode",
+  cline: "cline",
 };
 
 /** Resolve the binary for an allow-listed kind. Returns null if not found. */
@@ -111,10 +122,12 @@ function resolveCommand(
   // Shell-mode kinds: run a REAL shell with the agent's CLI prepended to PATH
   // instead of its native TUI. Used when the TUI isn't viable in the embedded
   // ConPTY:
-  //   • antigravity-cli — Antigravity is a GUI IDE (VS Code fork), no TUI; the
-  //     shell lets the dashboard drive it (`antigravity-ide .`, open a note, …).
-  //   • opencode — its TUI crashes at raw-mode init in ConPTY (both 1.17.x),
-  //     so it's usable only headlessly (`opencode run "…"`). A shell exposes that.
+  //   • zcode-cli — ZCode is a desktop Electron IDE; auto-launch `zcode`
+  //     so the user sees the editor CLI immediately.
+  //   • cline — Cline's TUI (cline -i) needs bun:ffi which the npm build can't
+  //     load in ConPTY, so a shell is exposed here for ad-hoc CLI/inspection.
+  //     The headless dispatch (`cline "..."`) is wired for flows/automation
+  //     and properly routes through the Fleet Gateway (openai-compatible).
   // Map: session kind -> agent id whose bin dir is prepended to PATH.
   const shellModeAgent = SHELL_MODE[kind];
   if (shellModeAgent) {
@@ -124,7 +137,25 @@ function resolveCommand(
     const env = bin
       ? { PATH: path.dirname(bin) + path.delimiter + (process.env.PATH || process.env.Path || "") }
       : undefined;
-    return { cmd, args: [], cwd: agentCwd(), env };
+    // IDE shells open in the repo workspace so git operations stay isolated
+    // from the mission-control project directory.
+    const cwd = kind === "zcode-cli" ? repoWorkspaceCwd() : agentCwd();
+
+    // Auto-launch the agent's CLI on startup.
+    let args: string[] = [];
+    if (process.platform === "win32") {
+      if (kind === "zcode-cli") {
+        args = ["-NoExit", "-Command", "zcode; Write-Host '`n[zcode exited — back in shell]' -ForegroundColor Gray"];
+      }
+      // cline: no auto-launch — the TUI (cline -i) needs bun:ffi which the
+      // npm build can't load in ConPTY. The shell is for ad-hoc CLI/inspection.
+    } else {
+      // Linux/macOS: similar but with bash
+      if (kind === "zcode-cli") {
+        args = ["-c", "zcode; exec bash"];
+      }
+    }
+    return { cmd, args, cwd, env };
   }
   // Any registered agent's native CLI: prefer an existing absolute binPath,
   // else fall back to its PATH command name. Spawns the agent's real harness so
@@ -133,12 +164,12 @@ function resolveCommand(
   const a = getAgent(kind);
   if (!a) return null;
   // resolveBinary() checks binPaths AND resolves the command on PATH with the
-  // right Windows extension (PATHEXT) — so opencode's npm shim resolves to
-  // opencode.cmd, not the bare (unspawnable) name.
+  // right Windows extension (PATHEXT) — so the npm global shims resolve to
+  // their .cmd, not the bare (unspawnable) name.
   const resolved = resolveBinary(a) ?? a.launch?.cmd ?? a.binPaths?.find(Boolean);
   if (!resolved) return null;
   const launchArgs = a.launch?.args ?? [];
-  // Windows .cmd/.bat shims (kilo, openclaw, pi, sentinel's launcher) can't be
+  // Windows .cmd/.bat shims (openclaw, pi, sentinel's launcher) can't be
   // exec'd directly by a PTY — it throws EINVAL. Run them through cmd.exe so the
   // agent's own TUI still renders in the embedded terminal.
   if (process.platform === "win32" && /\.(cmd|bat)$/i.test(resolved)) {

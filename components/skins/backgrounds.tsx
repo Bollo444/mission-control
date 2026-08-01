@@ -147,43 +147,73 @@ export function PiBg({ className = "" }: { className?: string }) {
   );
 }
 
-/* OpenCode — amber dot-matrix halftone with a sweeping scanline. */
-export function OpenCodeBg({ className = "" }: { className?: string }) {
+/* Cline — purple lattice of molten code-pulses (headless autonomous agent). */
+export function ClineBg({ className = "" }: { className?: string }) {
   return (
     <div className={`${WRAP} ${className}`} aria-hidden>
       <div
         className="absolute inset-0"
         style={{
-          background: "#0c0a16",
-          backgroundImage:
-            "radial-gradient(rgba(157,140,255,0.5) 1px, transparent 1.6px)",
-          backgroundSize: "14px 14px",
-          maskImage: "radial-gradient(120% 100% at 70% 30%, #000 30%, transparent 80%)",
-          WebkitMaskImage: "radial-gradient(120% 100% at 70% 30%, #000 30%, transparent 80%)",
-        }}
-      />
-      <div
-        className="absolute inset-x-0 h-16"
-        style={{
           background:
-            "linear-gradient(180deg, transparent, rgba(157,140,255,0.18), transparent)",
-          animation: "mc-scan 5s linear infinite",
+            "radial-gradient(100% 80% at 30% 20%, rgba(157,140,255,0.18), transparent 55%), radial-gradient(70% 50% at 80% 90%, rgba(120,100,210,0.12), transparent 60%), #0a0818",
         }}
       />
-      {[12, 48, 78].map((l, i) => (
+      <svg className="absolute inset-0 h-full w-full" aria-hidden>
+        <defs>
+          <pattern id="clinegrid" width="32" height="32" patternUnits="userSpaceOnUse">
+            <path d="M0 16 H32 M16 0 V32" fill="none" stroke="#9d8cff" strokeOpacity="0.16" strokeWidth="1" />
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#clinegrid)" />
+      </svg>
+      {[18, 50, 78].map((l, i) => (
         <span
           key={i}
-          className="absolute"
+          className="absolute rounded-full"
           style={{
             left: `${l}%`,
-            top: `${20 + i * 22}%`,
-            width: 40 - i * 8,
-            height: 6,
-            background: "rgba(157,140,255,0.25)",
-            animation: `mc-blink ${1.5 + i}s steps(2) infinite`,
+            top: `${25 + i * 22}%`,
+            width: 8 + i * 3,
+            height: 8 + i * 3,
+            background: "rgba(157,140,255,0.6)",
+            boxShadow: "0 0 24px rgba(157,140,255,0.45)",
+            animation: `mc-float ${4 + i}s ease-in-out ${i * 0.4}s infinite`,
           }}
         />
       ))}
+      <Iridescence blend="screen" opacity={0.1} hue={265} />
+    </div>
+  );
+}
+
+/* ZCode — magenta bloom over a thin circuit mesh (GLM desktop IDE). */
+export function ZCodeBg({ className = "" }: { className?: string }) {
+  return (
+    <div className={`${WRAP} ${className}`} aria-hidden>
+      <div
+        className="absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(100% 80% at 70% 15%, rgba(240,77,139,0.22), transparent 55%), radial-gradient(80% 60% at 15% 85%, rgba(180,40,120,0.14), transparent 60%), #100410",
+        }}
+      />
+      <svg className="absolute inset-0 h-full w-full" aria-hidden>
+        <defs>
+          <pattern id="zcodedots" width="18" height="18" patternUnits="userSpaceOnUse">
+            <circle cx="9" cy="9" r="1" fill="#f04d8b" fillOpacity="0.3" />
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#zcodedots)" />
+      </svg>
+      <div
+        className="absolute inset-x-0 h-px"
+        style={{
+          top: "38%",
+          background: "linear-gradient(90deg, transparent, rgba(240,77,139,0.6), transparent)",
+          animation: "mc-scan 6s linear infinite",
+        }}
+      />
+      <Iridescence blend="screen" opacity={0.12} hue={320} />
     </div>
   );
 }
@@ -293,33 +323,6 @@ export function VibeBg({ className = "" }: { className?: string }) {
   );
 }
 
-/* Kilo — steel isometric blueprint grid. */
-export function KiloBg({ className = "" }: { className?: string }) {
-  return (
-    <div className={`${WRAP} ${className}`} aria-hidden>
-      <div
-        className="absolute inset-0"
-        style={{
-          background: "#0d1014",
-          backgroundImage:
-            "repeating-linear-gradient(60deg, rgba(192,198,212,0.10) 0 1px, transparent 1px 26px), repeating-linear-gradient(-60deg, rgba(192,198,212,0.10) 0 1px, transparent 1px 26px)",
-        }}
-      />
-      <div
-        className="absolute inset-0"
-        style={{
-          background: "radial-gradient(80% 70% at 30% 20%, rgba(192,198,212,0.10), transparent 60%)",
-        }}
-      />
-      <svg className="absolute right-6 top-6 h-20 w-20 opacity-50 mc-anim-spin" viewBox="0 0 80 80" style={{ transformOrigin: "40px 40px" }} aria-hidden>
-        <circle cx="40" cy="40" r="30" fill="none" stroke="#c0c6d4" strokeWidth="0.7" strokeDasharray="3 4" />
-        <line x1="40" y1="2" x2="40" y2="78" stroke="#c0c6d4" strokeOpacity="0.4" strokeWidth="0.6" />
-        <line x1="2" y1="40" x2="78" y2="40" stroke="#c0c6d4" strokeOpacity="0.4" strokeWidth="0.6" />
-      </svg>
-    </div>
-  );
-}
-
 /* OpenClaw — apex-predator scan HUD: rotating sonar wedge, raking claw-slash
    light, locking targeting brackets. Scarlet on warm oxblood so it reads as
    molten heat, not an alarm. */
@@ -417,10 +420,10 @@ export const BACKGROUNDS: Record<string, (p: { className?: string }) => React.Re
   claude: ClaudeBg,
   hermes: HermesBg,
   pi: PiBg,
-  opencode: OpenCodeBg,
+  cline: ClineBg,
   antigravity: AntigravityBg,
+  zcode: ZCodeBg,
   jcode: JcodeBg,
   vibe: VibeBg,
-  kilo: KiloBg,
   openclaw: OpenClawBg,
 };

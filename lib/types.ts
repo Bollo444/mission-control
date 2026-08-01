@@ -270,13 +270,43 @@ export interface MeetingRosterEntry {
   chair?: boolean;
 }
 
+export type DecisionActionKind =
+  | "agent"       // dispatch a headless subagent CLI run
+  | "flow.run"    // execute an existing saved flow
+  | "flow.create" // scaffold a new automation flow for this action
+  | "cron"        // create a recurring cron job
+  | "mcp"         // call an MCP server tool directly
+  | "shell";      // run a shell command
+
+export interface MeetingDecision {
+  action: string;
+  owner: string;
+  /** Resolved agent ID from the roster (e.g. "openclaw"), or null if unmapped. */
+  agentId: string | null;
+  /** Best-fit action type — inferred by the meeting engine, user can override. */
+  actionKind: DecisionActionKind;
+  /** For flow.run — ID of the flow to execute. */
+  flowId?: string;
+  /** For cron — interval in minutes. */
+  cronMinutes?: number;
+  /** For mcp — server and tool to call. */
+  mcpServer?: string;
+  mcpTool?: string;
+  /** Execution status — only set after the client dispatches. */
+  status?: "pending" | "dispatched" | "running" | "done" | "error";
+  /** Subagent run ID once dispatched. */
+  runId?: string;
+}
+
 export interface MeetingResp {
   generatedAt: string;
   metrics: MeetingMetric[];
   roster: MeetingRosterEntry[];
   turns: MeetingTurn[];
+  decisions: MeetingDecision[];
 }
 
 export interface MeetingReplyResp {
   turns: MeetingTurn[];
+  decisions: MeetingDecision[];
 }

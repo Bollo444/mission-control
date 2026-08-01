@@ -18,7 +18,7 @@ export const VAULT_DIR =
 /**
  * Default working directory for agent terminals launched from the dashboard.
  * Agents must NOT open in the home root: some coding CLIs refuse or crash there
- * (opencode dies at startup; vibe warns). Env-overridable. Created on demand.
+ * (e.g. vibe warns at home-root). Env-overridable. Created on demand.
  */
 export const WORKSPACE_DIR = process.env.MC_WORKSPACE_DIR || home("workspace");
 
@@ -32,3 +32,10 @@ export const REPO_ROOT = process.cwd();
 export function repo(...parts: string[]): string {
   return path.join(REPO_ROOT, ...parts);
 }
+
+/**
+ * Dedicated workspace for cloned git repos. Isolated from mission-control so
+ * agent activity never crosses into the dashboard's own project. Env-overridable.
+ * Created on demand by the repos API.
+ */
+export const REPO_WORKSPACE_DIR = process.env.MC_REPO_WORKSPACE_DIR || home("repos");

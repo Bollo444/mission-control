@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { VAULT_DIR } from "./paths";
-import { AGENTS, getAgent } from "./registry";
+import { AGENTS, getAgent, type AgentDef } from "./registry";
 import { logEvent } from "./logbook";
 
 /*
@@ -53,8 +53,64 @@ export function vaultExists(): boolean {
   return fs.existsSync(p("README.md"));
 }
 
+/** Write a fresh per-agent note from the registry definition. Idempotent. */
+function writeAgentNoteTemplate(a: AgentDef): void {
+  write(
+    AGENT_FILE(a.id),
+    `---
+agent: ${a.id}
+name: ${a.name}
+kind: ${a.kind}
+accent: "${a.accent}"
+glyph: "${a.glyph ?? ""}"
+role: ${a.tagline.split("—")[0]?.trim() ?? a.tagline}
+launch: "${a.launch?.cmd ?? a.id}"
+homepage: ${a.homepage ?? ""}
+tags: [mission-control, agent, ${a.kind}]
+---
+# ${a.glyph ?? ""} ${a.name}
+
+> ${a.tagline}
+
+## In Mission Control
+- **Kind** — ${a.kind} agent.
+${a.install?.command ? `- **Install** — \`${a.install.command}\`` : ""}
+
+## Directive
+_Standing directive for this agent. Edit freely — it is read back into the agent's Mission Control page._
+
+## Mission
+_Standing objective for this agent. Edit freely — it is read back into the agent's Mission Control page._
+
+## Tools
+${a.tools.map((t) => `- ${t}`).join("\n")}
+
+## Meeting voice
+_This agent's lens and voice during fleet team meetings._
+
+## Memory
+_Notes, preferences, and context that should persist across this agent's sessions._
+
+## Log
+_Auto-appended highlights from the shared feed — see [[Activity Log]]._
+
+---
+Part of the [[README|Mission Control]] fleet · shared facts in [[Shared Knowledge]] · live feed in [[Activity Log]].
+`
+  );
+}
+
 export function ensureVault(): { created: boolean; dir: string } {
-  if (vaultExists()) return { created: false, dir: VAULT_DIR };
+  if (vaultExists()) {
+    // Backfill any missing per-agent notes when the roster changes (e.g. an
+    // agent replaced long after the vault was first seeded). Never clobbers
+    // existing notes — only writes ones that don't exist yet.
+    for (const a of AGENTS) {
+      const file = AGENT_FILE(a.id);
+      if (!fs.existsSync(file)) writeAgentNoteTemplate(a);
+    }
+    return { created: false, dir: VAULT_DIR };
+  }
 
   fs.mkdirSync(VAULT_DIR, { recursive: true });
 
@@ -100,32 +156,7 @@ to the agent that authored them, e.g. [[Claude Code]].
 `
   );
 
-  for (const a of AGENTS) {
-    write(
-      AGENT_FILE(a.id),
-      `---
-agent: ${a.id}
-kind: ${a.kind}
-accent: "${a.accent}"
----
-# ${a.name}
-
-> ${a.tagline}
-
-## Mission
-_Standing objective for this agent. Edit freely — it is read back into the agent's Mission Control page._
-
-## Tools
-${a.tools.map((t) => `- ${t}`).join("\n")}
-
-## Memory
-_Notes, preferences, and context that should persist across this agent's sessions._
-
-## Log
-_Auto-appended highlights from the shared feed._
-`
-    );
-  }
+  for (const a of AGENTS) writeAgentNoteTemplate(a);
 
   // Minimal Obsidian config so the folder opens as a vault without prompts.
   write(

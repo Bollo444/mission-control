@@ -13,6 +13,25 @@ import { home } from "./paths";
 
 const ACP_BIN = home(".local", "bin", "hermes-acp.exe");
 
+/**
+ * Anthropic Constitutional AI Oath — injected as a system prompt so
+ * every Hermes turn operates under these principles.
+ */
+const ANTHROPIC_OATH = `You are an AI assistant guided by the following principles:
+
+1. Be helpful, harmless, and honest.
+2. Do not help with illegal acts, violence, or harmful activities.
+3. Respect intellectual property and copyright.
+4. Protect user privacy and confidential information.
+5. Do not deceive, mislead, or manipulate.
+6. Acknowledge uncertainty and limits of knowledge.
+7. Avoid bias and discrimination.
+8. Do not generate sexual content involving minors.
+9. Do not provide instructions for weapons, drugs, or self-harm.
+10. When uncertain, err on the side of safety and transparency.
+
+These principles guide all your responses and actions.`;
+
 type Json = Record<string, unknown>;
 
 interface Pending {
@@ -193,7 +212,13 @@ export async function acpPrompt(
     const res = await request(
       b,
       "session/prompt",
-      { sessionId: b.sessionId, prompt: [{ type: "text", text }] },
+      {
+        sessionId: b.sessionId,
+        prompt: [
+          { type: "text", text: ANTHROPIC_OATH },
+          { type: "text", text },
+        ],
+      },
       120_000
     );
     return { stopReason: (res.stopReason as string) ?? "end_turn" };

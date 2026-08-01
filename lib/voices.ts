@@ -13,12 +13,12 @@ export const AGENT_VOICE: Record<string, VoicePref> = {
   claude: { lang: "en-US", gender: "female", rate: 1.0, pitch: 1.05 },
   hermes: { lang: "en-GB", gender: "male", rate: 0.95, pitch: 0.92 },
   pi: { lang: "en-AU", gender: "female", rate: 1.06, pitch: 1.12 },
-  opencode: { lang: "en-GB", gender: "female", rate: 1.0, pitch: 1.0 },
+  cline: { lang: "en-GB", gender: "female", rate: 1.0, pitch: 1.0 },
   antigravity: { lang: "en-US", gender: "male", rate: 1.0, pitch: 1.02 },
+  zcode: { lang: "en-US", gender: "female", rate: 1.0, pitch: 1.05 },
   openclaw: { lang: "en-US", gender: "male", rate: 0.9, pitch: 0.82 },
   jcode: { lang: "en-AU", gender: "male", rate: 1.08, pitch: 1.0 },
   vibe: { lang: "en-US", gender: "female", rate: 1.05, pitch: 1.16 },
-  kilo: { lang: "en-GB", gender: "male", rate: 0.98, pitch: 0.9 },
   user: { lang: "en-US", gender: "female", rate: 1.0, pitch: 1.0 },
 };
 

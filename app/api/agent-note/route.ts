@@ -9,6 +9,7 @@ import {
   agentNotePath,
 } from "@/lib/memory";
 import { logEvent } from "@/lib/logbook";
+import { checkWritePermission } from "@/lib/write-gate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,9 +21,9 @@ export const dynamic = "force-dynamic";
   agent can never address another agent's file — the guardrail is structural.
 
   Examples (an agent updating how it should behave):
-    curl -H "Authorization: Bearer $MC_GATEWAY_TOKEN" -H "X-MC-Agent: opencode" \
+    curl -H "Authorization: Bearer $MC_GATEWAY_TOKEN" -H "X-MC-Agent: cline" \
          http://127.0.0.1:4317/api/agent-note
-    curl -X POST -H "Authorization: Bearer $MC_GATEWAY_TOKEN" -H "X-MC-Agent: opencode" \
+    curl -X POST -H "Authorization: Bearer $MC_GATEWAY_TOKEN" -H "X-MC-Agent: cline" \
          -H "content-type: application/json" \
          -d '{"directive":"Prefer the cheapest viable route; escalate only on failure."}' \
          http://127.0.0.1:4317/api/agent-note
@@ -58,6 +59,31 @@ export async function POST(req: Request) {
   if (!authed(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const id = callerId(req);
   if (!id) return NextResponse.json({ error: "Set X-MC-Agent to a known agent id" }, { status: 400 });
+
+  // Sentinel-gated writes. Agents other than Sentinel may only write to their
+  // OWN vault note (structurally scoped to one file by this hook). Sentinel
+  // is the sole writer for the protected executable surface (lib/, app/,
+  // components/, registry, settings). This keeps the self-improvement loop
+  // alive while bounding the blast radius of a misbehaving agent.
+  const target = agentNotePath(id);
+  const check = checkWritePermission({
+    callerAgentId: id,
+    target,
+    kind: "file.write",
+    ownAgentNote: true,
+  });
+  if (!check.ok) {
+    logEvent({
+      source: "write-gate",
+      level: "warn",
+      event: "denied agent-note write",
+      detail: `${id} → ${target} (required=${check.requiredAgent})`,
+    });
+    return NextResponse.json(
+      { ok: false, error: `write denied: ${check.reason}`, requiredAgent: check.requiredAgent },
+      { status: 403 }
+    );
+  }
 
   let body: { content?: string; directive?: string };
   try {

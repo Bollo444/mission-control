@@ -30,6 +30,8 @@ const ACCENT = "#46e0d0";
 interface Pal { type: string; label: string; color: string; defaults: Record<string, unknown> }
 const PALETTE: Pal[] = [
   { type: "trigger.manual", label: "▶ Manual trigger", color: "#7be0d0", defaults: {} },
+  { type: "trigger.cron", label: "⏱ Cron trigger", color: "#f5b75a", defaults: { everyMinutes: 60 } },
+  { type: "trigger.meeting", label: "🗣 Meeting trigger", color: "#46e0d0", defaults: {} },
   { type: "condition.if", label: "◇ If / then", color: "#f5b75a", defaults: { left: "{{input}}", op: "contains", right: "" } },
   { type: "action.agent", label: "✦ Run agent", color: "#9d8cff", defaults: { agentId: "claude", task: "{{input}}" } },
   { type: "action.shell", label: "⌘ Shell command", color: "#c0c6d4", defaults: { command: "" } },
@@ -139,7 +141,19 @@ function FlowNodeView({ id, type, data }: NodeProps) {
             <input className={inp} value={String(d.right ?? "")} onChange={(e) => set({ right: e.target.value })} placeholder="right value" />
           </>
         )}
-        {isTrigger && <div className="text-[10px] text-[var(--color-ink-4)]">Runs when you press Run.</div>}
+        {isTrigger && type === "trigger.cron" && (
+          <>
+            <div className="text-[10px] text-[var(--color-ink-4)]">Re-runs this flow on a schedule.</div>
+            <div className="flex items-center gap-1.5">
+              <input className={inp} type="number" min={1} value={String(d.everyMinutes ?? 60)} onChange={(e) => set({ everyMinutes: parseInt(e.target.value, 10) || 60 })} placeholder="60" style={{ width: 60 }} />
+              <span className="text-[10px] text-[var(--color-ink-4)]">min</span>
+            </div>
+          </>
+        )}
+        {isTrigger && type === "trigger.meeting" && (
+          <div className="text-[10px] text-[var(--color-ink-4)]">Triggers a team meeting convene when this flow runs.</div>
+        )}
+        {isTrigger && type === "trigger.manual" && <div className="text-[10px] text-[var(--color-ink-4)]">Runs when you press Run.</div>}
       </div>
       {isCond ? (
         <>
@@ -268,7 +282,7 @@ function Inner() {
             title="which agent drives the build"
             className="rounded-lg border border-white/10 bg-[var(--color-surface-2)] px-2 py-2 text-sm text-[var(--color-ink-3)]"
           >
-            {["claude", "hermes", "codex", "jcode", "opencode", "pi", "vibe"].map((a) => (
+            {["claude", "hermes", "codex", "jcode", "cline", "pi", "vibe"].map((a) => (
               <option key={a} value={a}>{a}</option>
             ))}
           </select>

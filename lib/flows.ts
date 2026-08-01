@@ -163,6 +163,18 @@ export async function runFlow(flow: Flow): Promise<{ steps: StepLog[] }> {
         const out = await callTool(server, tool, args);
         input = out;
         steps.push({ nodeId, type: node.type, ok: !out.startsWith("⚠"), detail: out.slice(0, 400) });
+      } else if (node.type === "trigger.cron") {
+        // Informational: logs that this flow should be scheduled.
+        // The actual cron job is created by the meeting page or cron API.
+        const every = Number(node.data.everyMinutes ?? 60);
+        input = `cron trigger: every ${every}m (use /api/cron to register)`;
+        logEvent({ source: "system", level: "info", event: `flow cron trigger: ${flow.name}`, detail: `every ${every}m` });
+        steps.push({ nodeId, type: node.type, ok: true, detail: input });
+      } else if (node.type === "trigger.meeting") {
+        // Log a meeting convene request — the client picks this up.
+        logEvent({ source: "system", level: "info", event: `flow triggered meeting: ${flow.name}` });
+        input = "meeting convene requested";
+        steps.push({ nodeId, type: node.type, ok: true, detail: input });
       } else if (node.type === "condition.if") {
         const pass = evalCondition(node.data, input);
         branch = pass ? "then" : "else";

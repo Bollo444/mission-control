@@ -58,7 +58,19 @@ function AgentNav({ a, active }: { a: NavAgent; active: boolean }) {
       >
         {a.glyph}
       </span>
-      <span className="truncate">{a.name}</span>
+      <span className="flex min-w-0 items-center gap-2">
+        <span className="truncate">{a.name}</span>
+        {a.id === "cline" && (
+          /* Tiny real Cline emblem beside the name (sits next to the colored
+             glyph badge so the row stays balanced). */
+          <img
+            src="/emblems/cline.png"
+            alt=""
+            aria-hidden
+            className="h-3.5 w-3.5 shrink-0 select-none opacity-90"
+          />
+        )}
+      </span>
     </Link>
   );
 }

@@ -84,12 +84,22 @@ export async function POST(req: Request, { params }: { params: Promise<{ path: s
     // 2. Fall back to cascadeChat (Backup Generator)
     isFailover = true;
     result = await cascadeChat(body, { agentId, sessionId });
-    if (isFailover) {
+    // Only log "failover engaged" when the Backup Generator actually served.
+    // (Previously this fired even when cascadeChat returned ok:false, producing
+    // a misleading "served error" line.)
+    if (result.ok) {
       logEvent({
         source: "gateway",
         level: "warn",
         event: "failover engaged",
-        detail: `OmniRoute unreachable — Backup Generator served ${result.ok ? `${result.served.provider}/${result.served.model}` : "error"}`
+        detail: `OmniRoute unreachable — Backup Generator served ${result.served.provider}/${result.served.model}`
+      });
+    } else {
+      logEvent({
+        source: "gateway",
+        level: "error",
+        event: "failover failed",
+        detail: `OmniRoute unreachable AND Backup Generator failed: ${result.error ?? "unknown"}`
       });
     }
   }

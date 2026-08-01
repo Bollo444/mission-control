@@ -77,6 +77,13 @@ interface ChatMsg {
   text: string;
   // For reply bubbles: the paired agent this turn was delegated to (null → Hermes himself).
   agent?: string | null;
+  // Meeting decision metadata if this message is an actionable decision.
+  decision?: {
+    action: string;
+    owner: string;
+    actionKind: "agent" | "flow.run" | "flow.create" | "cron" | "mcp" | "shell";
+    status?: "pending" | "dispatched" | "done" | "error";
+  };
 }
 
 // Low-alpha rgba from a #rrggbb hex — for tinted bubble fills/borders.
@@ -90,7 +97,7 @@ function hexA(hex: string, a: number): string {
 
 // ---- Tab bar types -------------------------------------------------------
 
-type TabId = "new-session" | "skills-tools" | "profiles" | "messaging" | "artifacts";
+type TabId = "new-session" | "skills-tools" | "profiles" | "messaging" | "artifacts" | "self-update";
 
 interface Tab {
   id: TabId;
@@ -103,6 +110,7 @@ const TABS: Tab[] = [
   { id: "profiles", label: "Profiles" },
   { id: "messaging", label: "Messaging" },
   { id: "artifacts", label: "Artifacts" },
+  { id: "self-update", label: "Self-Update" },
 ];
 
 // ---- Main component -----------------------------------------------------
@@ -381,6 +389,13 @@ export default function HermesConsole({ agent }: { agent: AgentDetail }) {
             <Artifacts />
           </div>
         )}
+
+        {/* ---- SELF-UPDATE TAB ---- */}
+        {activeTab === "self-update" && (
+          <div className="h-full overflow-hidden px-6 py-5">
+            <SelfUpdatePanel />
+          </div>
+        )}
       </div>
 
       {orchestrating && <OrchestrationRelay onClose={() => setOrchestrating(false)} />}
@@ -394,11 +409,10 @@ const FLEET: [string, string, string][] = [
   ["claude", "Claude Code", "#e0915f"],
   ["openclaw", "OpenClaw", "#ff4438"],
   ["pi", "Pi", "#5cd6a0"],
-  ["opencode", "OpenCode", "#9d8cff"],
+  ["cline", "Cline", "#9d8cff"],
   ["antigravity", "Antigravity", "#6ea8fe"],
   ["jcode", "jcode", "#46e0d0"],
   ["vibe", "Vibe", "#f06a7a"],
-  ["kilo", "Kilo Code", "#c0c6d4"],
   ["sentinel", "Sentinel", "#d65db1"],
 ];
 
@@ -460,15 +474,167 @@ export function OrchestrationRelay({ onClose }: { onClose: () => void }) {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [msgs]);
 
+  // Helper to add a system message to the chat.
+  const addSystemMsg = useCallback((text: string) => {
+    setMsgs((m) => [...m, { who: "hermes", text, agent: null }]);
+  }, []);
+
+  // Infer meeting decision from a message (simplified version of meeting.ts logic).
+  const inferDecision = useCallback((text: string): ChatMsg["decision"] => {
+    const lower = text.toLowerCase();
+    // Action keywords → actionable decision.
+    const actionMatch = lower.match(/\b(clean|fix|deploy|update|refactor|install|uninstall|run|create|setup|configure|schedule|monitor|audit|test|review|migrate|backup|optimize)\b/);
+    if (!actionMatch) return undefined;
+
+    // Infer action kind from keywords.
+    let actionKind: "agent" | "flow.run" | "flow.create" | "cron" | "mcp" | "shell" = "agent";
+    if (/\b(recur|schedul|nightly|daily|every\s+\d|cron|periodic)\b/.test(lower)) actionKind = "cron";
+    else if (/\b(mcp|connector|tool|integrat|notion|github|slack|webhook)\b/.test(lower)) actionKind = "mcp";
+    else if (/\b(flow|pipeline|chain|automat|if\/then|worklow)\b/.test(lower)) actionKind = "flow.create";
+    else if (/\b(shell|clean|reclaim|temp|cache|disk|uninstall|install|run\s+command|script)\b/.test(lower)) actionKind = "shell";
+
+    // Extract owner from @mention or infer from context.
+    const ownerMatch = text.match(/@(\w+)/);
+    const owner = ownerMatch ? ownerMatch[1] : "Hermes";
+
+    return {
+      action: text.slice(0, 120),
+      owner,
+      actionKind,
+      status: "pending",
+    };
+  }, []);
+
+  // Create a meeting decision from a message.
+  const createDecision = useCallback(async (msg: ChatMsg) => {
+    if (!msg.decision) return;
+    addSystemMsg(`📋 Creating meeting decision: "${msg.decision.action}" → ${msg.decision.owner}`);
+    try {
+      const res = await fetch("/api/meeting", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          event: "decision",
+          decision: msg.decision,
+        }),
+      }).then((r) => r.json()).catch(() => null);
+      if (res?.ok) {
+        setMsgs((m) => m.map((x) => x === msg ? { ...x, decision: { ...x.decision!, status: "done" } } : x));
+        addSystemMsg(`✓ Decision created — execute in /meeting`);
+      } else {
+        addSystemMsg(`⚠ Failed to create decision`);
+      }
+    } catch (e) {
+      addSystemMsg(`⚠ Decision error: ${(e as Error).message}`);
+    }
+  }, [addSystemMsg]);
+
+  // Helper to dispatch an agent with fallback logic.
+  const dispatchAgentWithFallback = useCallback(async (agentId: string, task: string): Promise<boolean> => {
+    // Try the primary agent first.
+    const res = await fetch("/api/subagents", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ agentId, task }),
+    }).then((x) => x.json()).catch(() => null);
+
+    if (res?.ok) return true;
+
+    // Fallback: try Hermes as orchestrator.
+    addSystemMsg(`⚠ ${agentId} unavailable — falling back to Hermes...`);
+    const fallbackRes = await fetch("/api/hermes/acp", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ message: task }),
+    }).then((x) => x.json()).catch(() => null);
+
+    return fallbackRes?.ok ?? false;
+  }, [addSystemMsg]);
+
   const send = useCallback(async () => {
     const text = input.trim();
     if (!text || busy) return;
-    // Pull the first @mention out of the sent text → the agent this turn pairs with.
+    setInput("");
+    setBusy(true);
+
+    // 1) Flow trigger: flow:start <flowId> or flow:run <flowId>
+    const flowMatch = text.match(/^flow:(?:start|run)\s+(\S+)/i);
+    if (flowMatch) {
+      const flowId = flowMatch[1];
+      addSystemMsg(`▶ Running flow: ${flowId}`);
+      try {
+        const res = await fetch("/api/flows/run", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ id: flowId }),
+        }).then((r) => r.json()).catch(() => null);
+        if (res?.ok) {
+          addSystemMsg(`✓ Flow completed: ${flowId}`);
+        } else {
+          addSystemMsg(`⚠ Flow failed: ${res?.error ?? "unknown error"}`);
+        }
+      } catch (e) {
+        addSystemMsg(`⚠ Flow error: ${(e as Error).message}`);
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+
+    // 2) Meeting decision: meeting:decide <action> | owner <owner> | kind <actionKind>
+    const meetingMatch = text.match(/^meeting:decide\s+(.+)/i);
+    if (meetingMatch) {
+      const parts = meetingMatch[1].split(/\s*\|\s*/);
+      const action = parts.find(p => p.startsWith("action"))?.replace(/^action\s*/, "") ?? parts[0];
+      const owner = parts.find(p => p.startsWith("owner"))?.replace(/^owner\s*/, "") ?? "Hermes";
+      const kind = (parts.find(p => p.startsWith("kind"))?.replace(/^kind\s*/, "") ?? "agent") as "agent" | "flow.run" | "flow.create" | "cron" | "mcp" | "shell";
+      addSystemMsg(`📋 Creating meeting decision: "${action}" → ${owner} (${kind})`);
+      try {
+        const res = await fetch("/api/meeting", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            event: "decision",
+            decision: { action, owner, actionKind: kind, status: "pending" },
+          }),
+        }).then((r) => r.json()).catch(() => null);
+        if (res?.ok) {
+          addSystemMsg(`✓ Decision created — execute in /meeting`);
+        } else {
+          addSystemMsg(`⚠ Failed to create decision`);
+        }
+      } catch (e) {
+        addSystemMsg(`⚠ Decision error: ${(e as Error).message}`);
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+
+    // 3) @agent dispatch with fallback.
     const m = text.match(/@(\w+)/);
     const paired = m && FLEET_ACCENT[m[1].toLowerCase()] ? m[1].toLowerCase() : null;
-    setInput("");
-    setMsgs((m) => [...m, { who: "you", text }, { who: "hermes", text: "", agent: paired }]);
-    setBusy(true);
+    // Infer meeting decision from the message.
+    const decision = inferDecision(text);
+    setMsgs((m) => [...m, { who: "you", text, decision }, { who: "hermes", text: "", agent: paired }]);
+
+    if (paired) {
+      // Dispatch the agent with fallback to Hermes.
+      const task = text.replace(/@\w+\s*/, "").trim();
+      const ok = await dispatchAgentWithFallback(paired, task);
+      if (!ok) {
+        setMsgs((m) => {
+          const copy = [...m];
+          const last = copy[copy.length - 1];
+          copy[copy.length - 1] = { ...last, text: `⚠ All agents unavailable — dispatch failed` };
+          return copy;
+        });
+      }
+      setBusy(false);
+      return;
+    }
+
+    // 4) Default: send to Hermes ACP.
     try {
       const res = await fetch("/api/hermes/acp", {
         method: "POST",
@@ -520,7 +686,7 @@ export function OrchestrationRelay({ onClose }: { onClose: () => void }) {
     } finally {
       setBusy(false);
     }
-  }, [input, busy]);
+  }, [input, busy, addSystemMsg, dispatchAgentWithFallback]);
 
   return (
     <div className="absolute inset-0 z-50 grid place-items-center p-6" style={{ background: "rgba(8,4,5,0.6)" }}>
@@ -554,10 +720,16 @@ export function OrchestrationRelay({ onClose }: { onClose: () => void }) {
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
           {msgs.length === 0 ? (
             <div className="grid h-full place-items-center text-center text-sm" style={{ color: OX.inkDim }}>
-              <div className="max-w-sm">
-                Pair Hermes with one agent: <span style={{ color: OX.gold }}>@openclaw clean up the temp folder</span>,{" "}
-                <span style={{ color: OX.gold }}>@claude refactor lib/meeting.ts</span>. Hermes drives the duo; replies
-                stream from the real agent.
+              <div className="max-w-sm space-y-2">
+                <div>
+                  <span style={{ color: OX.gold }}>@openclaw clean up the temp folder</span> — pair with an agent
+                </div>
+                <div>
+                  <span style={{ color: OX.gold }}>flow:run my-flow-id</span> — trigger an automation flow
+                </div>
+                <div>
+                  <span style={{ color: OX.gold }}>meeting:decide fix disk | owner OpenClaw | kind shell</span> — create a meeting decision
+                </div>
               </div>
             </div>
           ) : (
@@ -590,6 +762,38 @@ export function OrchestrationRelay({ onClose }: { onClose: () => void }) {
                     >
                       {m.text || (busy ? "…" : "")}
                     </div>
+                    {/* Meeting decision badge + action button */}
+                    {m.decision && (
+                      <div className="mt-1 flex items-center gap-2">
+                        <span
+                          className="rounded px-1.5 py-0.5 text-[10px] font-semibold"
+                          style={{
+                            background: hexA(OX.gold, 0.15),
+                            color: OX.gold,
+                            border: `1px solid ${hexA(OX.gold, 0.3)}`,
+                          }}
+                        >
+                          {m.decision.actionKind}
+                        </span>
+                        {m.decision.status === "pending" && (
+                          <button
+                            onClick={() => void createDecision(m)}
+                            className="rounded px-2 py-0.5 text-[10px] font-semibold transition-colors hover:brightness-110"
+                            style={{
+                              background: OX.gold,
+                              color: OX.base,
+                            }}
+                          >
+                            Create decision
+                          </button>
+                        )}
+                        {m.decision.status === "done" && (
+                          <span className="text-[10px]" style={{ color: "#5cd6a0" }}>
+                            ✓ Created
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -639,4 +843,66 @@ export function OrchestrationRelay({ onClose }: { onClose: () => void }) {
       </div>
     </div>
   );
+}
+
+/* Self-Update Panel — Hermes manages fleet updates */
+function SelfUpdatePanel() {
+  const [results, setResults] = useState<SelfUpdateResult[]>([]);
+  const [running, setRunning] = useState(false);
+
+  const runCycle = useCallback(async () => {
+    setRunning(true);
+    try {
+      const res = await fetch("/api/healer/self-update?triggeredBy=manual", { method: "POST" });
+      const json = await res.json();
+      if (json.results) setResults(json.results);
+    } finally {
+      setRunning(false);
+    }
+  }, []);
+
+  return (
+    <div className="rounded-xl p-4" style={{ border: `1px solid ${OX.line}`, background: OX.surface }}>
+      <div className="mb-3 flex items-center gap-3 text-sm font-semibold" style={{ color: OX.gold }}>
+        <span className="h-3 w-1 rounded-full" style={{ background: OX.gold }} />
+        Fleet Self-Update
+      </div>
+      <p className="mb-3 text-xs" style={{ color: OX.inkDim }}>
+        Hermes checks all CLI agents for updates and applies them individually.
+        Detailed logs appear on each agent's page; brief entries go to the universal log.
+      </p>
+      <button
+        onClick={runCycle}
+        disabled={running}
+        className="mb-3 rounded-lg px-3 py-1.5 text-xs font-semibold transition-transform hover:-translate-y-px disabled:opacity-50"
+        style={{ background: OX.gold, color: OX.base }}
+      >
+        {running ? "Checking all agents…" : "Run self-update cycle now"}
+      </button>
+      {results.length > 0 && (
+        <div className="space-y-1.5 max-h-60 overflow-y-auto">
+          {results.map((r, i) => (
+            <div
+              key={`${r.agentId}-${i}`}
+              className="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-xs font-mono"
+              style={{
+                background: r.status === "completed" ? "rgba(80,200,120,0.1)" : "rgba(239,68,68,0.1)",
+                color: r.status === "completed" ? "#5cd6a0" : "#ef4444",
+              }}
+            >
+              <span>{r.agentId}</span>
+              <span>{r.brief}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface SelfUpdateResult {
+  agentId: string;
+  action: string;
+  status: "completed" | "failed";
+  brief: string;
 }

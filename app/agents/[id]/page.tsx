@@ -15,8 +15,10 @@ import AgentMetrics from "@/components/AgentMetrics";
 import NativeTerminal from "@/components/ide/NativeTerminal";
 import ClaudeMascots from "@/components/ide/ClaudeMascots";
 import VibeDog from "@/components/ide/VibeDog";
+import ClineSkeleton from "@/components/ide/ClineSkeleton";
 import SentinelSwarm from "@/components/ide/SentinelSwarm";
 import GrowthSwarm from "@/components/ide/GrowthSwarm";
+import SelfDevLog from "@/components/SelfDevLog";
 import { getSkin, typeFontClass } from "@/components/skins";
 import AntigravityIde from "@/components/ide/AntigravityIde";
 import OpenClawConsole from "@/components/ide/OpenClawConsole";
@@ -47,7 +49,7 @@ export default function AgentPage() {
   const s = a.status;
   const accent = a.accent;
   const skin = getSkin(a.id);
-  const { Mascot, Background } = skin;
+  const { Mascot, Emblem, Background } = skin;
 
   // Antigravity gets a wholly different surface: the integrated IDE.
   if (skin.ide) {
@@ -89,8 +91,9 @@ export default function AgentPage() {
               "linear-gradient(90deg, rgba(8,9,12,0.85) 0%, rgba(8,9,12,0.5) 48%, rgba(8,9,12,0.12) 100%)",
           }}
         />
-        {a.id === "claude" && <ClaudeMascots />}
-        {a.id === "vibe" && <VibeDog />}
+          {a.id === "claude" && <ClaudeMascots />}
+          {a.id === "vibe" && <VibeDog />}
+          {a.id === "cline" && <ClineSkeleton />}
         <div className="relative flex flex-wrap items-center justify-between gap-5 px-8 py-7">
           <div className="flex items-center gap-5">
             <span
@@ -100,7 +103,15 @@ export default function AgentPage() {
                 boxShadow: `inset 0 0 0 1px ${hexA(accent, 0.35)}`,
               }}
             >
-              <Mascot size={64} />
+              {a.id === "cline" ? (
+                <img
+                  src="/emblems/cline.png"
+                  alt="Cline emblem"
+                  className="h-[88%] w-[88%] object-contain"
+                />
+              ) : (
+                <Emblem size={64} />
+              )}
             </span>
             <div className="min-w-0">
               <div
@@ -209,11 +220,11 @@ export default function AgentPage() {
           <section className="mc-panel overflow-hidden">
             <div className="flex items-center justify-between border-b px-5 py-3">
               <SectionTitle accent={accent}>
-                {a.id === "opencode" ? "Terminal" : "Native TUI"} · {a.name}
+                {a.id === "cline" ? "Native TUI" : "Native TUI"} · {a.name}
               </SectionTitle>
               <span className="text-[11px] text-[var(--color-ink-4)]">
-                {a.id === "opencode"
-                  ? 'shell · opencode on PATH — run  opencode run "…"'
+                {a.id === "cline"
+                  ? `live ${a.id} session · survives navigation`
                   : s.installed
                     ? `live ${a.id} session · survives navigation`
                     : "not installed"}
@@ -227,7 +238,7 @@ export default function AgentPage() {
               <div className="grid h-56 place-items-center px-6 text-center">
                 <div className="max-w-sm">
                   <p className="text-sm text-[var(--color-ink-3)]">
-                    {a.name}&apos;s native TUI appears here once it&apos;s installed.
+                    {a.name}'s native TUI appears here once it's installed.
                   </p>
                   {a.install?.command && (
                     <code className="mt-3 block break-all rounded-lg border bg-[var(--color-surface-2)] px-3 py-2 text-left font-mono text-[11px] text-[var(--color-ink-2)]">
@@ -277,6 +288,17 @@ export default function AgentPage() {
               <ActivityFeed entries={myActivity.slice(0, 10)} accentFor={accentFor} compact />
             </div>
           </section>
+
+          {/* Self-dev log — detailed audit trail for Hermes-managed updates */}
+          {a.id === "hermes" ? null : (
+            <section className="mc-panel p-5">
+              <SectionTitle accent={accent}>Self-dev log</SectionTitle>
+              <p className="mb-3 text-xs text-[var(--color-ink-4)]">
+                Hermes-managed self-updates for this agent
+              </p>
+              <SelfDevLog agentId={a.id} accent={accent} limit={50} />
+            </section>
+          )}
         </div>
       </div>
       </div>

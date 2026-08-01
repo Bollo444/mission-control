@@ -13,20 +13,26 @@ export const dynamic = "force-dynamic";
 
 const NODE_TYPES = [
   "trigger.manual",
+  "trigger.cron",
+  "trigger.meeting",
   "condition.if",
   "action.agent",
   "action.shell",
   "action.discord",
   "action.log",
+  "action.mcp",
 ] as const;
 
 const DEFAULTS: Record<string, Record<string, unknown>> = {
   "trigger.manual": {},
+  "trigger.cron": { everyMinutes: 60 },
+  "trigger.meeting": {},
   "condition.if": { left: "{{input}}", op: "contains", right: "" },
   "action.agent": { agentId: "claude", task: "{{input}}" },
   "action.shell": { command: "" },
   "action.discord": { agentId: "claude", message: "{{input}}" },
   "action.log": { message: "flow step: {{input}}" },
+  "action.mcp": { server: "", tool: "", args: "{}" },
 };
 
 const SYSTEM = `You are the automation architect for "Mission Control", a fleet of coding agents.
@@ -36,18 +42,22 @@ Shape:
 {"name": string, "nodes": [{"id": string, "type": string, "data": object}], "edges": [{"source": id, "target": id, "sourceHandle"?: "then"|"else"}]}
 
 Node types and their data:
-- "trigger.manual"  data: {}                                  // every flow starts with exactly one
-- "action.agent"    data: {"agentId": string, "task": string} // ask an agent; agentId ∈ claude,hermes,codex,pi,opencode,jcode,vibe,openclaw,sentinel
-- "action.shell"    data: {"command": string}                 // a shell command (Windows). Use ONLY if the user asks for a system/script action.
-- "action.discord"  data: {"agentId": string, "message": string}
-- "action.log"      data: {"message": string}
-- "condition.if"    data: {"left": string, "op": "contains"|"not_contains"|"equals"|"not_equals"|"gt"|"lt", "right": string}
-                    // branch with two edges from it: sourceHandle "then" and "else"
+- "trigger.manual"    data: {}                                  // every flow starts with exactly one trigger
+- "trigger.cron"      data: {"everyMinutes": number}             // re-runs this flow on a schedule
+- "trigger.meeting"   data: {}                                  // triggers a team meeting convene
+- "action.agent"      data: {"agentId": string, "task": string} // ask an agent; agentId ∈ claude,hermes,codex,pi,cline,jcode,vibe,openclaw,sentinel
+- "action.shell"      data: {"command": string}                 // a shell command (Windows). Use ONLY if the user asks for a system/script action.
+- "action.discord"    data: {"agentId": string, "message": string}
+- "action.log"        data: {"message": string}
+- "action.mcp"        data: {"server": string, "tool": string, "args": string} // call an MCP server tool (args is JSON string)
+- "condition.if"      data: {"left": string, "op": "contains"|"not_contains"|"equals"|"not_equals"|"gt"|"lt", "right": string}
+                      // branch with two edges from it: sourceHandle "then" and "else"
 
 Rules:
 - Each action's output flows downstream as the literal token {{input}}; reference it in later tasks/messages.
-- Start with one trigger.manual, then wire nodes with edges (source → target). Keep it minimal but complete.
+- Start with exactly one trigger (manual, cron, or meeting), then wire nodes with edges (source → target). Keep it minimal but complete.
 - Prefer action.agent and action.log. Use action.shell only when clearly asked. Use condition.if only when the request branches.
+- Use trigger.cron when the user wants something recurring. Use trigger.meeting when the user wants a fleet discussion.
 - Give every node a short unique id. Output valid JSON only.
 
 Example — "every run, have claude summarize the latest git commits, and if it mentions a bug, log a warning":

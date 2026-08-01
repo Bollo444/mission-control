@@ -2,7 +2,7 @@
   "name": "mission-control",
   "version": "0.1.0",
   "private": true,
-  "description": "Unified Mission Control dashboard for nine AI coding agents (Claude, Hermes, Pi, OpenCode, Antigravity, OpenClaw, jcode, Vibe, Kilo) with a live system terminal, a team-meeting boardroom, and an Obsidian shared-memory vault.",
+  "description": "Unified Mission Control dashboard for nine AI coding agents (Claude, Hermes, Pi, Cline, Antigravity, ZCode, OpenClaw, jcode, Vibe) with a live system terminal, a team-meeting boardroom, and an Obsidian shared-memory vault.",
   "scripts": {
     "dev": "next dev -p 4317",
     "build": "next build",
@@ -20,6 +20,7 @@
     "@xyflow/react": "^12.11.1",
     "discord.js": "^14.26.4",
     "next": "^15.5.18",
+    "pm2": "^6.0.14",
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "sql.js": "^1.14.1",

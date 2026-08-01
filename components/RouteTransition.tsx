@@ -21,12 +21,12 @@ const AGENTS: Record<string, Trans> = {
   claude: { accent: "#e0915f" },
   hermes: { accent: "#f5b75a" },
   pi: { accent: "#5cd6a0" },
-  opencode: { accent: "#9d8cff" },
+  cline: { accent: "#9d8cff" },
   antigravity: { accent: "#6ea8fe" },
+  zcode: { accent: "#f04d8b" },
   openclaw: { accent: "#ff4438" },
   jcode: { accent: "#46e0d0" },
   vibe: { accent: "#f06a7a" },
-  kilo: { accent: "#c0c6d4" },
   sentinel: { accent: "#d65db1" },
 };
 
