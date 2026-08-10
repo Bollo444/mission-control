@@ -179,6 +179,11 @@ config exists. Ones you don't have installed appear as provisionable personas.
   flow runs), and `action.mcp` (call any connected MCP server's tool directly).
 - **Cron jobs can run flows** — cron jobs whose command is `flow:<flowId>` execute
   the named automation flow instead of a shell command.
+- **Cron/flow shell commands are sandboxed** — `parseSafeCommand` rejects shell
+  metacharacters (`;&|<>`$()\n\r`), shell binaries (`cmd`, `powershell`, `bash`, …) and
+  code-evaluator flags (`node -e`, `python -c`, `npx -c`, …); real commands like
+  `git status` or `node scripts/backup.js --dry-run` still run. `flow:` and
+  `self-update:` jobs are exempt and use their dedicated handlers.
 - **Hermes orchestration upgrade** — the Hermes console now understands `flow:run <id>`
   and `meeting:decide action | owner X | kind Y` chat commands; `@agent` dispatches
   with automatic Hermes fallback; decision badges with one-click "Create decision"
