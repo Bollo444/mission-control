@@ -21,7 +21,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "command is required" }, { status: 400 });
   }
   if (!command.startsWith("flow:") && !command.startsWith("self-update:") && !parseSafeCommand(command)) {
-    return NextResponse.json({ ok: false, error: "only approved read-only diagnostics, flow:<id>, or self-update jobs are allowed" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: "invalid command — shell syntax, shell binaries, and code-evaluator flags are not allowed; or use flow:<id> / self-update:" }, { status: 400 });
   }
   const job = addJob({
     name: body.name ?? "",

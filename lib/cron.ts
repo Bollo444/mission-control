@@ -5,7 +5,7 @@ import { MC_CONFIG_DIR } from "./paths";
 import { logEvent } from "./logbook";
 import { getFlow, runFlow } from "./flows";
 import { runSelfUpdateCycle } from "./healer";
-import { parseSafeCommand } from "./safe-command";
+import { parseSafeCommand, resolveCommandBinary } from "./safe-command";
 
 /* ------------------------------------------------------------------ *
  * A small, dependable cron engine. Jobs run a shell command every N    *
@@ -137,7 +137,7 @@ export function runJob(id: string): Promise<CronJob | null> {
   return new Promise((resolve) => {
     const parsed = parseSafeCommand(job.command);
     if (!parsed) {
-      const updated = updateJob(id, { lastRun: Date.now(), lastStatus: "error", lastOutput: "rejected: shell syntax is not allowed" });
+      const updated = updateJob(id, { lastRun: Date.now(), lastStatus: "error", lastOutput: "rejected: shell syntax, shell binaries, and code-evaluator flags are not allowed" });
       resolve(updated);
       return;
     }
@@ -160,7 +160,7 @@ export function runJob(id: string): Promise<CronJob | null> {
       resolve(updated);
     };
     try {
-      const child = spawn(parsed[0], parsed[1], { shell: false, windowsHide: true });
+      const child = spawn(resolveCommandBinary(parsed[0]), parsed[1], { shell: false, windowsHide: true });
       child.stdout?.on("data", (chunk) => { out += chunk.toString(); });
       child.stderr?.on("data", (chunk) => { out += chunk.toString(); });
       const timer = setTimeout(() => {

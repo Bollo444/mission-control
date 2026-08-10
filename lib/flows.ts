@@ -5,7 +5,7 @@ import { MC_CONFIG_DIR } from "./paths";
 import { cascadeChat } from "./gateway";
 import { logEvent } from "./logbook";
 import { callTool } from "./mcp";
-import { parseSafeCommand } from "./safe-command";
+import { parseSafeCommand, resolveCommandBinary } from "./safe-command";
 
 /* ------------------------------------------------------------------ *
  * Automation flows — a ComfyUI-style node graph. Triggers feed into     *
@@ -116,7 +116,7 @@ function runShell(command: string): Promise<string> {
       return;
     }
     try {
-      const child = spawn(parsed[0], parsed[1], { shell: false, windowsHide: true });
+      const child = spawn(resolveCommandBinary(parsed[0]), parsed[1], { shell: false, windowsHide: true });
       child.stdout?.on("data", (c) => (out += c.toString()));
       child.stderr?.on("data", (c) => (out += c.toString()));
       const t = setTimeout(() => { try { child.kill(); } catch {} resolve(out.slice(-4000) + "\n— timed out —"); }, 60_000);

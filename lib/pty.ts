@@ -105,13 +105,57 @@ function refreshHermesUpdateCache(): void {
  * agent's native TUI (which either doesn't exist or can't run in ConPTY).
  * Maps the session kind to the registry agent id whose bin dir is added to PATH.
  */
+const SHELL_MODE: Record<string, string> = {
+  "zcode-cli": "zcode",
+  cline: "cline",
+};
+
 /** Resolve the binary for an allow-listed native agent kind. */
 function resolveCommand(
   kind: string
 ): { cmd: string; args: string[]; cwd: string; env?: Record<string, string> } | null {
-  // Never expose a general shell or shell-backed session through the browser.
-  // Agent dispatch remains available through the fixed registry entries below.
-  if (kind === "shell" || kind === "zcode-cli" || kind === "cline") return null;
+  // Never expose a general shell through the browser — that was the RCE vector.
+  // Agent dispatch (fixed registry kinds, including the shell-mode agents below)
+  // is gated behind the admin boundary in middleware.
+  if (kind === "shell") return null;
+
+  // Shell-mode kinds: run a REAL shell with the agent's CLI prepended to PATH
+  // instead of its native TUI. Used when the TUI isn't viable in the embedded
+  // ConPTY:
+  //   • zcode-cli — ZCode is a desktop Electron IDE; auto-launch `zcode`
+  //     so the user sees the editor CLI immediately.
+  //   • cline — Cline's TUI (cline -i) needs bun:ffi which the npm build can't
+  //     load in ConPTY, so a shell is exposed here for ad-hoc CLI/inspection.
+  //     The headless dispatch (`cline "..."`) is wired for flows/automation
+  //     and properly routes through the Fleet Gateway (openai-compatible).
+  const shellModeAgent = SHELL_MODE[kind];
+  if (shellModeAgent) {
+    const cmd = process.platform === "win32" ? "powershell.exe" : process.env.SHELL || "bash";
+    const a = getAgent(shellModeAgent);
+    const bin = a ? resolveBinary(a) : null;
+    const env = bin
+      ? { PATH: path.dirname(bin) + path.delimiter + (process.env.PATH || process.env.Path || "") }
+      : undefined;
+    // IDE shells open in the repo workspace so git operations stay isolated
+    // from the mission-control project directory.
+    const cwd = kind === "zcode-cli" ? repoWorkspaceCwd() : agentCwd();
+
+    // Auto-launch the agent's CLI on startup.
+    let args: string[] = [];
+    if (process.platform === "win32") {
+      if (kind === "zcode-cli") {
+        args = ["-NoExit", "-Command", "zcode; Write-Host '`n[zcode exited — back in shell]' -ForegroundColor Gray"];
+      }
+      // cline: no auto-launch — the TUI (cline -i) needs bun:ffi which the
+      // npm build can't load in ConPTY. The shell is for ad-hoc CLI/inspection.
+    } else {
+      // Linux/macOS: similar but with bash
+      if (kind === "zcode-cli") {
+        args = ["-c", "zcode; exec bash"];
+      }
+    }
+    return { cmd, args, cwd, env };
+  }
 
   // Any registered agent's native CLI: prefer an existing absolute binPath,
   // else fall back to its PATH command name. Spawns the agent's real harness so

@@ -4,17 +4,24 @@ import { ADMIN_COOKIE, adminToken, configured, isAdminRequest, sameSecret } from
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function setSession(response: NextResponse) {
+// Secure only over the https tunnel (x-forwarded-proto), not on the plain
+// http://127.0.0.1 loopback — otherwise the browser drops the login cookie
+// and local sessions never persist.
+function setSession(response: NextResponse, secure: boolean) {
   response.cookies.set({
     name: ADMIN_COOKIE,
     value: adminToken(),
     httpOnly: true,
     sameSite: "strict",
-    secure: process.env.NODE_ENV === "production",
+    secure,
     path: "/",
     maxAge: 60 * 60 * 8,
   });
   return response;
+}
+
+function requestIsSecure(req: Request): boolean {
+  return req.headers.get("x-forwarded-proto") === "https";
 }
 
 export async function GET(req: Request) {
@@ -30,11 +37,11 @@ export async function POST(req: Request) {
   if (!sameSecret(token, adminToken())) {
     return NextResponse.json({ ok: false, error: "Invalid admin token" }, { status: 401 });
   }
-  return setSession(NextResponse.json({ ok: true }));
+  return setSession(NextResponse.json({ ok: true }), requestIsSecure(req));
 }
 
-export async function DELETE() {
+export async function DELETE(req: Request) {
   const response = NextResponse.json({ ok: true });
-  response.cookies.set({ name: ADMIN_COOKIE, value: "", httpOnly: true, sameSite: "strict", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 0 });
+  response.cookies.set({ name: ADMIN_COOKIE, value: "", httpOnly: true, sameSite: "strict", secure: requestIsSecure(req), path: "/", maxAge: 0 });
   return response;
 }
