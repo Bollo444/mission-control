@@ -157,7 +157,9 @@ export default function SettingsPage() {
               and use the token as its API key.
             </p>
             <CopyRow label="Base URL" value="http://127.0.0.1:4317/api/gateway/v1" />
-            <CopyRow label="Token (use as the API key)" value={data.gatewayToken} />
+            <div className="rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-3 py-2.5 text-[11px] leading-relaxed text-[var(--color-ink-3)]">
+              Authentication is provided by <code className="font-mono text-[var(--color-ink-2)]">MC_ADMIN_TOKEN</code>. It is never returned to browser JavaScript. Use that value as the API key for CLI or agent clients.
+            </div>
             {totalServed > 0 && (
               <p className="mt-1 text-[11px] text-[var(--color-ink-4)]">
                 {totalServed.toLocaleString()} backup request{totalServed === 1 ? "" : "s"} served today — see Fleet Gateway tab for primary metrics.

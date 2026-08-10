@@ -280,6 +280,9 @@ vault, the meeting — is identical on every platform.
 git clone https://github.com/Bollo444/mission-control.git
 cd mission-control
 npm install
+# Required: choose a long random admin secret; keep it outside git.
+# macOS/Linux: export MC_ADMIN_TOKEN="..."
+# Windows PowerShell: $env:MC_ADMIN_TOKEN="..."
 npm run dev          # http://localhost:4317
 ```
 
@@ -572,8 +575,8 @@ cooldown — so a single call rarely fails. This is the piece that puts Mission
 Control *in the inference path* (opt-in) and makes the routing table live.
 
 - **Base URL:** `http://127.0.0.1:4317/api/gateway/v1`
-- **Auth:** use your **gateway token** (Settings → Fleet Gateway, copyable) as the
-  API key. Upstream provider keys stay server-side in `~/.mission-control`.
+- **Auth:** use `MC_ADMIN_TOKEN` as the API key (or sign into the browser to receive
+  an HttpOnly session). Upstream provider keys stay server-side in `~/.mission-control`.
 - **Routing:**
   - `model: "auto"` → the fleet picks the best available free model.
   - `model: "groq/llama-3.3-70b-versatile"` (or any catalog id) → that first, then cascade.
@@ -582,7 +585,7 @@ Control *in the inference path* (opt-in) and makes the routing table live.
 
 ```bash
 curl http://127.0.0.1:4317/api/gateway/v1/chat/completions \
-  -H "Authorization: Bearer <your gateway token>" \
+  -H "Authorization: Bearer <your MC_ADMIN_TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{"model":"auto","messages":[{"role":"user","content":"hi"}]}'
 # routed across Cerebras / NIM / Groq / Cloudflare / OpenRouter / Mistral / GitHub / OpenCode Zen
@@ -648,14 +651,14 @@ providers. It translates Anthropic ⇄ OpenAI at the edge and reuses the same
 cascade, budgets, and routing underneath.
 
 - **Base URL:** `http://127.0.0.1:4317/api/anthropic`
-- **Auth:** your gateway token as `x-api-key` (or `Authorization: Bearer`).
+- **Auth:** `MC_ADMIN_TOKEN` as `x-api-key` (or `Authorization: Bearer`).
 - **`POST /v1/messages`** — full Anthropic request/response, including the
   `haiku` / `sonnet` / `opus` slots, each mapped to a provider+model you choose in
   **Settings → Anthropic slots**. **`GET /v1/models`** lists the catalog.
 
 ```bash
 curl http://127.0.0.1:4317/api/anthropic/v1/messages \
-  -H "x-api-key: <your gateway token>" \
+  -H "x-api-key: <your MC_ADMIN_TOKEN>" \
   -H "anthropic-version: 2023-06-01" \
   -H "Content-Type: application/json" \
   -d '{"model":"claude-3-5-sonnet-20241022","max_tokens":64,
@@ -699,10 +702,11 @@ route **names**. Backed by `GET /api/logs` (+ `DELETE` to clear).
 
 ## Configuration (environment variables)
 
-All optional — copy `.env.example` to `.env` to override (`.env` is gitignored):
+Provider settings are optional, but `MC_ADMIN_TOKEN` is required to open the control plane. Copy `.env.example` to `.env` to configure it (`.env` is gitignored):
 
 | Variable | Default | Purpose |
 |---|---|---|
+| `MC_ADMIN_TOKEN` | — | Required high-entropy admin credential for browser login and CLI/API access; never commit it |
 | `MC_VAULT_DIR` | `$HOME/MissionControlVault` | Point the shared vault at a custom (e.g. existing Obsidian) folder |
 | `MC_HEALTH_INTERVAL_MIN` | `360` (6h) | Health-sweep cadence in minutes (floored at 5) |
 | `LOCAL_BASE_URL` | `http://127.0.0.1:1234/v1` | OpenAI-compatible base for the **Local** provider (LM Studio/Ollama/vLLM) |
@@ -751,6 +755,7 @@ probes it like any other provider.
 
 This is a **local control plane with real power** — treat it accordingly:
 
+- **Admin boundary.** Every `/api/*` route is deny-by-default and requires `MC_ADMIN_TOKEN` via a bearer header or the browser's HttpOnly, SameSite session cookie. The auth handshake is the only public API route. Browser mutations also require same-origin requests.
 - **Loopback only.** `/api/launch` spawns local processes, `/api/system` reads
   host telemetry, and the app holds your provider keys. Never expose the raw port
   to an untrusted network. For remote access put it behind an authenticating

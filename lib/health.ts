@@ -231,7 +231,7 @@ export function norm(s: string): string {
 }
 
 /** true=present, false=confirmed missing, null=unverified (no live list). */
-export function modelStatus(ids: string[] | null, model: string): boolean | null {
+export function modelStatus(ids: string[] | null | undefined, model: string): boolean | null {
   if (!ids) return null;
   const set = new Set(ids.map(norm));
   return set.has(norm(model));

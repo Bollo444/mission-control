@@ -293,6 +293,7 @@ export function readSettings(): Settings {
     return {
       ...DEFAULTS,
       ...parsed,
+      gatewayToken: process.env.MC_ADMIN_TOKEN?.trim() || parsed.gatewayToken,
       routing: { ...DEFAULTS.routing, ...(parsed.routing ?? {}) },
       // Seed preferred from any saved preferred, else from saved routing (migration
       // for settings written before preferred existed), else the defaults.
@@ -313,7 +314,14 @@ export function writeSettings(next: Partial<Settings>): Settings {
   if (next.routing) merged.routing = { ...merged.routing, ...next.routing };
   if (next.routingPreferred)
     merged.routingPreferred = { ...merged.routingPreferred, ...next.routingPreferred };
-  if (next.apiKeys) merged.apiKeys = { ...merged.apiKeys, ...next.apiKeys };
+  if (next.apiKeys) {
+    const cleanKeys = Object.fromEntries(
+      Object.entries(next.apiKeys).filter(([name, value]) =>
+        /^[A-Za-z_][A-Za-z0-9_]*$/.test(name) && typeof value === "string" && value.length <= 4096
+      )
+    );
+    merged.apiKeys = { ...merged.apiKeys, ...cleanKeys };
+  }
   if (next.vaultDir) merged.vaultDir = next.vaultDir;
   if (next.gatewayToken) merged.gatewayToken = next.gatewayToken;
   if (next.anthropicSlots) merged.anthropicSlots = next.anthropicSlots;
@@ -321,8 +329,11 @@ export function writeSettings(next: Partial<Settings>): Settings {
   merged.updatedAt = new Date().toISOString();
   fs.mkdirSync(MC_CONFIG_DIR, { recursive: true });
   // Encrypt provider keys at rest when MC_ENCRYPTION_KEY is set (no-op otherwise).
-  const onDisk = { ...merged, apiKeys: mapValues(merged.apiKeys, encryptSecret) };
+  // MC_ADMIN_TOKEN is process-only and must never be copied into settings.json.
+  const onDisk: Partial<Settings> = { ...merged, apiKeys: mapValues(merged.apiKeys, encryptSecret) };
+  if (process.env.MC_ADMIN_TOKEN?.trim()) delete onDisk.gatewayToken;
   fs.writeFileSync(MC_SETTINGS_FILE, JSON.stringify(onDisk, null, 2), "utf8");
+  try { fs.chmodSync(MC_SETTINGS_FILE, 0o600); } catch { /* Windows / unsupported filesystem */ }
   const changed: string[] = [];
   if (next.routing) changed.push(`routing[${Object.keys(next.routing).join(",")}]`);
   if (next.routingPreferred) changed.push(`preferred[${Object.keys(next.routingPreferred).join(",")}]`);
@@ -334,8 +345,14 @@ export function writeSettings(next: Partial<Settings>): Settings {
   return merged;
 }
 
-/** Mission Control's own gateway access token — generated + persisted on first use. */
+/**
+ * Gateway credential. The admin token is the authoritative credential once the
+ * admin boundary is configured; the persisted legacy token remains only as a
+ * migration fallback for local instances that have not set MC_ADMIN_TOKEN yet.
+ */
 export function getGatewayToken(): string {
+  const admin = process.env.MC_ADMIN_TOKEN?.trim();
+  if (admin) return admin;
   const s = readSettings();
   if (s.gatewayToken && s.gatewayToken.length >= 16) return s.gatewayToken;
   const tok = "mcg_" + crypto.randomBytes(24).toString("hex");
@@ -375,7 +392,9 @@ export function publicSettings(s: Settings) {
     routing: s.routing,
     routingPreferred: s.routingPreferred,
     keyStatus,
-    gatewayToken: s.gatewayToken ?? "",
+    // Never return a bearer credential to browser JavaScript. CLI clients use
+    // MC_ADMIN_TOKEN directly; this field remains blank for old UI payloads.
+    gatewayToken: "",
     anthropicSlots: s.anthropicSlots ?? DEFAULT_ANTHROPIC_SLOTS,
     encryption: encryptionEnabled(),
     updatedAt: s.updatedAt,
