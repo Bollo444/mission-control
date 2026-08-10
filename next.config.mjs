@@ -27,6 +27,24 @@ const nextConfig = {
   },
   webpack: (config, { isServer }) => {
     if (isServer) {
+      // The edge compiler bundles instrumentation.ts (which lazy-imports the
+      // Discord fleet bot). discord.js's pure-ESM sub-packages can't be bundled
+      // there, and webpack's default edge external type ('module') emits
+      // `module.exports = @discordjs/…` inside a CJS wrapper — invalid JS that
+      // the minifier rejects ("Expression expected"). Force a CJS external for
+      // the discord packages. Never evaluated in the edge runtime (the
+      // register() guard returns early), and identical to the node build's own
+      // require() externals.
+      config.externals = [
+        (ctx, callback) => {
+          if (ctx.request === "discord.js" || /^@discordjs\//.test(ctx.request)) {
+            callback(null, "commonjs " + ctx.request);
+          } else {
+            callback();
+          }
+        },
+        ...(config.externals || []),
+      ];
       config.externalsPresets = { ...config.externalsPresets, node: true };
       config.externals = [
         ...(config.externals || []),

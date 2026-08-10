@@ -99,17 +99,27 @@ export function listSystemFiles(): SysGroup[] {
 const MAX_READ = 200_000;
 
 export function readSystemFile(p: string): { ok: boolean; content?: string; error?: string } {
-  const resolved = path.resolve(p);
+  const lexical = path.resolve(p);
+  let resolved: string;
+  try {
+    // Authorize the real target, not merely the spelling of a symlink path.
+    resolved = fs.realpathSync(lexical);
+  } catch {
+    return { ok: false, error: "file not found" };
+  }
+  const realRoot = (root: string) => {
+    try { return fs.realpathSync(root); } catch { return path.resolve(root); }
+  };
   const allowed = ALLOWED_ROOTS.some((root) => {
-    const r = path.resolve(root);
+    const r = realRoot(root);
     return resolved === r || resolved.startsWith(r + path.sep);
   });
-  // Also allow agent config roots that live under HOME dotdirs.
+  // Also allow agent config roots that live under HOME dotdirs, after resolving symlinks.
   const underHomeDot =
     resolved.startsWith(path.join(HOME, ".")) &&
     AGENTS.some((a) =>
       (a.configPaths ?? []).some((cp) => {
-        const cpr = path.resolve(cp);
+        const cpr = realRoot(cp);
         return resolved === cpr || resolved.startsWith(cpr + path.sep);
       })
     );

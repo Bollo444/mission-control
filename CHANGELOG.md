@@ -5,10 +5,11 @@ working session and shown newest-first. Each short hash links to the commit on
 GitHub.
 
 **18 sessions · 2026-05-31 → 2026-08-10**
-_Latest revision: 2026-08-10 — added Session 18: __Hermes agent routed directly to OmniRoute (the Fleet Gateway's primary); in-app gateway demoted to cold-standby backup.___ _(Prior: Session 17 — Gemini 3.1 Flash TTS upgrade.)_
+_Latest revision: 2026-08-10 — added Session 19: __Security-hardening admin boundary reconciled from Freebuff's review branch: every `/api/*` route gated behind a unified `MC_ADMIN_TOKEN`, cron/flows shell commands sandboxed to real binaries (no shell syntax / shell / code-evaluators), `zcode-cli` + `cline` terminals restored, old gateway-token holders re-pointed to the new credential.___ _(Prior: Session 18 — Hermes → OmniRoute direct; in-app gateway demoted to cold standby.)_
 
 | Session | Date | When | Theme |
 |:--:|---|---|---|
+| 19 | 2026-08-10 (Mon) | Night | Security-hardening admin boundary reconciled & deployed (MC_ADMIN_TOKEN gate, cron/flows sandbox) |
 | 18 | 2026-08-10 (Mon) | Night | Hermes → OmniRoute direct; in-app gateway demoted to cold-standby backup |
 | 17 | 2026-08-01 (Sat) | Day | Gemini 3.1 Flash TTS upgrade, healer/learning/repos/mcp-call shipped, README sync, live deploy |
 | 16 | 2026-07-30 (Thu) | Day | Fleet restructuring: OpenCode→Cline, ZCode desktop IDE launcher, Kilo cleanup |
@@ -61,6 +62,60 @@ Now committed:
 - CHANGELOG bumped to __17 sessions__, __2026-05-31 → 2026-08-01__.
 
 Build verified: `npm run build`, `npm test` (Vitest), `pm2 reload mission-control`.
+
+---
+
+## Session 19 — 2026-08-10 · Security-hardening admin boundary reconciled from Freebuff's branch
+
+Merged the `security-hardening-admin-boundary` review branch (commit `6bf578b`) into the
+live tree and reconciled it with Mission Control's existing features. The admin boundary is
+now enforced by a unified **`MC_ADMIN_TOKEN`** — set in `.env.local` (gitignored), served to
+the browser as an **HttpOnly `mc_admin_session` cookie** after a one-time login, and usable
+as a **Bearer key** by CLI agents.
+
+### Auth gate on every API route (edge middleware)
+- **`middleware.ts`** — gates `/api/:path*` (everything except `/api/auth`); returns **503**
+  if `MC_ADMIN_TOKEN` is unset, **401** on a missing/invalid credential.
+- **`lib/admin-auth.ts`** — token/bearer/cookie/session validation + CSRF same-origin check.
+- **`app/api/auth/route.ts`** — login sets the HttpOnly cookie; `secure` is keyed off
+  `x-forwarded-proto` so loopback (`http://127.0.0.1`) and tunneled HTTPS both work.
+- **`lib/settings.ts`** — `getGatewayToken()` now returns `MC_ADMIN_TOKEN` (one credential
+  everywhere); the settings API no longer exposes the gateway token to clients.
+- Old gateway-token holders re-pointed atomically (backups `.bak-mcadmin-20260810`):
+  `.codex/.env`, `.vibe/.env` (`MC_GATEWAY_TOKEN`) and `.cline/.../providers.json` (`apiKey`).
+
+### Cron / flows — gated, not neutered
+- **`lib/safe-command.ts`** — `parseSafeCommand` rejects shell metacharacters
+  (`;&|<>`$()\n\r`), the 2 kB cap, and **shell binaries** (`sh`, `cmd`, `powershell`, …) and
+  **code-evaluator flags** (`node -e`, `python -c`, `npx -c`, …), while **real commands still
+  run** (`git status`, `node scripts/backup.js`, …). `resolveCommandBinary` resolves PATH
+  shims to their real `.exe`/`.cmd` so `spawn(..., { shell: false })` works on Windows.
+- **`lib/cron.ts` + `lib/flows.ts`** — job/flow shell execution routes through the parser;
+  `flow:` and `self-update:` commands keep their special handlers.
+- **`app/api/cron/route.ts`** — PATCH of a `command` is validated before save.
+
+### Terminal restore + raw-shell RCE removed
+- **`lib/pty.ts`** — `zcode-cli` (auto-launches `zcode` in the repo workspace) and `cline`
+  (shell for CLI/inspection; headless dispatch still routes via the Fleet Gateway) restored;
+  the unguarded raw `shell` kind is rejected, session-id is guarded, writes capped at 64 kB.
+
+### Build fix — edge runtime + discord.js
+Adding `middleware.ts` turns on the edge compiler for `instrumentation.ts`, which lazy-imports
+the Discord fleet bot. discord.js's pure-ESM sub-packages can't be bundled for edge, and
+webpack's default edge external type (`module`) emits `module.exports = @discordjs/…` inside a
+CJS wrapper — invalid JS the minifier rejects (`Expression expected`). **`next.config.mjs`**
+now CJS-externalizes `discord.js`/`@discordjs/*` on every server compiler (identical to the
+node build's existing `require()` externals; never evaluated in edge — `register()` returns
+early). Also surface real minify errors: patched
+`node_modules/next/.../minify-webpack-plugin/src/index.js` `WebpackError` → `.webpack.WebpackError`.
+
+### Verified
+- `npm test` — **23/23 passing** (security-boundaries + admin-auth suites added).
+- `npm run build` — clean (edge + node), `next start` smoke-tested over loopback:
+  `/api/settings` unauthenticated **401** → Bearer **200**; `/api/auth` login **200**; app
+  shell **200**; `/api/cron`, `/api/gateway/models`, `/api/sessions`, `/api/agents`,
+  `/api/health`, `/api/mcp` all **200** with the token.
+- Deployed: `pm2 reload mission-control` (token inlined into the built middleware).
 
 ---
 

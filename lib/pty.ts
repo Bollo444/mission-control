@@ -110,14 +110,14 @@ const SHELL_MODE: Record<string, string> = {
   cline: "cline",
 };
 
-/** Resolve the binary for an allow-listed kind. Returns null if not found. */
+/** Resolve the binary for an allow-listed native agent kind. */
 function resolveCommand(
   kind: string
 ): { cmd: string; args: string[]; cwd: string; env?: Record<string, string> } | null {
-  if (kind === "shell") {
-    const cmd = process.platform === "win32" ? "powershell.exe" : process.env.SHELL || "bash";
-    return { cmd, args: [], cwd: home() };
-  }
+  // Never expose a general shell through the browser — that was the RCE vector.
+  // Agent dispatch (fixed registry kinds, including the shell-mode agents below)
+  // is gated behind the admin boundary in middleware.
+  if (kind === "shell") return null;
 
   // Shell-mode kinds: run a REAL shell with the agent's CLI prepended to PATH
   // instead of its native TUI. Used when the TUI isn't viable in the embedded
@@ -128,7 +128,6 @@ function resolveCommand(
   //     load in ConPTY, so a shell is exposed here for ad-hoc CLI/inspection.
   //     The headless dispatch (`cline "..."`) is wired for flows/automation
   //     and properly routes through the Fleet Gateway (openai-compatible).
-  // Map: session kind -> agent id whose bin dir is prepended to PATH.
   const shellModeAgent = SHELL_MODE[kind];
   if (shellModeAgent) {
     const cmd = process.platform === "win32" ? "powershell.exe" : process.env.SHELL || "bash";
@@ -157,6 +156,7 @@ function resolveCommand(
     }
     return { cmd, args, cwd, env };
   }
+
   // Any registered agent's native CLI: prefer an existing absolute binPath,
   // else fall back to its PATH command name. Spawns the agent's real harness so
   // its own banner/branding renders in the embedded terminal. Allow-listed by
@@ -200,6 +200,7 @@ export function getOrCreateSession(
   kind: string,
   size: { cols: number; rows: number }
 ): { ok: boolean; error?: string } {
+  if (!/^[A-Za-z0-9._-]{1,80}$/.test(id)) return { ok: false, error: "invalid session id" };
   const existing = sessions.get(id);
   if (existing && !existing.exited) return { ok: true };
   if (existing) sessions.delete(id); // exited — replace it
@@ -307,7 +308,7 @@ export function subscribe(id: string, cb: Subscriber): (() => void) | null {
 
 export function writeToSession(id: string, data: string): boolean {
   const s = sessions.get(id);
-  if (!s || s.exited) return false;
+  if (!s || s.exited || data.length > 64 * 1024) return false;
   s.proc.write(data);
   return true;
 }

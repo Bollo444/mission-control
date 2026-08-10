@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { getAgent } from "./registry";
 import { resolveBinary } from "./detect";
@@ -47,8 +48,22 @@ interface LaunchResult {
  * Linux (the first available terminal emulator). On Linux with no emulator
  * found, the command still runs detached so the action isn't lost.
  */
+function safeCwd(cwd?: string): string | undefined {
+  if (!cwd) return undefined;
+  if (/[&|<>^%!"\r\n]/.test(cwd)) return undefined;
+  const homeDir = path.resolve(os.homedir());
+  const resolved = path.resolve(cwd);
+  if (resolved !== homeDir && !resolved.startsWith(homeDir + path.sep)) return undefined;
+  try {
+    const real = fs.realpathSync(resolved);
+    return real === homeDir || real.startsWith(homeDir + path.sep) ? real : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function openTerminal(commandLine: string, cwd?: string): void {
-  const wd = cwd && fs.existsSync(cwd) ? cwd : undefined;
+  const wd = safeCwd(cwd);
   const opts = { detached: true, stdio: "ignore" as const, windowsHide: false };
 
   if (isWin) {
@@ -87,8 +102,12 @@ export function launchAgent(id: string, cwd?: string): LaunchResult {
     if (!fs.existsSync(cmd)) {
       return { ok: false, message: `${def.name} not found at ${cmd}` };
     }
+    if (cwd && !safeCwd(cwd)) {
+      return { ok: false, message: "Working directory must be an existing path inside the home directory." };
+    }
+    const safeDirectory = safeCwd(cwd);
     const spawnOpts = {
-      cwd: cwd && fs.existsSync(cwd) ? cwd : undefined,
+      cwd: safeDirectory,
       detached: true,
       stdio: "ignore" as const,
       windowsHide: false,
@@ -103,9 +122,13 @@ export function launchAgent(id: string, cwd?: string): LaunchResult {
       agentId: id,
       agentName: def.name,
       action: "opened the IDE",
-      detail: cwd || "default workspace",
+      detail: safeDirectory || "default workspace",
     });
     return { ok: true, message: `Opening ${def.name}…` };
+  }
+
+  if (cwd && !safeCwd(cwd)) {
+    return { ok: false, message: "Working directory must be an existing path inside the home directory." };
   }
 
   if (!def.launch) {

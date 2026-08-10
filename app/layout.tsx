@@ -5,6 +5,7 @@ import Shell from "@/components/Shell";
 import type { NavAgent } from "@/lib/types";
 import { ThemeProvider } from "@/lib/theme";
 import ChaosColorMode from "@/components/ChaosColorMode";
+import AdminGate from "@/components/AdminGate";
 
 export const metadata: Metadata = {
   title: "Mission Control · Agent Fleet",
@@ -30,7 +31,9 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <ThemeProvider>
-          <Shell nav={nav}>{children}</Shell>
+          <AdminGate>
+            <Shell nav={nav}>{children}</Shell>
+          </AdminGate>
           <ChaosColorMode
             enabled={false}
             minInterval={100}
