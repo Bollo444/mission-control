@@ -23,7 +23,15 @@ const SKIP_DIRS = new Set([".git", "node_modules", ".next", ".venv", "__pycache_
 function confined(p: string): string | null {
   const resolved = path.resolve(p);
   if (resolved !== HOME && !resolved.startsWith(HOME + path.sep)) return null;
-  return resolved;
+  try {
+    // Resolve symlinks before authorization so a home-contained link cannot
+    // expose or overwrite a file outside HOME.
+    const real = fs.realpathSync(resolved);
+    if (real !== HOME && !real.startsWith(HOME + path.sep)) return null;
+    return real;
+  } catch {
+    return null;
+  }
 }
 
 export async function GET(req: Request) {
@@ -77,10 +85,12 @@ export async function POST(req: Request) {
   }
   const p = body.file ? confined(body.file) : null;
   if (!p) return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
+  if (typeof body.content !== "string") return NextResponse.json({ ok: false, error: "content must be text" }, { status: 400 });
+  if (Buffer.byteLength(body.content, "utf8") > MAX_FILE) return NextResponse.json({ ok: false, error: "file too large to edit" }, { status: 413 });
   try {
     const st = fs.statSync(p);
     if (!st.isFile()) return NextResponse.json({ ok: false, error: "not a file" }, { status: 400 });
-    fs.writeFileSync(p, body.content ?? "", "utf8");
+    fs.writeFileSync(p, body.content, "utf8");
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ ok: false, error: "could not write" }, { status: 400 });

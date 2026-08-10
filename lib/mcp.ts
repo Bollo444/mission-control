@@ -1,9 +1,40 @@
 import fs from "node:fs";
 import path from "node:path";
+import dns from "node:dns/promises";
+import net from "node:net";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { MC_CONFIG_DIR } from "./paths";
 import { readSettings } from "./settings";
+import { decryptSecret, encryptSecret } from "./secretbox";
+
+function privateIp(value: string): boolean {
+  const ip = value.toLowerCase();
+  if (net.isIP(ip) === 4) {
+    const octets = ip.split(".").map(Number);
+    const [a, b] = octets;
+    return a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
+  }
+  return ip === "::1" || ip === "::" || ip.startsWith("fc") || ip.startsWith("fd") || ip.startsWith("fe80:");
+}
+
+async function safeHttpUrl(value: string): Promise<URL> {
+  const parsed = new URL(value);
+  if (parsed.protocol !== "https:") throw new Error("MCP HTTP transport requires HTTPS");
+  if (parsed.username || parsed.password) throw new Error("MCP URL may not contain credentials");
+  const host = parsed.hostname.toLowerCase();
+  if (host === "localhost" || host.endsWith(".local") || host.endsWith(".internal")) {
+    throw new Error("MCP URL may not target local networks");
+  }
+  const addresses = net.isIP(host)
+    ? [{ address: host }]
+    : await dns.lookup(host, { all: true, verbatim: true });
+  if (!addresses.length || addresses.some(({ address }) => privateIp(address))) {
+    throw new Error("MCP URL may not target private networks");
+  }
+  return parsed;
+}
 
 export type McpTransport = "stdio" | "http";
 
@@ -133,6 +164,14 @@ const DEFAULT_SERVERS: McpServerConfig[] = [
 
 const clientCache = new Map<string, Client>();
 
+function mapSecrets(config: McpServerConfig, fn: (value: string) => string): McpServerConfig {
+  return {
+    ...config,
+    env: config.env ? Object.fromEntries(Object.entries(config.env).map(([k, v]) => [k, fn(v)])) : config.env,
+    headers: config.headers ? Object.fromEntries(Object.entries(config.headers).map(([k, v]) => [k, fn(v)])) : config.headers,
+  };
+}
+
 export function listServers(): McpServerConfig[] {
   try {
     if (!fs.existsSync(MCP_CONFIG_FILE)) {
@@ -140,7 +179,11 @@ export function listServers(): McpServerConfig[] {
       return DEFAULT_SERVERS;
     }
     const raw = fs.readFileSync(MCP_CONFIG_FILE, "utf8");
-    return JSON.parse(raw) as McpServerConfig[];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((s): s is McpServerConfig => !!s && typeof s === "object" && typeof s.id === "string")
+      .map((s) => mapSecrets(s, decryptSecret));
   } catch (e) {
     return [];
   }
@@ -148,7 +191,8 @@ export function listServers(): McpServerConfig[] {
 
 export function saveServers(servers: McpServerConfig[]): void {
   fs.mkdirSync(MC_CONFIG_DIR, { recursive: true });
-  fs.writeFileSync(MCP_CONFIG_FILE, JSON.stringify(servers, null, 2), "utf8");
+  fs.writeFileSync(MCP_CONFIG_FILE, JSON.stringify(servers.map((s) => mapSecrets(s, encryptSecret)), null, 2), "utf8");
+  try { fs.chmodSync(MCP_CONFIG_FILE, 0o600); } catch { /* Windows / unsupported filesystem */ }
 }
 
 export function getServer(id: string): McpServerConfig | undefined {
@@ -161,6 +205,7 @@ export async function connect(id: string): Promise<Client> {
 
   const config = getServer(id);
   if (!config) throw new Error(`MCP server ${id} not found`);
+  if (!config.enabled) throw new Error(`MCP server ${id} is disabled`);
 
   const client = new Client(
     { name: "MissionControl", version: "1.0.0" },
@@ -170,13 +215,30 @@ export async function connect(id: string): Promise<Client> {
   let transport;
   if (config.transport === "stdio") {
     const isWin = process.platform === "win32";
-    let cmd = config.command || "";
-    if (isWin && (cmd === "npx" || cmd === "uvx")) cmd += ".cmd";
+    const commandName = path.basename(config.command || "").toLowerCase();
+    if (commandName !== "npx" && commandName !== "uvx") throw new Error("unsupported MCP stdio command");
+    if (!Array.isArray(config.args) || config.args.length > 32 || config.args.some((arg) => typeof arg !== "string" || arg.length > 512 || /^(-c|--eval|-e)$/.test(arg))) {
+      throw new Error("invalid MCP stdio arguments");
+    }
+    let cmd = commandName;
+    if (isWin) cmd += ".cmd";
 
-    // Resolve fleet keys in env
+    // Never pass Mission Control's complete process environment to an MCP
+    // child: it may contain provider keys, the admin token, or host secrets.
     const settings = readSettings();
-    const env = { ...process.env, ...config.env };
-    // Heuristic: if GITHUB_TOKEN is in fleet keys and not set in config, use it.
+    const inherited: Record<string, string> = {};
+    for (const name of ["PATH", "Path", "HOME", "USERPROFILE", "TEMP", "TMP", "SystemRoot", "ComSpec", "LANG", "TERM"]) {
+      const value = process.env[name];
+      if (value) inherited[name] = value;
+    }
+    const blocked = new Set(["MC_ADMIN_TOKEN", "MC_ENCRYPTION_KEY", "NODE_OPTIONS", "NODE_EXTRA_CA_CERTS", "LD_PRELOAD", "DYLD_INSERT_LIBRARIES", "PATH", "Path", "HOME", "USERPROFILE"]);
+    const configuredEnv = Object.fromEntries(
+      Object.entries(config.env || {}).filter(([name, value]) =>
+        /^[A-Za-z_][A-Za-z0-9_]*$/.test(name) && !blocked.has(name) && typeof value === "string" && value.length <= 4096
+      )
+    );
+    const env = { ...inherited, ...configuredEnv };
+    // Only bridge this explicitly documented integration credential.
     if (!env.GITHUB_PERSONAL_ACCESS_TOKEN && settings.apiKeys.GITHUB_TOKEN) {
       env.GITHUB_PERSONAL_ACCESS_TOKEN = settings.apiKeys.GITHUB_TOKEN;
     }
@@ -184,14 +246,17 @@ export async function connect(id: string): Promise<Client> {
     transport = new StdioClientTransport({
       command: cmd,
       args: config.args || [],
-      env: env as Record<string, string>
+      env,
     });
   } else {
     const { SSEClientTransport } = await import("@modelcontextprotocol/sdk/client/sse.js");
-    transport = new SSEClientTransport(new URL(config.url || ""), {
-      eventSourceInit: {
-        headers: config.headers
-      } as any
+    const headers = Object.fromEntries(
+      Object.entries(config.headers || {}).filter(([name, value]) =>
+        /^[A-Za-z0-9-]+$/.test(name) && typeof value === "string" && value.length <= 4096
+      )
+    );
+    transport = new SSEClientTransport(await safeHttpUrl(config.url || ""), {
+      eventSourceInit: { headers } as any
     });
   }
 

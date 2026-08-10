@@ -105,58 +105,14 @@ function refreshHermesUpdateCache(): void {
  * agent's native TUI (which either doesn't exist or can't run in ConPTY).
  * Maps the session kind to the registry agent id whose bin dir is added to PATH.
  */
-const SHELL_MODE: Record<string, string> = {
-  "zcode-cli": "zcode",
-  cline: "cline",
-};
-
-/** Resolve the binary for an allow-listed kind. Returns null if not found. */
+/** Resolve the binary for an allow-listed native agent kind. */
 function resolveCommand(
   kind: string
 ): { cmd: string; args: string[]; cwd: string; env?: Record<string, string> } | null {
-  if (kind === "shell") {
-    const cmd = process.platform === "win32" ? "powershell.exe" : process.env.SHELL || "bash";
-    return { cmd, args: [], cwd: home() };
-  }
+  // Never expose a general shell or shell-backed session through the browser.
+  // Agent dispatch remains available through the fixed registry entries below.
+  if (kind === "shell" || kind === "zcode-cli" || kind === "cline") return null;
 
-  // Shell-mode kinds: run a REAL shell with the agent's CLI prepended to PATH
-  // instead of its native TUI. Used when the TUI isn't viable in the embedded
-  // ConPTY:
-  //   • zcode-cli — ZCode is a desktop Electron IDE; auto-launch `zcode`
-  //     so the user sees the editor CLI immediately.
-  //   • cline — Cline's TUI (cline -i) needs bun:ffi which the npm build can't
-  //     load in ConPTY, so a shell is exposed here for ad-hoc CLI/inspection.
-  //     The headless dispatch (`cline "..."`) is wired for flows/automation
-  //     and properly routes through the Fleet Gateway (openai-compatible).
-  // Map: session kind -> agent id whose bin dir is prepended to PATH.
-  const shellModeAgent = SHELL_MODE[kind];
-  if (shellModeAgent) {
-    const cmd = process.platform === "win32" ? "powershell.exe" : process.env.SHELL || "bash";
-    const a = getAgent(shellModeAgent);
-    const bin = a ? resolveBinary(a) : null;
-    const env = bin
-      ? { PATH: path.dirname(bin) + path.delimiter + (process.env.PATH || process.env.Path || "") }
-      : undefined;
-    // IDE shells open in the repo workspace so git operations stay isolated
-    // from the mission-control project directory.
-    const cwd = kind === "zcode-cli" ? repoWorkspaceCwd() : agentCwd();
-
-    // Auto-launch the agent's CLI on startup.
-    let args: string[] = [];
-    if (process.platform === "win32") {
-      if (kind === "zcode-cli") {
-        args = ["-NoExit", "-Command", "zcode; Write-Host '`n[zcode exited — back in shell]' -ForegroundColor Gray"];
-      }
-      // cline: no auto-launch — the TUI (cline -i) needs bun:ffi which the
-      // npm build can't load in ConPTY. The shell is for ad-hoc CLI/inspection.
-    } else {
-      // Linux/macOS: similar but with bash
-      if (kind === "zcode-cli") {
-        args = ["-c", "zcode; exec bash"];
-      }
-    }
-    return { cmd, args, cwd, env };
-  }
   // Any registered agent's native CLI: prefer an existing absolute binPath,
   // else fall back to its PATH command name. Spawns the agent's real harness so
   // its own banner/branding renders in the embedded terminal. Allow-listed by
@@ -200,6 +156,7 @@ export function getOrCreateSession(
   kind: string,
   size: { cols: number; rows: number }
 ): { ok: boolean; error?: string } {
+  if (!/^[A-Za-z0-9._-]{1,80}$/.test(id)) return { ok: false, error: "invalid session id" };
   const existing = sessions.get(id);
   if (existing && !existing.exited) return { ok: true };
   if (existing) sessions.delete(id); // exited — replace it
@@ -307,7 +264,7 @@ export function subscribe(id: string, cb: Subscriber): (() => void) | null {
 
 export function writeToSession(id: string, data: string): boolean {
   const s = sessions.get(id);
-  if (!s || s.exited) return false;
+  if (!s || s.exited || data.length > 64 * 1024) return false;
   s.proc.write(data);
   return true;
 }

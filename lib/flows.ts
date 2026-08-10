@@ -5,6 +5,7 @@ import { MC_CONFIG_DIR } from "./paths";
 import { cascadeChat } from "./gateway";
 import { logEvent } from "./logbook";
 import { callTool } from "./mcp";
+import { parseSafeCommand } from "./safe-command";
 
 /* ------------------------------------------------------------------ *
  * Automation flows — a ComfyUI-style node graph. Triggers feed into     *
@@ -109,8 +110,13 @@ async function runAgentTask(agentId: string, task: string): Promise<string> {
 function runShell(command: string): Promise<string> {
   return new Promise((resolve) => {
     let out = "";
+    const parsed = parseSafeCommand(command);
+    if (!parsed) {
+      resolve("error: command contains shell syntax or is invalid");
+      return;
+    }
     try {
-      const child = spawn(command, { shell: true, windowsHide: true });
+      const child = spawn(parsed[0], parsed[1], { shell: false, windowsHide: true });
       child.stdout?.on("data", (c) => (out += c.toString()));
       child.stderr?.on("data", (c) => (out += c.toString()));
       const t = setTimeout(() => { try { child.kill(); } catch {} resolve(out.slice(-4000) + "\n— timed out —"); }, 60_000);
@@ -144,7 +150,7 @@ export async function runFlow(flow: Flow): Promise<{ steps: StepLog[] }> {
       } else if (node.type === "action.shell") {
         const out = await runShell(subst(String(node.data.command || ""), input));
         input = out;
-        steps.push({ nodeId, type: node.type, ok: true, detail: out.slice(0, 400) });
+        steps.push({ nodeId, type: node.type, ok: !out.startsWith("error:"), detail: out.slice(0, 400) });
       } else if (node.type === "action.discord") {
         const { postAsAgent } = await import("./discord");
         const msg = subst(String(node.data.message || "{{input}}"), input);

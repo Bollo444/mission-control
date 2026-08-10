@@ -1,10 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
-import { exec } from "node:child_process";
+import { spawn } from "node:child_process";
 import { MC_CONFIG_DIR } from "./paths";
 import { logEvent } from "./logbook";
 import { getFlow, runFlow } from "./flows";
 import { runSelfUpdateCycle } from "./healer";
+import { parseSafeCommand } from "./safe-command";
 
 /* ------------------------------------------------------------------ *
  * A small, dependable cron engine. Jobs run a shell command every N    *
@@ -71,6 +72,12 @@ export function updateJob(id: string, patch: Partial<CronJob>): CronJob | null {
   const jobs = readJobs();
   const i = jobs.findIndex((j) => j.id === id);
   if (i < 0) return null;
+  if (typeof patch.command === "string" &&
+      !patch.command.startsWith("flow:") &&
+      !patch.command.startsWith("self-update:") &&
+      !parseSafeCommand(patch.command.trim())) {
+    return null;
+  }
   jobs[i] = { ...jobs[i], ...patch, id: jobs[i].id };
   writeJobs(jobs);
   return jobs[i];
@@ -128,25 +135,48 @@ export function runJob(id: string): Promise<CronJob | null> {
   }
 
   return new Promise((resolve) => {
-    exec(
-      job.command,
-      { timeout: 120_000, windowsHide: true, maxBuffer: 1024 * 1024 },
-      (err, stdout, stderr) => {
-        const out = (stdout || "") + (stderr || "");
-        const updated = updateJob(id, {
-          lastRun: Date.now(),
-          lastStatus: err ? "error" : "ok",
-          lastOutput: out.slice(-4000),
-        });
-        logEvent({
-          source: "system",
-          level: err ? "warn" : "info",
-          event: `cron: ${job.name}`,
-          detail: err ? `failed: ${err.message}` : "ran ok",
-        });
-        resolve(updated);
-      }
-    );
+    const parsed = parseSafeCommand(job.command);
+    if (!parsed) {
+      const updated = updateJob(id, { lastRun: Date.now(), lastStatus: "error", lastOutput: "rejected: shell syntax is not allowed" });
+      resolve(updated);
+      return;
+    }
+    let out = "";
+    let settled = false;
+    const finish = (error?: Error) => {
+      if (settled) return;
+      settled = true;
+      const updated = updateJob(id, {
+        lastRun: Date.now(),
+        lastStatus: error ? "error" : "ok",
+        lastOutput: out.slice(-4000),
+      });
+      logEvent({
+        source: "system",
+        level: error ? "warn" : "info",
+        event: `cron: ${job.name}`,
+        detail: error ? `failed: ${error.message}` : "ran ok",
+      });
+      resolve(updated);
+    };
+    try {
+      const child = spawn(parsed[0], parsed[1], { shell: false, windowsHide: true });
+      child.stdout?.on("data", (chunk) => { out += chunk.toString(); });
+      child.stderr?.on("data", (chunk) => { out += chunk.toString(); });
+      const timer = setTimeout(() => {
+        try { child.kill(); } catch {}
+        out += "\\n— timed out —";
+        finish(new Error("command timed out"));
+      }, 120_000);
+      child.on("error", (error) => { clearTimeout(timer); finish(error); });
+      child.on("exit", (code) => {
+        clearTimeout(timer);
+        if (code && code !== 0) finish(new Error(`command exited with code ${code}`));
+        else finish();
+      });
+    } catch (error) {
+      finish(error as Error);
+    }
   });
 }
 

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { readJobs, addJob, updateJob, deleteJob, runJob } from "@/lib/cron";
+import { parseSafeCommand } from "@/lib/safe-command";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,12 +16,16 @@ export async function POST(req: Request) {
   } catch {
     return NextResponse.json({ ok: false, error: "bad request" }, { status: 400 });
   }
-  if (!body.command?.trim()) {
+  const command = body.command?.trim();
+  if (!command) {
     return NextResponse.json({ ok: false, error: "command is required" }, { status: 400 });
+  }
+  if (!command.startsWith("flow:") && !command.startsWith("self-update:") && !parseSafeCommand(command)) {
+    return NextResponse.json({ ok: false, error: "only approved read-only diagnostics, flow:<id>, or self-update jobs are allowed" }, { status: 400 });
   }
   const job = addJob({
     name: body.name ?? "",
-    command: body.command,
+    command,
     everyMinutes: body.everyMinutes ?? 60,
   });
   return NextResponse.json({ ok: true, job });
