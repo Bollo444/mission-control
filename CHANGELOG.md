@@ -4,11 +4,12 @@ A detailed record of the project's development: **every commit**, grouped by
 working session and shown newest-first. Each short hash links to the commit on
 GitHub.
 
-**17 sessions · 2026-05-31 → 2026-08-01**
-_Latest revision: 2026-08-01 — added Session 17: __Gemini 3.1 Flash TTS upgrade, healer/learning/repos/mcp-call modules shipped, live site sync, README fleet roster updated for Cline + ZCode.___ _(Prior: Session 16 — Fleet restructuring.)_
+**18 sessions · 2026-05-31 → 2026-08-10**
+_Latest revision: 2026-08-10 — added Session 18: __Hermes agent routed directly to OmniRoute (the Fleet Gateway's primary); in-app gateway demoted to cold-standby backup.___ _(Prior: Session 17 — Gemini 3.1 Flash TTS upgrade.)_
 
 | Session | Date | When | Theme |
 |:--:|---|---|---|
+| 18 | 2026-08-10 (Mon) | Night | Hermes → OmniRoute direct; in-app gateway demoted to cold-standby backup |
 | 17 | 2026-08-01 (Sat) | Day | Gemini 3.1 Flash TTS upgrade, healer/learning/repos/mcp-call shipped, README sync, live deploy |
 | 16 | 2026-07-30 (Thu) | Day | Fleet restructuring: OpenCode→Cline, ZCode desktop IDE launcher, Kilo cleanup |
 | 15 | 2026-07-30 (Thu) | Day | Meeting decisions, flow triggers (cron/meeting), cron flows, Hermes orchestration, OpenCode IDE, MCP call, windowsHide patch |
@@ -60,6 +61,34 @@ Now committed:
 - CHANGELOG bumped to __17 sessions__, __2026-05-31 → 2026-08-01__.
 
 Build verified: `npm run build`, `npm test` (Vitest), `pm2 reload mission-control`.
+
+---
+
+## Session 18 — 2026-08-10 · Hermes routed directly to OmniRoute; in-app gateway demoted to cold standby
+
+Config/routing change only — no app source touched. Fleet-agent inference now sits
+entirely on **OmniRoute**, the Fleet Gateway's maintained primary; Mission
+Control's own in-app gateway drops to cold-standby backup.
+
+### Hermes → OmniRoute (primary inference path)
+- **`%LOCALAPPDATA%\hermes\config.yaml`** — model block re-pointed from OpenRouter
+  (where it had drifted) to OmniRoute directly: `base_url: http://127.0.0.1:20128/v1`,
+  `provider: custom`, `default: auto` (OmniRoute's virtual combo auto-fails across
+  its connected providers), `api_key: hermes-omniroute` (OmniRoute accepts
+  any/dummy bearer locally). Pre-edit config backed up to
+  `config.yaml.bak-omniroute-20260810`.
+
+### In-app gateway → cold standby (code untouched)
+- **`lib/gateway.ts` + `app/api/gateway/[...path]`** — left intact; no longer the
+  hot path for agents. It remains Mission Control's automatic failover when
+  OmniRoute is unreachable (existing circuit breaker in `lib/omniroute.ts`). All
+  documented gateway features (cascade, sticky sessions, vision routing, budgets,
+  Anthropic bridge, analytics) still describe that backup path.
+
+### Verified
+- `hermes -z` reply routed through OmniRoute — call log shows `auto` → `opencode/big-pickle`.
+
+Build verified: docs-only change — no rebuild needed; `pm2 reload mission-control` is a no-op on the running build.
 
 ---
 

@@ -571,7 +571,17 @@ primary (an explicit model, the calling agent's preferred model, or `auto`) and
 cooldown — so a single call rarely fails. This is the piece that puts Mission
 Control *in the inference path* (opt-in) and makes the routing table live.
 
-- **Base URL:** `http://127.0.0.1:4317/api/gateway/v1`
+> **Two tiers (since 2026-08-10):** the primary inference path is **OmniRoute** at
+> `http://127.0.0.1:20128/v1` — a maintained free-LLM router (230+ providers,
+> auto-failover, compression; see [Deployment](#deployment-always-on)). Fleet
+> agents point straight at it — e.g. Hermes: `base_url: http://127.0.0.1:20128/v1`,
+> `provider: custom`, `model: auto`. The in-app endpoint documented below
+> (`/api/gateway/v1`) is Mission Control's **built-in backup (cold standby)** — it
+> serves only when OmniRoute is unreachable (circuit-breaker failover in
+> `lib/omniroute.ts`) or for tools that want MC's own cascade. All features below
+> describe that backup path.
+
+- **Backup endpoint — Base URL:** `http://127.0.0.1:4317/api/gateway/v1`
 - **Auth:** use your **gateway token** (Settings → Fleet Gateway, copyable) as the
   API key. Upstream provider keys stay server-side in `~/.mission-control`.
 - **Routing:**
