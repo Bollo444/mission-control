@@ -214,6 +214,12 @@ export default function Shell({
             </span>
             Automation
           </NavLink>
+          <NavLink href="/delegation" active={pathname === "/delegation"}>
+            <span className="grid h-6 w-6 place-items-center rounded-md text-[13px]">
+              ⑂
+            </span>
+            Delegation
+          </NavLink>
           <NavLink href="/settings" active={pathname === "/settings"}>
             <span className="grid h-6 w-6 place-items-center rounded-md text-[13px]">
               ⚙

@@ -4,11 +4,12 @@ A detailed record of the project's development: **every commit**, grouped by
 working session and shown newest-first. Each short hash links to the commit on
 GitHub.
 
-**18 sessions · 2026-05-31 → 2026-08-10**
-_Latest revision: 2026-08-10 — added Session 19: __Security-hardening admin boundary reconciled from Freebuff's review branch: every `/api/*` route gated behind a unified `MC_ADMIN_TOKEN`, cron/flows shell commands sandboxed to real binaries (no shell syntax / shell / code-evaluators), `zcode-cli` + `cline` terminals restored, old gateway-token holders re-pointed to the new credential.___ _(Prior: Session 18 — Hermes → OmniRoute direct; in-app gateway demoted to cold standby.)_
+**20 sessions · 2026-05-31 → 2026-08-13**
+_Latest revision: 2026-08-13 — added Session 20: __Hermes delegation loop shipped — persistent `tasks.json` task store with a validated state machine, two-hop orchestration (`propose → decide → dispatch → report-back`), fail-closed scope security on `deploySubagent`, `/api/orchestrator/*` routes, a live `/delegation` task board, and 21 new Vitest tests (44 total).__ _(Prior: Session 19 — Security-hardening admin boundary reconciled & deployed: every `/api/*` route gated behind a unified `MC_ADMIN_TOKEN`, cron/flows shell commands sandboxed to real binaries.)_
 
 | Session | Date | When | Theme |
 |:--:|---|---|---|
+| 20 | 2026-08-13 (Thu) | Day | Hermes delegation loop: task store + state machine, two-hop orchestration, scope security, /delegation board, 44 tests green |
 | 19 | 2026-08-10 (Mon) | Night | Security-hardening admin boundary reconciled & deployed (MC_ADMIN_TOKEN gate, cron/flows sandbox) |
 | 18 | 2026-08-10 (Mon) | Night | Hermes → OmniRoute direct; in-app gateway demoted to cold-standby backup |
 | 17 | 2026-08-01 (Sat) | Day | Gemini 3.1 Flash TTS upgrade, healer/learning/repos/mcp-call shipped, README sync, live deploy |
@@ -28,6 +29,54 @@ _Latest revision: 2026-08-10 — added Session 19: __Security-hardening admin bo
 | 3 | 2026-06-03 (Wed) | Late morning → evening | Gateway phases, branding & public launch |
 | 2 | 2026-06-02 (Tue) | Midday | Providers, health monitor & cascade proxy |
 | 1 | 2026-05-31 (Sat) | Afternoon → evening | Initial fleet console |
+
+---
+
+## Session 20 — 2026-08-13 · Hermes delegation loop: task store, two-hop orchestration, scope security, /delegation board
+
+Implemented the approved Hermes delegation loop design (`docs/superpowers/specs/2026-08-12-hermes-delegation-loop-design.md`)
+— the core "Hermes tasks jcode → jcode accepts → the hub runs it → jcode reports back"
+chain — end to end, with real state persisted in `tasks.json` and zero simulated data.
+
+### Task store + state machine (`lib/taskStore.ts`, `lib/DelegationTask.ts`)
+- Persistent store at `~/.mission-control/tasks.json` (same dir as `subagents.json`),
+  atomic writes (temp-file-then-rename), `updatedAt` bumped on every mutation.
+- `createTask` validates required contract fields and auto-generates `tsk_*` ids;
+  `transitionTask` enforces the spec's state machine
+  (`proposed→running|declined`, `running→done|error`, `declined→proposed`, `error→proposed`)
+  and merges real patch fields in the same atomic write; `patchTask` merges error fields
+  (accept_error / scope_error) without a state change.
+- `MC_TASKS_FILE` env override lets tests run against a temp file — no home-dir pollution.
+
+### Two-hop orchestration (`lib/orchestrator.ts`)
+- **Hop 0** `proposeTask` — create the contract in `proposed`.
+- **Hop 1** `decideTask` — a REAL acceptance turn against the target's routed model
+  (via `cascadeChat`, same routing as the meeting engine): accept → `running` + reason;
+  decline → `declined` + reason; LLM failure → stays `proposed` with `accept_error`.
+- **Hop 2** `dispatchRun` — launches the real headless run via `deploySubagent`, links the
+  `subagents.json` run id into the task; dispatch failure → `error` + `run_error`.
+- **Hop 3** `reportBack`/`reconcileRun` — syncs a running task against `subagents.json`
+  (crash / `pm2 reload` safe) and summarizes the REAL run output into `report.text`,
+  with an honest fallback note when the model returns nothing.
+
+### Scope security (`lib/subagents.ts`)
+- `deploySubagent` accepts `scope` + `proposedBy`. A delegation task must explicitly
+  declare scope AND be proposed by hermes/user to dispatch; no scope → dispatch denied
+  outright (fail-closed) with `denied: true`, which `dispatchRun` routes to `scope_error`
+  while keeping the task in place. Non-delegation callers keep the existing write-gate.
+
+### API + UI
+- `app/api/orchestrator/` — `GET/POST` list/create, `GET [id]`, `POST [id]/decide`,
+  `POST [id]/dispatch`, `POST [id]/reconcile`.
+- `components/TaskBoard.tsx` + `app/delegation/page.tsx` — live board polling the API:
+  cards by state, create-contract form with declared-scope checkboxes, per-state actions,
+  full-JSON detail modal. Sidebar **Delegation** link.
+
+### Tests & validation
+- `tests/lib/taskStore.test.ts` (11) + `tests/orchestrator.test.ts` (10) — Vitest, temp-dir
+  isolated, mocked LLM/subagents; covers the full accept→dispatch→reconcile→done flow,
+  decline, accept_error, dispatch/run failure, and fail-closed scope denial.
+- `npx tsc --noEmit` clean · `npx vitest run` 44/44 · `npm run build` green.
 
 ---
 

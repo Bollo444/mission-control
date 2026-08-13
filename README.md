@@ -188,6 +188,14 @@ config exists. Ones you don't have installed appear as provisionable personas.
   and `meeting:decide action | owner X | kind Y` chat commands; `@agent` dispatches
   with automatic Hermes fallback; decision badges with one-click "Create decision"
   buttons in the chat stream.
+- **Hermes delegation loop** (`/delegation`) — a persistent two-hop task pipeline:
+  propose a `DelegationTask` contract (from the UI, a user ask, or a meeting decision),
+  the **target's own model accepts or declines it**, the hub dispatches the real headless
+  run via `deploySubagent`, and the target **reports the real outcome** back. All state
+  lives in `~/.mission-control/tasks.json` behind a validated state machine
+  (`proposed → running → done/error`, with decline/reassign paths), atomic writes, and
+  a fail-closed scope gate (a task must declare its scope to dispatch). Live board polls
+  `/api/orchestrator/*`; nothing is simulated.
 - **OpenCode replaced by Cline** — the headless fleet slot now belongs to **Cline**
   (`cline run "<task>"` for zero-interaction dispatch, MCP support, provider-agnostic).
   The OpenCode Zen free-tier **gateway provider** remains, independent of the agent.

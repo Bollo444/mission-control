@@ -148,8 +148,15 @@ export function deploySubagent(
   agentId: string,
   task: string,
   label?: string,
-  opts?: { callerAgentId?: string | null }
-): { ok: boolean; run?: SubagentRun; error?: string } {
+  opts?: {
+    callerAgentId?: string | null;
+    /** Declared DelegationTask scope — when present (proposed by hermes/user),
+     *  the dispatch is explicitly scoped and may bypass the shell gate.
+     *  No scope requested → the existing gate stays fail-closed. */
+    scope?: { write?: boolean; vault?: boolean; gateway?: boolean; shell?: boolean };
+    proposedBy?: "hermes" | "user";
+  }
+): { ok: boolean; run?: SubagentRun; error?: string; denied?: boolean } {
   const def = getAgent(agentId);
   if (!def) return { ok: false, error: `unknown agent: ${agentId}` };
   const bin = resolveBinary(def);
@@ -160,24 +167,61 @@ export function deploySubagent(
   // agent (cascade or inter-agent flow), the running CLI inherits the
   // blast radius of a shell. The user-driven UI path uses callerAgentId=null
   // and bypasses this — the human is the trust anchor for ad-hoc dispatches.
+  //
+  // Delegation carve-out (fail-closed): a task explicitly declares its scope
+  // and was proposed by hermes/user → the declared scope IS the authorization,
+  // so the dispatch is allowed. No scope declared → the gate still applies.
   if (opts?.callerAgentId) {
-    const check = checkShellPermission({
-      callerAgentId: opts.callerAgentId,
-      command: task,
-    });
-    if (!check.ok) {
+    const isDelegation = opts.proposedBy === "hermes" || opts.proposedBy === "user";
+    const declaredScope =
+      !!opts.scope &&
+      (opts.scope.write === true ||
+        opts.scope.vault === true ||
+        opts.scope.gateway === true ||
+        opts.scope.shell === true);
+    if (isDelegation) {
+      // Delegation carve-out (fail-closed): a task explicitly declares its scope
+      // AND was proposed by hermes/user → the declared scope IS the authorization
+      // and the dispatch is allowed. No scope declared → dispatch is denied
+      // outright (fail-closed) per the design spec.
+      if (!declaredScope) {
+        logEvent({
+          source: "write-gate",
+          level: "warn",
+          event: "denied unscoped delegation dispatch",
+          detail: `${opts.proposedBy} → ${agentId}: no scope declared on delegation task — fail-closed`,
+        });
+        return {
+          ok: false,
+          error: "no scope declared on the delegation task — dispatch denied (fail-closed)",
+          denied: true,
+        };
+      }
       logEvent({
         source: "write-gate",
-        level: "warn",
-        event: "denied subagent dispatch",
-        detail: denyLog({
-          callerAgentId: opts.callerAgentId,
-          target: `<shell> ${agentId}`,
-          kind: "shell",
-          check,
-        }),
+        level: "info",
+        event: "scoped subagent dispatch allowed",
+        detail: `${opts.proposedBy} → ${agentId} · scope ${JSON.stringify(opts.scope)}`,
       });
-      return { ok: false, error: check.reason };
+    } else {
+      const check = checkShellPermission({
+        callerAgentId: opts.callerAgentId,
+        command: task,
+      });
+      if (!check.ok) {
+        logEvent({
+          source: "write-gate",
+          level: "warn",
+          event: "denied subagent dispatch",
+          detail: denyLog({
+            callerAgentId: opts.callerAgentId,
+            target: `<shell> ${agentId}`,
+            kind: "shell",
+            check,
+          }),
+        });
+        return { ok: false, error: check.reason, denied: true };
+      }
     }
   }
 
