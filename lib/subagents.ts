@@ -33,6 +33,15 @@ const STORE = path.join(MC_CONFIG_DIR, "subagents.json");
 const MAX_OUTPUT = 20_000;
 const RUN_TIMEOUT_MS = 5 * 60_000;
 
+/**
+ * Env for every agent-CLI spawn from this module. Cline's binary fires a
+ * DETACHED `npm update -g cline --tag latest --min-release-age=0` on launch
+ * (even `--version`) unless CLINE_NO_AUTO_UPDATE=1 — that detached updater
+ * is what produced the 7-way npm pile-ups. Suppress it on any child spawn.
+ * Harmless for non-cline agents.
+ */
+const AGENT_SPAWN_ENV = { ...process.env, CLINE_NO_AUTO_UPDATE: "1" };
+
 /** Headless invocation per agent. Most coding CLIs accept `-p <prompt>`, but a
  *  few use their own non-interactive subcommand (verified this session). */
 function headlessArgs(agentId: string, task: string): string[] {
@@ -259,6 +268,7 @@ export function deploySubagent(
     child = spawn(file, args, {
       windowsHide: true,
       stdio: [viaStdin ? "pipe" : "ignore", "pipe", "pipe"],
+      env: AGENT_SPAWN_ENV,
     });
     if (viaStdin && child.stdin) {
       child.stdin.write(task.trim() + "\n");

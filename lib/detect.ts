@@ -72,7 +72,15 @@ function getVersion(binPath: string): Promise<string | null> {
       const child = execFile(
         file,
         args,
-        { timeout: 2500, windowsHide: true },
+        {
+          timeout: 2500,
+          windowsHide: true,
+          // Suppress cline's built-in auto-updater: it fires a DETACHED
+          // `npm update -g cline` on any launch, even --version. Every page
+          // load that probed cline's version piled up npm updates. Harmless
+          // for non-cline agents.
+          env: { ...process.env, CLINE_NO_AUTO_UPDATE: "1" },
+        },
         (err, stdout, stderr) => {
           if (err) return resolve(null);
           const out = (stdout || stderr || "").trim().split("\n")[0];

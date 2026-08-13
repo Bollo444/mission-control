@@ -4,11 +4,12 @@ A detailed record of the project's development: **every commit**, grouped by
 working session and shown newest-first. Each short hash links to the commit on
 GitHub.
 
-**20 sessions · 2026-05-31 → 2026-08-13**
-_Latest revision: 2026-08-13 — added Session 20: __Hermes delegation loop shipped — persistent `tasks.json` task store with a validated state machine, two-hop orchestration (`propose → decide → dispatch → report-back`), fail-closed scope security on `deploySubagent`, `/api/orchestrator/*` routes, a live `/delegation` task board, and 21 new Vitest tests (44 total).__ _(Prior: Session 19 — Security-hardening admin boundary reconciled & deployed: every `/api/*` route gated behind a unified `MC_ADMIN_TOKEN`, cron/flows shell commands sandboxed to real binaries.)_
+**21 sessions · 2026-05-31 → 2026-08-13**
+_Latest revision: 2026-08-13 — added Session 21: __Cline npm pile-up fixed — cline's built-in auto-updater suppressed on every app spawn (`CLINE_NO_AUTO_UPDATE=1` in healer, subagent, and version-probe spawns), version checks registry-first via `npm ls` (no CLI launch), and a cross-process `.update.lock` so only one npm install runs machine-wide at a time (lock-busy logged as skip, not failure).__ _(Prior: Session 20 — Hermes delegation loop shipped — persistent `tasks.json` task store with a validated state machine, two-hop orchestration (`propose → decide → dispatch → report-back`), fail-closed scope security on `deploySubagent`, `/api/orchestrator/*` routes, a live `/delegation` task board, and 21 new Vitest tests (44 total).)_
 
 | Session | Date | When | Theme |
 |:--:|---|---|---|
+| 21 | 2026-08-13 (Thu) | Night | Cline npm pile-up fix: auto-update suppressed on app spawns, registry-first version checks, cross-process one-at-a-time update lock |
 | 20 | 2026-08-13 (Thu) | Day | Hermes delegation loop: task store + state machine, two-hop orchestration, scope security, /delegation board, 44 tests green |
 | 19 | 2026-08-10 (Mon) | Night | Security-hardening admin boundary reconciled & deployed (MC_ADMIN_TOKEN gate, cron/flows sandbox) |
 | 18 | 2026-08-10 (Mon) | Night | Hermes → OmniRoute direct; in-app gateway demoted to cold-standby backup |
@@ -29,6 +30,32 @@ _Latest revision: 2026-08-13 — added Session 20: __Hermes delegation loop ship
 | 3 | 2026-06-03 (Wed) | Late morning → evening | Gateway phases, branding & public launch |
 | 2 | 2026-06-02 (Tue) | Midday | Providers, health monitor & cascade proxy |
 | 1 | 2026-05-31 (Sat) | Afternoon → evening | Initial fleet console |
+
+---
+
+## Session 21 — 2026-08-13 · Cline npm pile-up fixed: one update at a time
+
+Diagnosed the "numerous NPM updates" on the server: cline's **built-in auto-updater**
+(not the app's healer) fires a detached `npm update -g cline --tag latest
+--min-release-age=0` every time the cline CLI launches — even `--version`. Every
+app version-check that spawned cline (healer self-update cycle, subagent
+dispatch, agent-status page) therefore piled up concurrent npm updates, with no
+serialization on cline's side. Root-caused from the running processes and fixed:
+
+### Fix (`lib/healer.ts`, `lib/subagents.ts`, `lib/detect.ts`)
+- **`CLINE_NO_AUTO_UPDATE=1`** on every app-spawned agent CLI — healer's checks
+  and installs, `deploySubagent`'s spawn, and `detect`'s `--version` probe.
+  Honored by cline's binary; harmless for other agents.
+- **Registry-first version checks** — `npm ls -g <pkg> --json` instead of
+  launching the CLI, so the self-update cycle no longer triggers cline's updater
+  at all.
+- **Cross-process update lock** (`~/.mission-control/.update.lock`) — only ONE
+  npm install runs machine-wide at a time, no matter which trigger (cron, API,
+  health-check, manual) fired it; 15-minute stale reclaim, released in `finally`,
+  lock-busy logged as `skip` (completed) rather than `failed`.
+
+Killed the 7 stuck updater processes; verified cline intact at 3.0.48. `tsc`
+clean, 44/44 tests green, deployed live via `pm2 reload`.
 
 ---
 

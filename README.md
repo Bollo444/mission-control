@@ -575,6 +575,14 @@ Tune the cadence with `MC_HEALTH_INTERVAL_MIN` (see below).
 > integrity, and the Obsidian vault — with auto-repair on 6 of 7 checks. Exposed as a live Health panel in the Antigravity IDE alongside
 > the behavioral learning profile. The two engines are complementary: the health
 > monitor probes *remote providers*; the healer probes *the local host and services*.
+>
+> **Agent self-updates run one at a time.** The healer's self-update cycle checks
+> the npm registry directly (`npm ls -g` — never launching a CLI, so cline's
+> built-in auto-updater never fires from a version check), suppresses cline's
+> detached updater on every app spawn (`CLINE_NO_AUTO_UPDATE=1`), and holds a
+> cross-process `.update.lock` so only one npm install runs machine-wide at a
+> time — no more 7-way npm update pile-ups. Lock-busy is logged as a skip, not a
+> failure.
 
 ---
 

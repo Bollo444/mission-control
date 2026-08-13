@@ -345,6 +345,58 @@ function releaseSelfUpdateLock(): void {
   }
 }
 
+/* ------------------------------------------------------------------ *
+ * Single-update cross-process lock + cline auto-update suppression     *
+ * ------------------------------------------------------------------ */
+
+/**
+ * Env for every agent-CLI spawn from this module. Cline ships a built-in
+ * auto-updater that fires a DETACHED `npm update -g cline --tag latest
+ * --min-release-age=0` the moment its CLI launches (even `--version`). That
+ * detached updater is exactly what produced the 7-way npm pile-ups — it is
+ * outside the in-process mutex and outside this app entirely. Setting
+ * CLINE_NO_AUTO_UPDATE=1 (honored by cline's binary) turns it off. Harmless
+ * for non-cline agents.
+ */
+const AGENT_SPAWN_ENV = { ...process.env, CLINE_NO_AUTO_UPDATE: "1" };
+
+/** Cross-process update lock file — only ONE npm install may run at a time,
+ *  no matter which trigger (cron, API, health-check, manual) fired it. */
+const UPDATE_LOCK_FILE = path.join(MC_CONFIG_DIR, ".update.lock");
+const UPDATE_LOCK_STALE_MS = 15 * 60_000;
+
+function acquireUpdateLock(depth = 0): boolean {
+  try {
+    // Never treat a missing config dir as "lock busy" — create it first.
+    fs.mkdirSync(MC_CONFIG_DIR, { recursive: true });
+    const fd = fs.openSync(UPDATE_LOCK_FILE, "wx");
+    fs.writeSync(fd, JSON.stringify({ pid: process.pid, ts: Date.now() }));
+    fs.closeSync(fd);
+    return true;
+  } catch {
+    if (depth >= 1) return false;
+    try {
+      const st = fs.statSync(UPDATE_LOCK_FILE);
+      if (Date.now() - st.mtimeMs > UPDATE_LOCK_STALE_MS) {
+        fs.unlinkSync(UPDATE_LOCK_FILE);
+        return acquireUpdateLock(depth + 1);
+      }
+    } catch {
+      /* lock vanished between stat and unlink — retry once */
+      return acquireUpdateLock(depth + 1);
+    }
+    return false;
+  }
+}
+
+function releaseUpdateLock(): void {
+  try {
+    fs.unlinkSync(UPDATE_LOCK_FILE);
+  } catch {
+    /* already gone */
+  }
+}
+
 /** Check if an agent has an update available. Returns { hasUpdate, current, latest, reason }. */
 async function checkAgentUpdate(agentId: string): Promise<{ hasUpdate: boolean; current: string | null; latest: string | null; reason: string }> {
   const def = getAgent(agentId);
@@ -356,22 +408,26 @@ async function checkAgentUpdate(agentId: string): Promise<{ hasUpdate: boolean; 
     if (pkgMatch) {
       const pkg = pkgMatch[1];
       try {
-        // Get current version from binary
-        const binPath = resolveBinary(def);
-        let current = null;
-        if (binPath) {
-          const { execFile } = await import("node:child_process");
-          current = await new Promise<string | null>((resolve) => {
-            execFile(binPath, ["--version"], { timeout: 3000, windowsHide: true }, (err, stdout) => {
-              if (err) resolve(null);
-              else resolve(stdout?.trim() || null);
-            });
+        // Current version — read from npm's global list, NEVER launch the CLI.
+        // Launching `cline --version` triggers cline's own detached auto-update
+        // (the source of the npm pile-ups); npm ls is registry-first and safe.
+        const current = await new Promise<string | null>((resolve) => {
+          execFile("npm", ["ls", "-g", pkg, "--json"], { timeout: 10000, windowsHide: true, env: AGENT_SPAWN_ENV }, (err, stdout) => {
+            if (err) resolve(null);
+            else {
+              try {
+                const j = JSON.parse(stdout.trim()) as { dependencies?: Record<string, { version?: string }> };
+                resolve(j?.dependencies?.[pkg]?.version ?? null);
+              } catch {
+                resolve(null);
+              }
+            }
           });
-        }
+        });
 
         // Get latest from npm
         const latest = await new Promise<string | null>((resolve) => {
-          execFile("npm", ["view", pkg, "version", "--json"], { timeout: 10000, windowsHide: true }, (err, stdout) => {
+          execFile("npm", ["view", pkg, "version", "--json"], { timeout: 10000, windowsHide: true, env: AGENT_SPAWN_ENV }, (err, stdout) => {
             if (err) resolve(null);
             else {
               try { resolve(JSON.parse(stdout.trim())); } catch { resolve(stdout.trim() || null); }
@@ -397,7 +453,7 @@ async function checkAgentUpdate(agentId: string): Promise<{ hasUpdate: boolean; 
       if (binPath) {
         const { execFile } = await import("node:child_process");
         current = await new Promise<string | null>((resolve) => {
-          execFile(binPath, ["--version"], { timeout: 3000, windowsHide: true }, (err, stdout) => {
+          execFile(binPath, ["--version"], { timeout: 3000, windowsHide: true, env: AGENT_SPAWN_ENV }, (err, stdout) => {
             if (err) resolve(null);
             else resolve(stdout?.trim() || null);
           });
@@ -415,10 +471,12 @@ async function checkAgentUpdate(agentId: string): Promise<{ hasUpdate: boolean; 
 }
 
 /** Run update for a single agent. Returns success + detail. */
-async function updateAgent(agentId: string, triggeredBy: SelfDevLogEntry["detail"]["triggeredBy"] = "cron"): Promise<{ ok: boolean; detail: SelfDevLogEntry["detail"] }> {
+async function updateAgent(
+  agentId: string,
+  triggeredBy: SelfDevLogEntry["detail"]["triggeredBy"] = "cron"
+): Promise<{ ok: boolean; skipped?: boolean; detail: SelfDevLogEntry["detail"] }> {
   const def = getAgent(agentId);
   if (!def) return { ok: false, detail: { component: "binary", reason: "unknown agent", steps: [], durationMs: 0, triggeredBy } };
-
   const start = Date.now();
   const steps: string[] = [];
   let output = "";
@@ -430,34 +488,59 @@ async function updateAgent(agentId: string, triggeredBy: SelfDevLogEntry["detail
     if (binPath) {
       const { execFile } = await import("node:child_process");
       previousVersion = await new Promise<string | null>((resolve) => {
-        execFile(binPath, ["--version"], { timeout: 3000, windowsHide: true }, (err, stdout) => {
+        execFile(binPath, ["--version"], { timeout: 3000, windowsHide: true, env: AGENT_SPAWN_ENV }, (err, stdout) => {
           if (err) resolve(null);
           else resolve(stdout?.trim() || null);
         });
       });
     }
 
-    // Run install command
+    // Run install command — guarded by the CROSS-PROCESS update lock so only
+    // ONE npm install runs at a time across the whole machine, no matter which
+    // trigger (cron, API, health-check, manual) fired it.
     if (def.install?.command) {
-      steps.push(`Running: ${def.install.command}`);
-      const { execFile } = await import("node:child_process");
-      const cmd = def.install.command;
-      const isBatch = process.platform === "win32" && /\.(cmd|bat)$/i.test(cmd.split(" ")[0]);
-      const file = isBatch ? process.env.ComSpec || "cmd.exe" : cmd.split(" ")[0];
-      const args = isBatch ? ["/c", cmd] : cmd.split(" ").slice(1);
+      if (!acquireUpdateLock()) {
+        const skip = {
+          agentId,
+          action: "skip" as const,
+          status: "completed" as const,
+          brief: `${def.name} update skipped — another npm install already running (one update at a time)`,
+          detail: {
+            component: "binary" as const,
+            reason: "already-running" as const,
+            steps: ["update lock busy"],
+            output: "skipped — the cross-process update lock is held by another install",
+            durationMs: 0,
+            triggeredBy,
+          },
+        };
+        // Signal skip explicitly so the caller can log it as "skipped", not "failed"
+        // (the caller already writes the self-dev entry — no double-log here).
+        return { ok: false, skipped: true, detail: skip.detail };
+      }
+      try {
+        steps.push(`Running: ${def.install.command}`);
+        const { execFile } = await import("node:child_process");
+        const cmd = def.install.command;
+        const isBatch = process.platform === "win32" && /\.(cmd|bat)$/i.test(cmd.split(" ")[0]);
+        const file = isBatch ? process.env.ComSpec || "cmd.exe" : cmd.split(" ")[0];
+        const args = isBatch ? ["/c", cmd] : cmd.split(" ").slice(1);
 
-      const result = await new Promise<{ code: number; stdout: string; stderr: string }>((resolve) => {
-        const child = execFile(file, args, { timeout: 120000, windowsHide: true, maxBuffer: 1024 * 1024 }, (err, stdout, stderr) => {
-          resolve({ code: err ? (err as any).code || 1 : 0, stdout: stdout || "", stderr: stderr || "" });
+        const result = await new Promise<{ code: number; stdout: string; stderr: string }>((resolve) => {
+          const child = execFile(file, args, { timeout: 120000, windowsHide: true, maxBuffer: 1024 * 1024, env: AGENT_SPAWN_ENV }, (err, stdout, stderr) => {
+            resolve({ code: err ? (err as any).code || 1 : 0, stdout: stdout || "", stderr: stderr || "" });
+          });
+          child.on("error", (e) => resolve({ code: 1, stdout: "", stderr: e.message }));
         });
-        child.on("error", (e) => resolve({ code: 1, stdout: "", stderr: e.message }));
-      });
 
-      output = result.stdout + "\n" + result.stderr;
-      steps.push(`Exit code: ${result.code}`);
+        output = result.stdout + "\n" + result.stderr;
+        steps.push(`Exit code: ${result.code}`);
 
-      if (result.code !== 0) {
-        throw new Error(`Install failed with code ${result.code}`);
+        if (result.code !== 0) {
+          throw new Error(`Install failed with code ${result.code}`);
+        }
+      } finally {
+        releaseUpdateLock();
       }
     }
 
@@ -466,7 +549,7 @@ async function updateAgent(agentId: string, triggeredBy: SelfDevLogEntry["detail
     if (binPath) {
       const { execFile } = await import("node:child_process");
       newVersion = await new Promise<string | null>((resolve) => {
-        execFile(binPath, ["--version"], { timeout: 3000, windowsHide: true }, (err, stdout) => {
+        execFile(binPath, ["--version"], { timeout: 3000, windowsHide: true, env: AGENT_SPAWN_ENV }, (err, stdout) => {
           if (err) resolve(null);
           else resolve(stdout?.trim() || null);
         });
@@ -553,30 +636,43 @@ export async function runSelfUpdateCycle(triggeredBy: SelfDevLogEntry["detail"][
       // Run update
       const result = await updateAgent(agentId, triggeredBy);
 
-      // Log completion
+      // Log completion — a lock-busy skip is "skipped", not "failed".
+      const action = result.skipped ? "skip" : "update";
       logSelfDev({
         agentId,
-        action: "update",
-        status: result.ok ? "completed" : "failed",
-        brief: result.ok ? `Updated ${def.name} to ${result.detail.newVersion}` : `Failed to update ${def.name}: ${result.detail.output?.slice(0, 100)}`,
+        action,
+        status: result.ok || result.skipped ? "completed" : "failed",
+        brief: result.ok
+          ? `Updated ${def.name} to ${result.detail.newVersion}`
+          : result.skipped
+            ? `${def.name} update skipped — another npm install already running`
+            : `Failed to update ${def.name}: ${result.detail.output?.slice(0, 100)}`,
         detail: result.detail,
       });
 
       results.push({
         ts: new Date().toISOString(),
         agentId,
-        action: "update",
-        status: result.ok ? "completed" : "failed",
-        brief: result.ok ? `Updated ${def.name} to ${result.detail.newVersion}` : `Failed to update ${def.name}`,
+        action,
+        status: result.ok || result.skipped ? "completed" : "failed",
+        brief: result.ok
+          ? `Updated ${def.name} to ${result.detail.newVersion}`
+          : result.skipped
+            ? `${def.name} update skipped — another npm install already running`
+            : `Failed to update ${def.name}`,
         detail: result.detail,
       });
 
       // Also log to universal log (brief)
       logEvent({
         source: "healer",
-        level: result.ok ? "info" : "warn",
-        event: `self-update: ${agentId}`,
-        detail: result.ok ? `Updated ${def.name} to ${result.detail.newVersion}` : `Update failed: ${result.detail.output?.slice(0, 200)}`,
+        level: result.ok ? "info" : result.skipped ? "info" : "warn",
+        event: result.skipped ? `self-update skipped: ${agentId}` : `self-update: ${agentId}`,
+        detail: result.ok
+          ? `Updated ${def.name} to ${result.detail.newVersion}`
+          : result.skipped
+            ? `${def.name} update skipped — lock held by another install`
+            : `Update failed: ${result.detail.output?.slice(0, 200)}`,
       });
     } else {
       // Log skip
@@ -637,27 +733,40 @@ export async function checkAndUpdateAgent(agentId: string): Promise<SelfDevLogEn
   const result = await updateAgent(agentId, "manual");
   release();
 
+  const action = result.skipped ? "skip" : "update";
   logSelfDev({
     agentId,
-    action: "update",
-    status: result.ok ? "completed" : "failed",
-    brief: result.ok ? `Updated ${def.name} to ${result.detail.newVersion}` : `Failed to update ${def.name}`,
+    action,
+    status: result.ok || result.skipped ? "completed" : "failed",
+    brief: result.ok
+      ? `Updated ${def.name} to ${result.detail.newVersion}`
+      : result.skipped
+        ? `${def.name} update skipped — another npm install already running`
+        : `Failed to update ${def.name}`,
     detail: result.detail,
   });
 
   logEvent({
     source: "healer",
-    level: result.ok ? "info" : "warn",
-    event: `self-update: ${agentId} (manual)`,
-    detail: result.ok ? `Updated ${def.name} to ${result.detail.newVersion}` : `Update failed`,
+    level: result.ok || result.skipped ? "info" : "warn",
+    event: result.skipped ? `self-update skipped: ${agentId} (manual)` : `self-update: ${agentId} (manual)`,
+    detail: result.ok
+      ? `Updated ${def.name} to ${result.detail.newVersion}`
+      : result.skipped
+        ? `${def.name} update skipped — lock held by another install`
+        : `Update failed`,
   });
 
   return {
     ts: new Date().toISOString(),
     agentId,
-    action: "update",
-    status: result.ok ? "completed" : "failed",
-    brief: result.ok ? `Updated ${def.name} to ${result.detail.newVersion}` : `Failed to update ${def.name}`,
+    action,
+    status: result.ok || result.skipped ? "completed" : "failed",
+    brief: result.ok
+      ? `Updated ${def.name} to ${result.detail.newVersion}`
+      : result.skipped
+        ? `${def.name} update skipped — another npm install already running`
+        : `Failed to update ${def.name}`,
     detail: result.detail,
   };
 }
