@@ -160,7 +160,6 @@ export const PROVIDERS: Provider[] = [
     keyEnv: "NVIDIA_API_KEY",
     free: true,
     models: [
-      "qwen/qwen3-coder-480b-a35b-instruct",
       "deepseek-ai/deepseek-v4-pro",
       "meta/llama-3.3-70b-instruct",
       "nvidia/llama-3.3-nemotron-super-49b-v1.5",
@@ -258,12 +257,12 @@ export const PROVIDERS: Provider[] = [
  */
 const DEFAULT_ROUTING: Record<string, RouteRule> = {
   claude: { provider: "cerebras", model: "gpt-oss-120b" },
-  hermes: { provider: "nim", model: "qwen/qwen3-coder-480b-a35b-instruct" },
+  hermes: { provider: "nim", model: "nvidia/llama-3.3-nemotron-super-49b-v1.5" },
   pi: { provider: "openrouter", model: "qwen/qwen3-coder:free" },
   opencode: { provider: "opencode", model: "big-pickle" },
   antigravity: { provider: "groq", model: "llama-3.3-70b-versatile" },
   openclaw: { provider: "cloudflare", model: "@cf/qwen/qwen2.5-coder-32b-instruct" },
-  cline: { provider: "nim", model: "qwen/qwen3-coder-480b-a35b-instruct" },
+  cline: { provider: "nim", model: "nvidia/llama-3.3-nemotron-super-49b-v1.5" },
   jcode: { provider: "cloudflare", model: "@cf/openai/gpt-oss-120b" },
   vibe: { provider: "mistral", model: "mistral-small-latest" },
   codex: { provider: "cerebras", model: "gpt-oss-120b" },
@@ -273,7 +272,7 @@ const DEFAULT_ROUTING: Record<string, RouteRule> = {
  *  to a free-tier model. Adjustable live from the Settings dashboard. */
 const DEFAULT_ANTHROPIC_SLOTS: NonNullable<Settings["anthropicSlots"]> = {
   haiku: { provider: "groq", model: "llama-3.1-8b-instant" },
-  sonnet: { provider: "nim", model: "qwen/qwen3-coder-480b-a35b-instruct" },
+  sonnet: { provider: "nim", model: "nvidia/llama-3.3-nemotron-super-49b-v1.5" },
   opus: { provider: "cerebras", model: "gpt-oss-120b" },
 };
 

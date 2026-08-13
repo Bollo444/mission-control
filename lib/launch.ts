@@ -5,6 +5,8 @@ import path from "node:path";
 import { getAgent } from "./registry";
 import { resolveBinary } from "./detect";
 import { appendActivity } from "./memory";
+import { openSwarmLaunch } from "./openswarm";
+import { prepareAgentBoot } from "./agent-boot";
 
 const isWin = process.platform === "win32";
 
@@ -95,6 +97,10 @@ export function launchAgent(id: string, cwd?: string): LaunchResult {
   const def = getAgent(id);
   if (!def) return { ok: false, message: `Unknown agent: ${id}` };
 
+  // Boot-to-prompt prep (claude trust, vibe update checks) so the launched
+  // terminal opens at a prompt instead of onboarding.
+  prepareAgentBoot(id);
+
   // IDE agents open their application window.
   if (def.kind === "ide" && def.openCommand) {
     const { cmd, args } = def.openCommand;
@@ -125,6 +131,34 @@ export function launchAgent(id: string, cwd?: string): LaunchResult {
       detail: safeDirectory || "default workspace",
     });
     return { ok: true, message: `Opening ${def.name}…` };
+  }
+
+  // Sentinel launches the OpenSwarm TUI — the real Agent Swarm harness — in a
+  // visible console window, with the product env (AGENTSWARM_BIN_PATH etc.).
+  // A direct detached spawn beats a `start cmd /k` line because the env can't
+  // be passed through a command string reliably (paths with spaces).
+  if (id === "sentinel") {
+    const launch = openSwarmLaunch();
+    if (!launch) {
+      return {
+        ok: false,
+        message: `${def.name}: OpenSwarm TUI not installed — run the setup first (sentinel/README.local.md).`,
+      };
+    }
+    spawn(launch.cmd, launch.args, {
+      cwd: launch.cwd,
+      env: launch.env as NodeJS.ProcessEnv,
+      detached: true,
+      stdio: "ignore" as const,
+      windowsHide: false, // visible console window for the TUI
+    }).unref();
+    appendActivity({
+      agentId: id,
+      agentName: def.name,
+      action: "launched the OpenSwarm TUI",
+      detail: "sentinel workspace",
+    });
+    return { ok: true, message: `Launched ${def.name} (OpenSwarm TUI) in a new terminal.` };
   }
 
   if (cwd && !safeCwd(cwd)) {

@@ -41,7 +41,7 @@ const SessionsPanel = dynamic(() => import("@/components/ide/hermes/SessionsPane
 const MemoryPage = dynamic(() => import("@/app/memory/page"), { loading: () => loading("the vault") });
 const MeetingPage = dynamic(() => import("@/app/meeting/page"), { loading: () => loading("the boardroom") });
 const AutomationPage = dynamic(() => import("@/app/automation/page"), { loading: () => loading("automation") });
-const GatewayPage = dynamic(() => import("@/app/gateway/page"), { loading: () => loading("the fleet gateway") });
+const GatewayPage = dynamic(() => import("@/app/gateway/page"), { loading: () => loading("the backup generator") });
 const LogsPage = dynamic(() => import("@/app/logs/page"), { loading: () => loading("the logbook") });
 
 /** Live fleet roster — reuses the overview's AgentCard grid. */
@@ -94,6 +94,6 @@ export const PETALS: Petal[] = [
   { id: "memory", glyph: "✦", label: "Memory", group: "fleet", angle: 135, render: () => <MemoryPage /> },
   { id: "meeting", glyph: "❂", label: "Team Meeting", group: "fleet", angle: 105, render: () => <MeetingPage /> },
   { id: "automation", glyph: "⏱", label: "Automation", group: "fleet", angle: 75, render: () => <AutomationPage /> },
-  { id: "gateway", glyph: "⇄", label: "Fleet Gateway", group: "fleet", angle: 45, render: () => <GatewayPage /> },
+  { id: "gateway", glyph: "⇄", label: "Backup Generator", group: "fleet", angle: 45, render: () => <GatewayPage /> },
   { id: "logs", glyph: "▤", label: "Logs", group: "fleet", angle: 15, render: () => <LogsPage /> },
 ];

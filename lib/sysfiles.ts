@@ -130,7 +130,16 @@ export function readSystemFile(p: string): { ok: boolean; content?: string; erro
     const st = fs.statSync(resolved);
     if (st.isDirectory()) return { ok: false, error: "is a directory" };
     if (st.size > MAX_READ) {
-      return { ok: true, content: fs.readFileSync(resolved, "utf8").slice(0, MAX_READ) + "\n… (truncated)" };
+      // Bound the read: read only the first MAX_READ bytes instead of slurping
+      // the whole file into memory and slicing (which would OOM on a huge log).
+      const fd = fs.openSync(resolved, "r");
+      try {
+        const buf = Buffer.alloc(MAX_READ);
+        const n = fs.readSync(fd, buf, 0, MAX_READ, 0);
+        return { ok: true, content: buf.toString("utf8", 0, n) + "\n… (truncated)" };
+      } finally {
+        fs.closeSync(fd);
+      }
     }
     return { ok: true, content: fs.readFileSync(resolved, "utf8") };
   } catch (e) {

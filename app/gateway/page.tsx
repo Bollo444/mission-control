@@ -48,9 +48,9 @@ export default function GatewayPage() {
     <Screen
       header={
         <PageHeader
-          eyebrow="Primary Router"
-          title="Fleet Gateway"
-          sub="OmniRoute-powered primary routing with transparent Backup Generator failover."
+          eyebrow="Failover Router"
+          title="Backup Generator"
+          sub="Mission Control's in-app cascade — Power Plant (OmniRoute) primary with transparent Backup Generator failover."
           right={
             <div className="flex overflow-hidden rounded-lg border">
               {WINDOWS.map((w) => (
@@ -82,7 +82,7 @@ export default function GatewayPage() {
                 style={isUp ? { background: 'var(--color-green)' } : {}}
               />
               <span className="text-sm font-medium">
-                Fleet Gateway <span className="text-[var(--color-ink-4)] lowercase">● {isUp ? 'online' : 'offline'}</span>
+                Power Plant <span className="text-[var(--color-ink-4)] lowercase">● {isUp ? 'online' : 'offline'}</span>
               </span>
             </div>
             <div className="flex items-center gap-2 border-l pl-6">
@@ -102,44 +102,30 @@ export default function GatewayPage() {
           )}
         </div>
 
-        {/* OmniRoute control panel — link out (OmniRoute blocks iframing) */}
+        {/* Power Plant embed — the live OmniRoute dashboard, no tab needed */}
         <div className="mc-panel mb-8 overflow-hidden">
           <div className="border-b px-5 py-3 flex items-center justify-between">
-            <span className="text-sm font-semibold">OmniRoute Control Panel</span>
-            <span className="text-[10px] text-[var(--color-ink-4)] uppercase tracking-wider">
-              {status?.omnirouteBase ?? 'http://localhost:20128'}
-            </span>
+            <span className="text-sm font-semibold">Power Plant</span>
+            <a
+              href="/power-plant"
+              className="text-xs font-semibold text-[var(--color-signal)] transition-opacity hover:opacity-80"
+            >
+              Open full panel →
+            </a>
           </div>
-          <div className="h-80 bg-[var(--color-surface)] relative">
+          <div className="h-96 bg-[var(--color-surface)] relative">
             {isUp ? (
-              <div className="absolute inset-0 grid place-items-center p-12 text-center">
-                <div className="max-w-md">
-                  <div className="mb-3 text-3xl">🛰️</div>
-                  <h3 className="text-lg font-medium mb-1">OmniRoute is running</h3>
-                  <p className="text-sm text-[var(--color-ink-3)] mb-6">
-                    Its control panel can&apos;t be embedded here (OmniRoute sends
-                    <code className="mx-1 rounded bg-black/30 px-1">X-Frame-Options: DENY</code>),
-                    so it opens in a new tab.
-                  </p>
-                  <a
-                    href={status?.omnirouteBase?.replace('/v1', '') ?? 'http://localhost:20128'}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-[#0b0c0f] transition-transform hover:-translate-y-px"
-                    style={{ background: 'var(--color-signal)' }}
-                  >
-                    Open OmniRoute dashboard ↗
-                  </a>
-                  <div className="mt-3 text-[11px] text-[var(--color-ink-4)]">
-                    {status?.omnirouteBase?.replace('/v1', '') ?? 'http://localhost:20128'}
-                  </div>
-                </div>
-              </div>
+              <iframe
+                src="http://127.0.0.1:4318/dashboard"
+                className="h-full w-full"
+                style={{ border: 0 }}
+                title="Power Plant — OmniRoute dashboard"
+              />
             ) : (
               <div className="absolute inset-0 grid place-items-center p-12 text-center">
                 <div className="max-w-md">
                   <div className="text-4xl mb-4 text-[var(--color-ink-4)]">⬚</div>
-                  <h3 className="text-lg font-medium mb-2">Fleet Gateway Unreachable</h3>
+                  <h3 className="text-lg font-medium mb-2">Power Plant Unreachable</h3>
                   <p className="text-sm text-[var(--color-ink-3)] mb-6">
                     OmniRoute is not responding at {status?.omnirouteBase ?? 'http://localhost:20128'}.
                     Automatic failover to the Backup Generator is active.

@@ -95,7 +95,7 @@ interface ChatMessage {
  * text: <function>name{json-args}</function>. Recover those so Codex's agentic
  * loop still works. Returns the extracted calls + the text with them removed.
  */
-function parseTextToolCalls(text: string): { calls: NonNullable<ChatMessage["tool_calls"]>; rest: string } {
+export function parseTextToolCalls(text: string): { calls: NonNullable<ChatMessage["tool_calls"]>; rest: string } {
   const calls: NonNullable<ChatMessage["tool_calls"]> = [];
   let rest = text;
   const re = /<function>\s*([a-zA-Z0-9_.-]+)\s*(\{[\s\S]*?\})\s*<\/function>/g;

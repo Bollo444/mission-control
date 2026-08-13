@@ -10,7 +10,7 @@ import { useTheme, ThemePalette } from "@/lib/theme";
 
 /**
  * Settings — Minimal "Backup Generator" configuration.
- * Per-agent routing and free-tier status moved to the Fleet Gateway (OmniRoute).
+ * Per-agent routing and free-tier status moved to the Power Plant (OmniRoute).
  */
 
 export default function SettingsPage() {
@@ -36,7 +36,7 @@ export default function SettingsPage() {
 
   const AUTO_CASCADE = [
     { provider: "cerebras", model: "gpt-oss-120b" },
-    { provider: "nim", model: "qwen/qwen3-coder-480b-a35b-instruct" },
+    { provider: "nim", model: "nvidia/llama-3.3-nemotron-super-49b-v1.5" },
     { provider: "groq", model: "llama-3.3-70b-versatile" },
     { provider: "cloudflare", model: "@cf/qwen/qwen2.5-coder-32b-instruct" },
     { provider: "openrouter", model: "qwen/qwen3-coder:free" },
@@ -87,7 +87,7 @@ export default function SettingsPage() {
           <section className="mc-panel p-5">
             <h2 className="mb-1 text-sm font-semibold text-[var(--color-amber)]">Backup Generator (Standby)</h2>
             <p className="mb-4 text-xs text-[var(--color-ink-4)]">
-              API keys for the internal failover cascade. These are only used when the primary Fleet Gateway is unreachable.
+              API keys for the internal failover cascade. These are only used when the primary Power Plant is unreachable.
               Stored locally in <code className="text-[var(--color-ink-3)]">~/.mission-control</code>.
             </p>
             <div className="flex flex-col gap-3">
@@ -151,18 +151,21 @@ export default function SettingsPage() {
         {/* Right Column: Connection + Vault + Theme */}
         <div className="flex flex-col gap-6">
           <section className="mc-panel p-5">
-            <h2 className="mb-1 text-sm font-semibold">Fleet Gateway (Primary)</h2>
+            <h2 className="mb-1 text-sm font-semibold">Backup Generator</h2>
             <p className="mb-3 text-xs leading-relaxed text-[var(--color-ink-4)]">
-              The primary OpenAI-compatible endpoint. Point an agent/tool's base URL here
-              and use the token as its API key.
+              Point an agent/tool here for Power Plant-first routing: the Power Plant (OmniRoute)
+              is tried first, then this in-app cascade serves on failover. Use the token as the API key.
             </p>
             <CopyRow label="Base URL" value="http://127.0.0.1:4317/api/gateway/v1" />
             <div className="rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-3 py-2.5 text-[11px] leading-relaxed text-[var(--color-ink-3)]">
               Authentication is provided by <code className="font-mono text-[var(--color-ink-2)]">MC_ADMIN_TOKEN</code>. It is never returned to browser JavaScript. Use that value as the API key for CLI or agent clients.
             </div>
+            <div className="mt-3 rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-3 py-2.5 text-[11px] leading-relaxed text-[var(--color-ink-3)]">
+              Power Plant direct URL: <code className="font-mono text-[var(--color-ink-2)]">http://127.0.0.1:20128/v1</code> (agents pointing here have no automatic backup).
+            </div>
             {totalServed > 0 && (
               <p className="mt-1 text-[11px] text-[var(--color-ink-4)]">
-                {totalServed.toLocaleString()} backup request{totalServed === 1 ? "" : "s"} served today — see Fleet Gateway tab for primary metrics.
+                {totalServed.toLocaleString()} backup request{totalServed === 1 ? "" : "s"} served today — see the Power Plant panel for primary metrics.
               </p>
             )}
           </section>

@@ -5,10 +5,13 @@ import { recordAttempt, overBudget } from "./usage";
 import { recordHeaders } from "./livelimits";
 
 /*
-  Fleet Gateway — one OpenAI-compatible endpoint in front of every configured
-  free provider. A request is routed to a primary (explicit model, per-agent
-  preference, "auto", or a sticky-session model) and cascades across healthy,
-  under-budget providers on rate-limit/error with a short cooldown.
+  Backup Generator — the in-app cascade: one OpenAI-compatible endpoint in
+  front of every configured free provider. The Power Plant (OmniRoute) is the
+  primary inference path; this cascade serves when the Power Plant is
+  unreachable or rate-limited. A request is routed to a primary (explicit
+  model, per-agent preference, "auto", or a sticky-session model) and cascades
+  across healthy, under-budget providers on rate-limit/error with a short
+  cooldown.
 
   Inspired by FreeLLMAPI, native to Mission Control: no second service, no
   database — in-memory cooldowns/sessions + the ~/.mission-control JSON store.
@@ -70,7 +73,7 @@ const CHAT: Record<string, ChatProvider> = {
 /** "auto" priority — coding-leaning, across providers. Filtered to configured ones. */
 const AUTO: RouteRule[] = [
   { provider: "cerebras", model: "gpt-oss-120b" },
-  { provider: "nim", model: "qwen/qwen3-coder-480b-a35b-instruct" },
+  { provider: "nim", model: "nvidia/llama-3.3-nemotron-super-49b-v1.5" },
   { provider: "groq", model: "llama-3.3-70b-versatile" },
   { provider: "cloudflare", model: "@cf/qwen/qwen2.5-coder-32b-instruct" },
   { provider: "openrouter", model: "qwen/qwen3-coder:free" },

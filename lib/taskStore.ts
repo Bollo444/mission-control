@@ -32,6 +32,25 @@ export async function writeTasks(tasks: DelegationTask[]): Promise<void> {
   await fs.rename(tempFile, file);
 }
 
+/**
+ * Serialize read-modify-write mutations. Every mutator (create/transition/
+ * patch/updateRun/setReport) reads tasks.json, mutates the in-memory array,
+ * then rewrites it — so two concurrent callers (the cron reconcile poller vs a
+ * user's decide/dispatch, or two UI clicks) would otherwise clobber each
+ * other's write and silently lose a task update. This promise-chain mutex
+ * queues mutations in arrival order; a failure in one op never poisons the
+ * queue. Reads stay lock-free (writes are atomic temp+rename).
+ */
+let writeQueue: Promise<void> = Promise.resolve();
+function withLock<T>(fn: () => Promise<T>): Promise<T> {
+  const run = writeQueue.then(fn, fn);
+  writeQueue = run.then(
+    () => {},
+    () => {}
+  );
+  return run;
+}
+
 function nextId(): string {
   return `tsk_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -78,10 +97,12 @@ export async function createTask(input: NewTaskInput): Promise<DelegationTask> {
     createdAt: input.createdAt ?? now,
     updatedAt: input.updatedAt ?? now,
   };
-  const tasks = await readTasks();
-  tasks.push(task);
-  await writeTasks(tasks);
-  return task;
+  return withLock(async () => {
+    const tasks = await readTasks();
+    tasks.push(task);
+    await writeTasks(tasks);
+    return task;
+  });
 }
 
 export async function getTask(id: string): Promise<DelegationTask | null> {
@@ -112,18 +133,20 @@ export async function transitionTask(
   newState: TaskState,
   patch: Partial<DelegationTask> = {}
 ): Promise<DelegationTask> {
-  const tasks = await readTasks();
-  const task = tasks.find((t) => t.id === id);
-  if (!task) throw new Error(`Task ${id} not found`);
-  const allowed = TRANSITIONS[task.state];
-  if (!allowed.includes(newState)) {
-    throw new Error(`Invalid state transition: ${task.state} → ${newState}`);
-  }
-  task.state = newState;
-  Object.assign(task, patch);
-  task.updatedAt = new Date().toISOString();
-  await writeTasks(tasks);
-  return task;
+  return withLock(async () => {
+    const tasks = await readTasks();
+    const task = tasks.find((t) => t.id === id);
+    if (!task) throw new Error(`Task ${id} not found`);
+    const allowed = TRANSITIONS[task.state];
+    if (!allowed.includes(newState)) {
+      throw new Error(`Invalid state transition: ${task.state} → ${newState}`);
+    }
+    task.state = newState;
+    Object.assign(task, patch);
+    task.updatedAt = new Date().toISOString();
+    await writeTasks(tasks);
+    return task;
+  });
 }
 
 /** Merge real fields into a task WITHOUT a state transition (e.g. accept_error,
@@ -132,37 +155,43 @@ export async function patchTask(
   id: string,
   patch: Partial<DelegationTask>
 ): Promise<DelegationTask> {
-  const tasks = await readTasks();
-  const task = tasks.find((t) => t.id === id);
-  if (!task) throw new Error(`Task ${id} not found`);
-  Object.assign(task, patch);
-  task.updatedAt = new Date().toISOString();
-  await writeTasks(tasks);
-  return task;
+  return withLock(async () => {
+    const tasks = await readTasks();
+    const task = tasks.find((t) => t.id === id);
+    if (!task) throw new Error(`Task ${id} not found`);
+    Object.assign(task, patch);
+    task.updatedAt = new Date().toISOString();
+    await writeTasks(tasks);
+    return task;
+  });
 }
 
 export async function updateRun(
   id: string,
   run: NonNullable<DelegationTask["run"]>
 ): Promise<DelegationTask> {
-  const tasks = await readTasks();
-  const task = tasks.find((t) => t.id === id);
-  if (!task) throw new Error(`Task ${id} not found`);
-  task.run = run;
-  task.updatedAt = new Date().toISOString();
-  await writeTasks(tasks);
-  return task;
+  return withLock(async () => {
+    const tasks = await readTasks();
+    const task = tasks.find((t) => t.id === id);
+    if (!task) throw new Error(`Task ${id} not found`);
+    task.run = run;
+    task.updatedAt = new Date().toISOString();
+    await writeTasks(tasks);
+    return task;
+  });
 }
 
 export async function setReport(
   id: string,
   report: NonNullable<DelegationTask["report"]>
 ): Promise<DelegationTask> {
-  const tasks = await readTasks();
-  const task = tasks.find((t) => t.id === id);
-  if (!task) throw new Error(`Task ${id} not found`);
-  task.report = report;
-  task.updatedAt = new Date().toISOString();
-  await writeTasks(tasks);
-  return task;
+  return withLock(async () => {
+    const tasks = await readTasks();
+    const task = tasks.find((t) => t.id === id);
+    if (!task) throw new Error(`Task ${id} not found`);
+    task.report = report;
+    task.updatedAt = new Date().toISOString();
+    await writeTasks(tasks);
+    return task;
+  });
 }

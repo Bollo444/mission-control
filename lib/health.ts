@@ -244,7 +244,7 @@ export function modelStatus(ids: string[] | null | undefined, model: string): bo
  * picks the first one that is *confirmed available* this sweep.
  */
 const FALLBACKS: RouteRule[] = [
-  { provider: "nim", model: "qwen/qwen3-coder-480b-a35b-instruct" },
+  { provider: "nim", model: "nvidia/llama-3.3-nemotron-super-49b-v1.5" },
   { provider: "cloudflare", model: "@cf/qwen/qwen2.5-coder-32b-instruct" },
   { provider: "groq", model: "llama-3.3-70b-versatile" },
   { provider: "cerebras", model: "gpt-oss-120b" },

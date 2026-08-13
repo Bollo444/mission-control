@@ -226,11 +226,17 @@ export default function Shell({
             </span>
             Settings · Routing
           </NavLink>
+          <NavLink href="/power-plant" active={pathname === "/power-plant"}>
+            <span className="grid h-6 w-6 place-items-center rounded-md text-[13px]">
+              ⚡
+            </span>
+            Power Plant
+          </NavLink>
           <NavLink href="/gateway" active={pathname === "/gateway"}>
             <span className="grid h-6 w-6 place-items-center rounded-md text-[13px]">
               ⇄
             </span>
-            Fleet Gateway
+            Backup Generator
           </NavLink>
           <NavLink href="/logs" active={pathname === "/logs"}>
             <span className="grid h-6 w-6 place-items-center rounded-md text-[13px]">

@@ -3,6 +3,8 @@ import * as os from "node:os";
 import * as path from "node:path";
 import * as pty from "@lydell/node-pty";
 import { getAgent } from "./registry";
+import { openSwarmLaunch } from "./openswarm";
+import { prepareAgentBoot, answersForAgent, stripAnsi } from "./agent-boot";
 import { resolveBinary } from "./detect";
 import { home, REPO_WORKSPACE_DIR, WORKSPACE_DIR } from "./paths";
 
@@ -110,6 +112,18 @@ const SHELL_MODE: Record<string, string> = {
   cline: "cline",
 };
 
+/**
+ * Map a session kind to the registry agent whose boot prep applies (config
+ * pre-seeding + onboarding-prompt answering).
+ */
+function bootAgentForKind(kind: string): string | null {
+  if (kind === "sentinel") return "sentinel";
+  if (kind === "zcode-cli") return "zcode";
+  const shellAgent = SHELL_MODE[kind];
+  if (shellAgent) return shellAgent;
+  return getAgent(kind) ? kind : null;
+}
+
 /** Resolve the binary for an allow-listed native agent kind. */
 function resolveCommand(
   kind: string
@@ -155,6 +169,16 @@ function resolveCommand(
       }
     }
     return { cmd, args, cwd, env };
+  }
+
+  // Sentinel runs the OpenSwarm TUI — the real Agent Swarm harness the
+  // workspace was forked from (the opencode/Claude-Code-style terminal UI) —
+  // not the bare text-prompt CLI (run-sentinel.cmd). Resolves the stable TUI
+  // binary and spawns it through the agentswarm-cli shim with the product env.
+  if (kind === "sentinel") {
+    const launch = openSwarmLaunch();
+    if (launch) return launch;
+    // No TUI binary installed — fall through to the text-prompt CLI.
   }
 
   // Any registered agent's native CLI: prefer an existing absolute binPath,
@@ -207,6 +231,11 @@ export function getOrCreateSession(
 
   const resolved = resolveCommand(kind);
   if (!resolved) return { ok: false, error: `unknown session kind: ${kind}` };
+
+  // Boot-to-prompt prep: run the agent's config pre-seeding (claude trust,
+  // vibe update checks) so the CLI opens at a prompt, not onboarding.
+  const bootAgent = bootAgentForKind(kind);
+  if (bootAgent) prepareAgentBoot(bootAgent);
 
   // Refresh the Hermes update-check cache before spawning so banner.py's
   // prefetch_update_check() hits the cached path and skips the git subprocess
@@ -264,7 +293,29 @@ export function getOrCreateSession(
   };
   sessions.set(id, session);
 
+  // Boot-answerer: watch the stream for the agent's known onboarding prompts
+  // (jcode Alacritty, codex update, claude trust, OpenSwarm first-run) and
+  // answer each once so the CLI lands at a ready prompt.
+  const bootAnswers = bootAgent ? answersForAgent(bootAgent) : [];
+  const answeredPrompts = new Set<string>();
+  let bootBuf = "";
+
   proc.onData((chunk) => {
+    if (bootAnswers.length) {
+      bootBuf += chunk;
+      if (bootBuf.length > 8192) bootBuf = bootBuf.slice(-8192);
+      const text = stripAnsi(bootBuf);
+      for (const a of bootAnswers) {
+        if (!answeredPrompts.has(a.id) && a.test.test(text)) {
+          answeredPrompts.add(a.id);
+          try {
+            proc.write(a.send);
+          } catch {
+            /* session already gone */
+          }
+        }
+      }
+    }
     session.buffer += chunk;
     if (session.buffer.length > MAX_BUFFER) {
       session.buffer = session.buffer.slice(session.buffer.length - MAX_BUFFER);

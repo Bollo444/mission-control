@@ -70,6 +70,11 @@ export function makeAnthropicError(
  */
 export function anthropicToOpenAI(req: AnyObj): AnyObj {
   const out: AnyObj = { stream: req.stream === true };
+  // Model MUST flow through — the Power Plant (OmniRoute) 400s a model-less
+  // chat request, and without it the backup cascade can't honor the requested
+  // model either. (cascadeChat still overrides with its own candidate when it
+  // serves, so this only widens what the primary can answer.)
+  if (typeof req.model === "string" && req.model.trim()) out.model = req.model.trim();
   if (typeof req.max_tokens === "number") out.max_tokens = req.max_tokens;
   if (typeof req.temperature === "number") out.temperature = req.temperature;
   if (typeof req.top_p === "number") out.top_p = req.top_p;

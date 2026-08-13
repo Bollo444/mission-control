@@ -9,7 +9,7 @@
 > with **PM2**, and reached remotely through a **Cloudflare Tunnel behind Cloudflare
 > Access** — *not* a cloud host ([why](#deployment-always-on)). Free providers
 > (Cloudflare Workers AI · NVIDIA NIM · Groq · Cerebras) do the heavy lifting, with
-> **Cline** pointed at the [Fleet Gateway](#fleet-gateway--one-endpoint-every-provider).
+> **Cline** pointed at the [Backup Generator](#fleet-gateway--one-endpoint-every-provider).
 > New here? Start at [Quick start](#quick-start).
 
 A single local web dashboard that unifies **nine AI coding agents** running on
@@ -44,7 +44,7 @@ and direct calls to the model providers you choose.
 - [Model routing & providers](#model-routing--providers)
 - [API keys: placement, routing & the recommended setup](#api-keys-placement-routing--the-recommended-setup)
 - [Free-tier health monitor (failover & recovery)](#free-tier-health-monitor-failover--recovery)
-- [Fleet Gateway — one endpoint, every provider](#fleet-gateway--one-endpoint-every-provider)
+- [Backup Generator — one endpoint, every provider](#fleet-gateway--one-endpoint-every-provider)
 - [Logs tab — a universal event log](#logs-tab--a-universal-event-log)
 - [Configuration (environment variables)](#configuration-environment-variables)
 - [The shared-memory vault](#the-shared-memory-vault)
@@ -110,7 +110,7 @@ config exists. Ones you don't have installed appear as provisionable personas.
   recovers**. See [below](#free-tier-health-monitor-failover--recovery).
 - **Free-tier limits panel** — an at-a-glance, approximate "how much can I use
   this for free" reference under the routing table.
-- **Fleet Gateway** — one OpenAI-compatible endpoint in front of every free
+- **Backup Generator** (the Fleet Gateway) — one OpenAI-compatible endpoint in front of every free
   provider, with automatic cross-provider cascade on rate-limits. See
   [below](#fleet-gateway--one-endpoint-every-provider).
 - **Universal Logs tab** — a live, time-ordered record of everything Mission
@@ -588,6 +588,10 @@ Tune the cadence with `MC_HEALTH_INTERVAL_MIN` (see below).
 
 ## Fleet Gateway — one endpoint, every provider
 
+> **Naming:** this endpoint is the **Backup Generator**. The **Power Plant**
+> (OmniRoute) is the primary inference router; the gateway below is the standby
+> cascade it falls back to. See the two-tier note under this heading.
+
 A single OpenAI-compatible endpoint in front of **every configured free
 provider**. Point any agent/tool's base URL at it; each request is routed to a
 primary (an explicit model, the calling agent's preferred model, or `auto`) and
@@ -595,15 +599,15 @@ primary (an explicit model, the calling agent's preferred model, or `auto`) and
 cooldown — so a single call rarely fails. This is the piece that puts Mission
 Control *in the inference path* (opt-in) and makes the routing table live.
 
-> **Two tiers (since 2026-08-10):** the primary inference path is **OmniRoute** at
-> `http://127.0.0.1:20128/v1` — a maintained free-LLM router (230+ providers,
-> auto-failover, compression; see [Deployment](#deployment-always-on)). Fleet
-> agents point straight at it — e.g. Hermes: `base_url: http://127.0.0.1:20128/v1`,
-> `provider: custom`, `model: auto`. The in-app endpoint documented below
-> (`/api/gateway/v1`) is Mission Control's **built-in backup (cold standby)** — it
-> serves only when OmniRoute is unreachable (circuit-breaker failover in
-> `lib/omniroute.ts`) or for tools that want MC's own cascade. All features below
-> describe that backup path.
+> **Two tiers (since 2026-08-13):** the primary inference path is the **Power Plant**
+> (OmniRoute at `http://127.0.0.1:20128/v1` — a maintained free-LLM router with
+> auto-failover and compression; see [Deployment](#deployment-always-on)). The
+> in-app endpoint below (`/api/gateway/v1`) is the **Backup Generator** (standby
+> cascade). Hermes and Claude Code both point at the gateway now, which tries the
+> Power Plant first and cascades to the Backup Generator on any rejection — the
+> "Power Plant first, Backup second" design. The Power Plant's dashboard is
+> embedded full-height in the sidebar **Power Plant** page. All features below
+> describe the backup path.
 
 - **Backup endpoint — Base URL:** `http://127.0.0.1:4317/api/gateway/v1`
 - **Auth:** use `MC_ADMIN_TOKEN` as the API key (or sign into the browser to receive
@@ -681,11 +685,14 @@ speaks Anthropic (including **Claude Code** itself) can run on your free
 providers. It translates Anthropic ⇄ OpenAI at the edge and reuses the same
 cascade, budgets, and routing underneath.
 
-- **Base URL:** `http://127.0.0.1:4317/api/anthropic`
+- **Base URL:** `http://127.0.0.1:4317/api/gateway` (Claude Code) or
+  `http://127.0.0.1:4317/api/anthropic` (the legacy slot bridge).
 - **Auth:** `MC_ADMIN_TOKEN` as `x-api-key` (or `Authorization: Bearer`).
 - **`POST /v1/messages`** — full Anthropic request/response, including the
   `haiku` / `sonnet` / `opus` slots, each mapped to a provider+model you choose in
-  **Settings → Anthropic slots**. **`GET /v1/models`** lists the catalog.
+  **Settings → Anthropic slots** (defaults: haiku → Groq, sonnet → NVIDIA
+  nemotron-super, opus → Cerebras). Slots resolve on the gateway path too.
+  **`GET /v1/models`** lists the catalog.
 
 ```bash
 curl http://127.0.0.1:4317/api/anthropic/v1/messages \
@@ -836,7 +843,7 @@ For a personal always-on instance, a process manager + an authenticating tunnel:
 npm run build
 pm2 start "npm run start" --name mission-control       # serves 127.0.0.1:4317
 
-# Start OmniRoute (the Fleet Gateway) — a global npm install (Node, not Bun):
+# Start OmniRoute (the Power Plant) — a global npm install (Node, not Bun):
 npm i -g omniroute
 pm2 start "$(npm root -g)/omniroute/bin/omniroute.mjs" --name mc-omniroute --interpreter node
 # ^ serves 127.0.0.1:20128 · data + SQLite in ~/.omniroute · dashboard login set
@@ -849,7 +856,7 @@ pm2 save                                                # restart on sign-in/boo
 pm2 start cloudflared --name mc-tunnel -- tunnel --config <path>\tunnel.yml run <tunnel>
 ```
 
-> **Windows Watchdog:** To keep the Fleet Gateway resilient on Windows, mirror the
+> **Windows Watchdog:** To keep the Power Plant (OmniRoute) resilient on Windows, mirror the
 > `tunnel-watchdog.ps1` pattern for the `mc-omniroute` process.
 
 The health-monitor scheduler runs inside the long-lived `next start` process, so
@@ -866,7 +873,7 @@ any remote exposure must be authenticated.
 > see your machine. Serverless hosts can't even run it properly (read-only
 > filesystem → keys/routing/usage/logs don't persist; no long-lived process for
 > the scheduler; no `child_process` to launch anything). Only the
-> [Fleet Gateway](#fleet-gateway--one-endpoint-every-provider) is genuinely
+> [Backup Generator](#fleet-gateway--one-endpoint-every-provider) is genuinely
 > cloud-portable, and only after swapping the `~/.mission-control` JSON store for
 > a KV/DB and the 6h `setInterval` for a cron trigger.
 
@@ -906,7 +913,7 @@ app/
     healer/route.ts       GET system health (PM2/api/agents/disk/config) · POST trigger repair
     learning/route.ts     POST track event · GET /profile (behavioral profile)
     repos/route.ts        GET list cloned repos · POST clone from URL · DELETE remove repo
-    gateway/[...path]      Fleet Gateway — tri-format: /chat/completions, /responses (Codex), /models
+    gateway/[...path]      Backup Generator — /chat/completions, /responses (Codex), /messages (Claude), /models
     anthropic/[...path]    Anthropic-compatible endpoint (/v1/messages, /v1/models)
     route/openrouter/…    single-provider OpenRouter cascade proxy
     usage/route.ts         GET per-provider usage + budgets · DELETE clear

@@ -125,4 +125,18 @@ describe("task store", () => {
     await writeTasks(tasks);
     expect(await readTasks()).toEqual(tasks);
   });
+
+  it("concurrent createTask calls do not lose updates", async () => {
+    const before = (await readTasks()).length;
+    await Promise.all(
+      Array.from({ length: 25 }, (_, i) =>
+        createTask(task({ id: `tsk_race_${i}`, summary: `Race ${i}` }))
+      )
+    );
+    const after = await readTasks();
+    for (let i = 0; i < 25; i++) {
+      expect(after.some((t) => t.id === `tsk_race_${i}`)).toBe(true);
+    }
+    expect(after.length).toBe(before + 25);
+  });
 });

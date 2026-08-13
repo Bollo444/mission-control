@@ -4,11 +4,12 @@ A detailed record of the project's development: **every commit**, grouped by
 working session and shown newest-first. Each short hash links to the commit on
 GitHub.
 
-**21 sessions · 2026-05-31 → 2026-08-13**
-_Latest revision: 2026-08-13 — added Session 21: __Cline npm pile-up fixed — cline's built-in auto-updater suppressed on every app spawn (`CLINE_NO_AUTO_UPDATE=1` in healer, subagent, and version-probe spawns), version checks registry-first via `npm ls` (no CLI launch), and a cross-process `.update.lock` so only one npm install runs machine-wide at a time (lock-busy logged as skip, not failure).__ _(Prior: Session 20 — Hermes delegation loop shipped — persistent `tasks.json` task store with a validated state machine, two-hop orchestration (`propose → decide → dispatch → report-back`), fail-closed scope security on `deploySubagent`, `/api/orchestrator/*` routes, a live `/delegation` task board, and 21 new Vitest tests (44 total).)_
+**22 sessions · 2026-05-31 → 2026-08-13**
+_Latest revision: 2026-08-13 — added Session 22: __Power Plant / Backup Generator routing with an Anthropic Messages bridge, OmniRoute's auto-combo re-fueled (1 → 8 providers) and updated to 3.8.49, NVIDIA slot defaults moved to live nemotron-super, and an endpoint sweep that fixed the Anthropic model-drop, gateway slot resolution, a bounded file read, and a task-store write mutex (45 tests).__ _(Prior: Session 21 — Cline npm pile-up fixed — auto-updater suppressed, registry-first version checks, one-at-a-time update lock.)_
 
 | Session | Date | When | Theme |
 |:--:|---|---|---|
+| 22 | 2026-08-13 (Thu) | Night | Power Plant/Backup Generator routing + Anthropic bridge; OmniRoute auto-combo re-fueled + 3.8.49; nemotron slot defaults; endpoint sweep (model-drop, slots, bounded read, write mutex) |
 | 21 | 2026-08-13 (Thu) | Night | Cline npm pile-up fix: auto-update suppressed on app spawns, registry-first version checks, cross-process one-at-a-time update lock |
 | 20 | 2026-08-13 (Thu) | Day | Hermes delegation loop: task store + state machine, two-hop orchestration, scope security, /delegation board, 44 tests green |
 | 19 | 2026-08-10 (Mon) | Night | Security-hardening admin boundary reconciled & deployed (MC_ADMIN_TOKEN gate, cron/flows sandbox) |
@@ -30,6 +31,48 @@ _Latest revision: 2026-08-13 — added Session 21: __Cline npm pile-up fixed —
 | 3 | 2026-06-03 (Wed) | Late morning → evening | Gateway phases, branding & public launch |
 | 2 | 2026-06-02 (Tue) | Midday | Providers, health monitor & cascade proxy |
 | 1 | 2026-05-31 (Sat) | Afternoon → evening | Initial fleet console |
+
+---
+
+## Session 22 — 2026-08-13 · Power Plant routing, live nemotron slots, endpoint sweep
+
+Three themes land together:
+
+**1. Power Plant / Backup Generator routing (naming + wire-up).** OmniRoute is
+now the **Power Plant** (primary inference router) and the in-app gateway is the
+**Backup Generator** (standby cascade). Hermes and Claude Code are re-pointed at
+the gateway (`:4317`), which tries the Power Plant first and cascades to the
+Backup Generator on any rejection — the "Power Plant first, Backup second"
+design. A standalone origin-for-origin proxy (`scripts/power-plant-proxy.mjs`,
+PM2 app `mc-power-plant` on `:4318`) embeds OmniRoute's dashboard full-height in
+a new sidebar **Power Plant** page (OmniRoute blocks iframes, so path-prefix
+proxying couldn't work). The gateway gained an **Anthropic Messages bridge**
+(`/v1/messages`) so Claude Code routes through the same path.
+
+**2. Power Plant auto-combo fixed.** OmniRoute's `auto` combo was starved — its
+provider pool held only OpenRouter, so its 2-candidate combo exhausted on the
+free tier and every "auto" request failed over. `scripts/fuel-power-plant.mjs`
+adds the 7 free-provider keys Mission Control already holds into OmniRoute's
+store (1 → 8 providers, idempotent), and OmniRoute was updated 3.8.42 → 3.8.49
+(the in-app updater failed on `EBUSY` — Windows locks the running server's files).
+
+**3. Slot defaults + endpoint sweep.** NVIDIA retired
+`qwen/qwen3-coder-480b-a35b-instruct` (410 Gone); every default pointing at it
+now uses the live `nvidia/llama-3.3-nemotron-super-49b-v1.5` (verified 200).
+The sweep caught more bugs:
+- `lib/anthropic-bridge.ts` dropped `model` in `anthropicToOpenAI`, so every
+  Claude call hit the Power Plant model-less and failed over. `model` flows through.
+- The gateway `/v1/messages` path never applied the `haiku`/`sonnet`/`opus` slots,
+  so `model: "sonnet"` was forwarded verbatim and 400'd. Slots now resolve on the
+  gateway path too (matching the legacy `/api/anthropic` bridge).
+- `lib/sysfiles.ts` read the whole file before truncating (OOM on a huge log) —
+  now a bounded 200 KB read.
+- `lib/taskStore.ts` read-modify-write had no lock, so the cron reconcile poller
+  racing a user's decide/dispatch could clobber a write and lose a task update —
+  added an in-process promise-chain mutex (reads stay lock-free).
+
+`tsc` clean, **45/45 tests** green (incl. a new concurrency regression test),
+deployed via `pm2 reload`.
 
 ---
 

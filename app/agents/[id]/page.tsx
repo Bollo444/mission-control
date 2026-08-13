@@ -25,6 +25,8 @@ import OpenClawConsole from "@/components/ide/OpenClawConsole";
 import HermesConsole from "@/components/ide/HermesConsole";
 import CodexConsole from "@/components/ide/CodexConsole";
 import JcodeConsole from "@/components/ide/JcodeConsole";
+import SentinelConsole from "@/components/ide/SentinelConsole";
+import ClineConsole from "@/components/ide/ClineConsole";
 
 export default function AgentPage() {
   const { id } = useParams<{ id: string }>();
@@ -75,6 +77,20 @@ export default function AgentPage() {
   // zero-G teal void with floating menu tabs.
   if (skin.swarm) {
     return <JcodeConsole agent={a} />;
+  }
+
+  // Sentinel gets its OpenSwarm security console: the real Agent Swarm TUI
+  // (opencode/Claude-Code-style terminal harness) embedded as the hero, with
+  // the in-house hat swarm kept one tab away.
+  if (skin.sentinel) {
+    return <SentinelConsole agent={a} />;
+  }
+
+  // Cline gets its parallel prompt deck: cline's TUI can't load in the
+  // embedded ConPTY (bun:ffi), so a prompt bar dispatches headless runs into
+  // a live shell.
+  if (skin.cline) {
+    return <ClineConsole agent={a} />;
   }
 
   const myActivity = (mem?.activity ?? []).filter((e: ActivityEntry) => e.agentId === a.id);

@@ -1,7 +1,7 @@
 import { logEvent } from "./logbook";
 
 /**
- * Fleet Gateway (Primary) — OmniRoute client and failover policy.
+ * Power Plant (Primary) — OmniRoute client and failover policy.
  * OmniRoute is a local AI gateway/router that runs as an external service on :20128/v1.
  *
  * Circuit Breaker: 3 failures, 30s cooldown.

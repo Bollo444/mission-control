@@ -22,20 +22,24 @@ export interface Skin {
   codex?: boolean;
   /** Whether this agent renders its dedicated weightless jcode swarm cockpit. */
   swarm?: boolean;
+  /** Whether this agent renders its dedicated OpenSwarm security console. */
+  sentinel?: boolean;
+  /** Whether this agent renders its dedicated headless prompt deck. */
+  cline?: boolean;
 }
 
-const META: Record<string, { mood: string; type: Skin["type"]; ide?: boolean; console?: boolean; hermes?: boolean; codex?: boolean; swarm?: boolean }> = {
+const META: Record<string, { mood: string; type: Skin["type"]; ide?: boolean; console?: boolean; hermes?: boolean; codex?: boolean; swarm?: boolean; sentinel?: boolean; cline?: boolean }> = {
   claude: { mood: "Ember", type: "sans" },
   hermes: { mood: "Olympus", type: "serif", hermes: true },
   pi: { mood: "Laboratory", type: "mono" },
-  cline: { mood: "Parallel", type: "mono" },
+  cline: { mood: "Parallel", type: "mono", cline: true },
   antigravity: { mood: "Zero-G", type: "sans", ide: true },
   zcode: { mood: "Bloom", type: "sans" },
   openclaw: { mood: "Apex", type: "mono", console: true },
   jcode: { mood: "Swarm", type: "mono", swarm: true },
   vibe: { mood: "Resonance", type: "sans" },
   codex: { mood: "Cipher", type: "mono", codex: true },
-  sentinel: { mood: "Vigil", type: "mono" },
+  sentinel: { mood: "Vigil", type: "mono", sentinel: true },
 };
 
 const FALLBACK_BG = BACKGROUNDS.claude;
@@ -73,6 +77,8 @@ export function getSkin(id: string): Skin {
     hermes: m.hermes,
     codex: m.codex,
     swarm: m.swarm,
+    sentinel: m.sentinel,
+    cline: m.cline,
   };
 }
 
