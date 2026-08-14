@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { listTasks, createTask } from "@/lib/taskStore";
+import { decideTask } from "@/lib/orchestrator";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,6 +32,10 @@ export async function POST(req: Request) {
       successCriteria: body.successCriteria,
       scope: body.scope ?? {},
     });
+    // Auto-drive the loop: the target's own model reviews the contract and
+    // accepts/declines (and dispatches on accept) without a manual click —
+    // creating a delegation IS the trigger, like automation's hub connection.
+    void decideTask(task.id).catch(() => {});
     return NextResponse.json({ task }, { status: 201 });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 400 });

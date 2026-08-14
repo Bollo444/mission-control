@@ -23,9 +23,7 @@ export default function OverviewPage() {
   const { data: agentsData } = useFetch<AgentsResp>("/api/agents", 8000);
   const { data: memData } = useFetch<MemoryResp>("/api/memory", 10000);
 
-  const agents = agentsData?.agents
-    .filter((a) => a.id !== "zcode")
-    ?? [];
+  const agents = agentsData?.agents ?? [];
   const accentFor = useMemo(() => {
     const m = new Map(agents.map((a) => [a.id, a.accent]));
     return (id: string) => m.get(id) ?? "var(--color-signal)";

@@ -184,21 +184,6 @@ export default function AntigravityIde({ agent }: { agent: AgentDetail }) {
     setTimeout(() => setToast(""), 1600);
   }, []);
 
-  // Open the desktop ZCode editor at the repo workspace (escape hatch from the web IDE).
-  const openInZCode = useCallback(async () => {
-    try {
-      const res = await fetch("/api/launch", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ id: "zcode", action: "launch" }),
-      });
-      const json = await res.json();
-      flash(json.ok ? "Opening ZCode…" : json.message || "ZCode not found");
-    } catch {
-      flash("Launch failed");
-    }
-  }, [flash]);
-
   const newFile = useCallback(async () => {
     const name = window.prompt("New note path (relative to the vault), e.g. Notes/idea.md");
     if (!name) return;
@@ -466,14 +451,6 @@ export default function AntigravityIde({ agent }: { agent: AgentDetail }) {
           <span className="font-semibold text-[var(--color-ink)]">Antigravity</span>
           <span className="text-[var(--color-ink-4)]">— Integrated Workspace</span>
         </div>
-        <button
-          onClick={() => void openInZCode()}
-          title="Launch the desktop ZCode editor"
-          className="ml-auto mr-2 rounded-md border border-white/10 px-2 py-0.5 text-[11px] text-[var(--color-ink-3)] hover:bg-white/5"
-          style={{ color: "#f04d8b", borderColor: "rgba(240,77,139,0.4)" }}
-        >
-          ✦ Open in ZCode ↗
-        </button>
         <button
           onClick={() => setPaletteOpen(true)}
           className="ml-2 mr-2 rounded-md border border-white/10 px-2 py-0.5 text-[11px] text-[var(--color-ink-4)] hover:bg-white/5"

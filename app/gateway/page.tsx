@@ -50,7 +50,7 @@ export default function GatewayPage() {
         <PageHeader
           eyebrow="Failover Router"
           title="Backup Generator"
-          sub="Mission Control's in-app cascade — Power Plant (OmniRoute) primary with transparent Backup Generator failover."
+          sub="Mission Control's in-app failover router — Power Plant (OmniRoute) is primary; this Backup Generator stands by with real telemetry when it ever trips."
           right={
             <div className="flex overflow-hidden rounded-lg border">
               {WINDOWS.map((w) => (
@@ -100,43 +100,13 @@ export default function GatewayPage() {
               {status.latencyMs}ms latency
             </span>
           )}
-        </div>
-
-        {/* Power Plant embed — the live OmniRoute dashboard, no tab needed */}
-        <div className="mc-panel mb-8 overflow-hidden">
-          <div className="border-b px-5 py-3 flex items-center justify-between">
-            <span className="text-sm font-semibold">Power Plant</span>
-            <a
-              href="/power-plant"
-              className="text-xs font-semibold text-[var(--color-signal)] transition-opacity hover:opacity-80"
-            >
-              Open full panel →
-            </a>
-          </div>
-          <div className="h-96 bg-[var(--color-surface)] relative">
-            {isUp ? (
-              <iframe
-                src="http://127.0.0.1:4318/dashboard"
-                className="h-full w-full"
-                style={{ border: 0 }}
-                title="Power Plant — OmniRoute dashboard"
-              />
-            ) : (
-              <div className="absolute inset-0 grid place-items-center p-12 text-center">
-                <div className="max-w-md">
-                  <div className="text-4xl mb-4 text-[var(--color-ink-4)]">⬚</div>
-                  <h3 className="text-lg font-medium mb-2">Power Plant Unreachable</h3>
-                  <p className="text-sm text-[var(--color-ink-3)] mb-6">
-                    OmniRoute is not responding at {status?.omnirouteBase ?? 'http://localhost:20128'}.
-                    Automatic failover to the Backup Generator is active.
-                  </p>
-                  <code className="block bg-black/30 rounded px-4 py-2 text-xs text-[var(--color-signal)] border border-[var(--color-signal)]/20">
-                    pm2 start mc-omniroute
-                  </code>
-                </div>
-              </div>
-            )}
-          </div>
+          <a
+            href="/power-plant"
+            className="rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors hover:border-[var(--color-signal)] hover:text-[var(--color-signal)]"
+            style={{ borderColor: "var(--color-line)" }}
+          >
+            Open Power Plant →
+          </a>
         </div>
 
         <div className="mb-4 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--color-ink-4)]">

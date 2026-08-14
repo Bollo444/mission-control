@@ -41,3 +41,9 @@ Thumbs.db
 
 # oh-my-claudecode operational state (sessions, handoffs, logs) — never publish
 /.omc/
+
+# agent tooling / session state (never commit)
+.freebuff/
+.ijfw/
+.ua/
+.pi/

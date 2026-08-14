@@ -58,19 +58,7 @@ function AgentNav({ a, active }: { a: NavAgent; active: boolean }) {
       >
         {a.glyph}
       </span>
-      <span className="flex min-w-0 items-center gap-2">
-        <span className="truncate">{a.name}</span>
-        {a.id === "cline" && (
-          /* Tiny real Cline emblem beside the name (sits next to the colored
-             glyph badge so the row stays balanced). */
-          <img
-            src="/emblems/cline.png"
-            alt=""
-            aria-hidden
-            className="h-3.5 w-3.5 shrink-0 select-none opacity-90"
-          />
-        )}
-      </span>
+      <span className="min-w-0 truncate">{a.name}</span>
     </Link>
   );
 }
@@ -142,7 +130,7 @@ export default function Shell({
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-[270px] max-w-[85vw] shrink-0 flex-col border-r bg-[var(--color-bg)] px-4 py-5 transition-transform duration-200 ${
+        className={`mc-orb-sidebar fixed inset-y-0 left-0 z-50 flex w-[270px] max-w-[85vw] shrink-0 flex-col border-r bg-[var(--color-bg)] px-4 py-5 transition-transform duration-200 ${
           open ? "translate-x-0 md:static md:z-auto md:max-w-none" : "-translate-x-full"
         }`}
       >

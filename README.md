@@ -91,7 +91,12 @@ config exists. Ones you don't have installed appear as provisionable personas.
   aloud** — natural neural TTS via **Google Gemini 3.1 Flash** (`gemini-3.1-flash-tts-preview`;
   the 30 prebuilt voices (Zephyr, Puck, Charon, Kore, ...) are why the orb UI shows those
   Olympus-themed names), falling back to
-  Cloudflare MeloTTS then the browser voice, with a voice picker. Press **`/`** to summon a Mass-Effect-style HUD:
+  Cloudflare MeloTTS then the browser voice, with a voice picker. Every orb turn is
+  routed by an intelligent backend selector (`/api/orb/turn`) — a zero-cost classifier
+  scores complexity, context and daily cost, answers simple turns with **Gemini 2.0 Flash**, 
+  escalates demanding ones to **Gemini 3.0**, and hands actual tasks ("fix the bug in X")
+  to **Hermes** to execute — with a live routing badge, sentence-streamed speech, and
+  barge-in so a new command interrupts the in-flight reply. Press **`/`** to summon a Mass-Effect-style HUD:
   holographic panels drift in at the edges — Hermes capabilities, the fleet
   (colour-coded per agent), knowledge, ops — each opening a feature in place over
   the dimmed orb. The classic dashboard lives on at **Overview**.
@@ -199,12 +204,14 @@ config exists. Ones you don't have installed appear as provisionable personas.
 - **OpenCode replaced by Cline** — the headless fleet slot now belongs to **Cline**
   (`cline run "<task>"` for zero-interaction dispatch, MCP support, provider-agnostic).
   The OpenCode Zen free-tier **gateway provider** remains, independent of the agent.
-  **ZCode** (a GLM-powered Electron desktop IDE on this machine) was added as a second
-  `kind: "ide"` launcher alongside Antigravity — no meeting seat, no telemetry.
+  **Antigravity is now native VS Code** — the agent page embeds the official VS Code
+  web server (`code serve-web`) with an Antigravity extension that puts the vault,
+  fleet agents, git repos, health, and activity feed into the editor's activity bar.
 - **MCP call endpoint** — `POST /api/mcp/call { server, tool, args }` invokes any
   connected MCP server's tool directly.
 - **Windows terminal flash fix** — `patches/preload-hide-windows.js` preload forces
-  `windowsHide: true` on all `execSync`/`execFileSync` calls via `NODE_OPTIONS`.
+  `windowsHide: true` on all `execSync`/`execFileSync` **and** `spawn`/`spawnSync` calls
+  via `NODE_OPTIONS` — this also kills the lingering omniroute console window.
 - **Self-healing engine** — a background daemon that checks PM2, the API endpoint,
   agent processes, disk space, and config integrity every 60s — with automatic
   repair (PM2 restart, agent respawn, disk cleanup). Exposed as a live **Health

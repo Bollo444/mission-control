@@ -4,11 +4,16 @@ A detailed record of the project's development: **every commit**, grouped by
 working session and shown newest-first. Each short hash links to the commit on
 GitHub.
 
-**22 sessions · 2026-05-31 → 2026-08-13**
-_Latest revision: 2026-08-13 — added Session 22: __Power Plant / Backup Generator routing with an Anthropic Messages bridge, OmniRoute's auto-combo re-fueled (1 → 8 providers) and updated to 3.8.49, NVIDIA slot defaults moved to live nemotron-super, and an endpoint sweep that fixed the Anthropic model-drop, gateway slot resolution, a bounded file read, and a task-store write mutex (45 tests).__ _(Prior: Session 21 — Cline npm pile-up fixed — auto-updater suppressed, registry-first version checks, one-at-a-time update lock.)_
+**23 sessions · 2026-05-31 → 2026-08-14**
+_Latest revision: 2026-08-14 — added Session 23: __the orb voice agent went live with an intelligent
+Gemini 2.0/3.0 routing core (zero-cost complexity/context/cost classifier, sentence-streamed speech,
+barge-in, routing badge), Hermes got a native VS Code surface, and the omniroute terminal window was
+finally killed by extending the windowsHide preload to `spawn` (57 tests).__ _(Prior: Session 22 — Power Plant / Backup Generator routing with an Anthropic Messages bridge, OmniRoute's
+auto-combo re-fueled + 3.8.49, nemotron slot defaults, endpoint sweep.)_
 
 | Session | Date | When | Theme |
 |:--:|---|---|---|
+| 23 | 2026-08-14 (Fri) | Day | Orb voice agent + intelligent Gemini 2.0/3.0 routing (complexity/context/cost classifier, sentence streaming, barge-in); Hermes native VS Code surface; omniroute window killed (windowsHide preload → spawn) |
 | 22 | 2026-08-13 (Thu) | Night | Power Plant/Backup Generator routing + Anthropic bridge; OmniRoute auto-combo re-fueled + 3.8.49; nemotron slot defaults; endpoint sweep (model-drop, slots, bounded read, write mutex) |
 | 21 | 2026-08-13 (Thu) | Night | Cline npm pile-up fix: auto-update suppressed on app spawns, registry-first version checks, cross-process one-at-a-time update lock |
 | 20 | 2026-08-13 (Thu) | Day | Hermes delegation loop: task store + state machine, two-hop orchestration, scope security, /delegation board, 44 tests green |
@@ -32,6 +37,45 @@ _Latest revision: 2026-08-13 — added Session 22: __Power Plant / Backup Genera
 | 2 | 2026-06-02 (Tue) | Midday | Providers, health monitor & cascade proxy |
 | 1 | 2026-05-31 (Sat) | Afternoon → evening | Initial fleet console |
 
+---
+
+## Session 23 — 2026-08-14 · Orb voice agent with intelligent Gemini 2.0/3.0 routing
+
+The orb is no longer just a pretty reactor core — it is now a real-time,
+bidirectional voice agent with its own intelligent routing core.
+
+**1. The orb voice agent.** The home-page orb (`components/orb/JarvisVoice.tsx`)
+was rewired to a new `/api/orb/turn` streaming endpoint. Replies now arrive as
+SSE frames (`route` → `chunk`··· → `done`), are spoken sentence-by-sentence as
+they stream, and support **barge-in** — a new command aborts the in-flight turn
+and current speech instantly. A live routing badge shows which backend answered
+and why.
+
+**2. The intelligent router (`lib/orb/router.ts`).** Every turn is classified
+with a zero-cost, deterministic scorer — no extra LLM call, so routing never
+adds latency or spend. Three axes:
+- **complexity** — message length + a weighted intent lexicon (coding, analysis,
+  planning, long-form, system task);
+- **context** — conversation history size (token estimate);
+- **cost** — fraction of the day's Gemini budget already consumed.
+
+Simple turns go to **Gemini 2.0 Flash**; complex ones (score ≥ 0.55) escalate to
+**Gemini 3.0**; near-budget complex turns stay cheap and say why; and agentic
+turns (“fix the bug in X”, “restart the bot”) are delegated to **Hermes** via the
+existing ACP bridge so it can actually execute them. Model ids are
+env-overridable (`ORB_GEMINI_20_MODEL`, `ORB_GEMINI_30_MODEL`) because upstream
+retired `gemini-2.0-flash`; without a `GEMINI_API_KEY` the orb stays
+Hermes-powered end to end. 12 new router unit tests.
+
+**3. Hermes surfaces + omniroute window fix.** Hermes gained a native VS Code
+surface (official `code serve-web` with the vault, fleet agents, git repos,
+health and activity feed in the activity bar). And the persistent omniroute
+console window is finally gone: `patches/preload-hide-windows.js` now forces
+`windowsHide: true` on `spawn`/`spawnSync` too (it only covered the sync exec
+variants before, and omniroute's CLI spawns its server asynchronously) — the
+patch rides `NODE_OPTIONS`, so it survives reboots.
+
+`tsc` clean, **57/57 tests** green.
 ---
 
 ## Session 22 — 2026-08-13 · Power Plant routing, live nemotron slots, endpoint sweep

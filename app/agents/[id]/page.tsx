@@ -13,6 +13,7 @@ import SessionList from "@/components/SessionList";
 import ActivityFeed from "@/components/ActivityFeed";
 import AgentMetrics from "@/components/AgentMetrics";
 import NativeTerminal from "@/components/ide/NativeTerminal";
+import AgentLogo from "@/components/AgentLogo";
 import ClaudeMascots from "@/components/ide/ClaudeMascots";
 import VibeDog from "@/components/ide/VibeDog";
 import ClineSkeleton from "@/components/ide/ClineSkeleton";
@@ -20,13 +21,14 @@ import SentinelSwarm from "@/components/ide/SentinelSwarm";
 import GrowthSwarm from "@/components/ide/GrowthSwarm";
 import SelfDevLog from "@/components/SelfDevLog";
 import { getSkin, typeFontClass } from "@/components/skins";
-import AntigravityIde from "@/components/ide/AntigravityIde";
+import VSCodeIde from "@/components/ide/VSCodeIde";
 import OpenClawConsole from "@/components/ide/OpenClawConsole";
 import HermesConsole from "@/components/ide/HermesConsole";
 import CodexConsole from "@/components/ide/CodexConsole";
 import JcodeConsole from "@/components/ide/JcodeConsole";
 import SentinelConsole from "@/components/ide/SentinelConsole";
 import ClineConsole from "@/components/ide/ClineConsole";
+import ClaudeConsole from "@/components/ide/ClaudeConsole";
 
 export default function AgentPage() {
   const { id } = useParams<{ id: string }>();
@@ -53,9 +55,17 @@ export default function AgentPage() {
   const skin = getSkin(a.id);
   const { Mascot, Emblem, Background } = skin;
 
-  // Antigravity gets a wholly different surface: the integrated IDE.
+  // Antigravity gets the native VS Code web IDE (code serve-web) with the
+  // Antigravity extension loaded — vault/agents/repos/health/activity live in
+  // its activity bar, exactly where Explorer/Search/Extensions sit.
   if (skin.ide) {
-    return <AntigravityIde agent={a} />;
+    return <VSCodeIde agent={a} />;
+  }
+
+  // Claude Code gets its dedicated Anthropic-styled console: official
+  // starburst branding, native TUI + quick prompts, Growth Swarm one tab away.
+  if (skin.claude) {
+    return <ClaudeConsole agent={a} />;
   }
 
   // OpenClaw gets its dedicated system-operations console.
@@ -119,15 +129,7 @@ export default function AgentPage() {
                 boxShadow: `inset 0 0 0 1px ${hexA(accent, 0.35)}`,
               }}
             >
-              {a.id === "cline" ? (
-                <img
-                  src="/emblems/cline.png"
-                  alt="Cline emblem"
-                  className="h-[88%] w-[88%] object-contain"
-                />
-              ) : (
-                <Emblem size={64} />
-              )}
+              <AgentLogo id={a.id} size={64} />
             </span>
             <div className="min-w-0">
               <div

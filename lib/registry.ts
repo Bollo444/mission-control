@@ -198,7 +198,9 @@ export const AGENTS: AgentDef[] = [
     configFormat: "json",
     sessionsDir: home(".local", "share", "cline", "sessions"),
     sessionFormat: "generic",
-    launch: { cmd: "cline", args: [], askCwd: true },
+    // Launch the real interactive TUI (cline -i) in a fresh terminal — a bare
+    // `cline` with no args just drops you at the shell prompt in the workspace.
+    launch: { cmd: "cline", args: ["-i"], askCwd: true },
     openCommand: { cmd: "cline", args: ["-i"] },
     install: {
       manager: "npm",
@@ -261,47 +263,6 @@ export const AGENTS: AgentDef[] = [
     ],
     homepage: "https://antigravity.google",
     marketplace: "https://open-vsx.org/",
-  },
-  {
-    id: "zcode",
-    name: "ZCode",
-    tagline: "GLM-powered desktop coding IDE (Electron).",
-    kind: "ide",
-    accent: "#f04d8b",
-    glyph: "✦",
-    primary: false,
-    bin: "zcode",
-    binPaths: [
-      home("AppData", "Local", "Programs", "ZCode", "ZCode.exe"),
-      home("AppData", "Local", "Programs", "ZCode", "zcode.exe"),
-    ],
-    configPaths: [home(".zcode", "v2", "settings.json"), home(".zcode")],
-    configFormat: "json",
-    // ZCode is a stateless launcher (no chat sessions to aggregate) — don't count/list.
-    sessionFormat: "none",
-    openCommand: {
-      cmd: home("AppData", "Local", "Programs", "ZCode", "ZCode.exe"),
-      args: [],
-    },
-    launch: {
-      cmd: home("AppData", "Local", "Programs", "ZCode", "ZCode.exe"),
-      args: [],
-      askCwd: false,
-    },
-    install: {
-      manager: "manual",
-      command: "Download from zcode.com",
-      docs: "https://zcode.com",
-    },
-    tools: [
-      "GLM autocomplete",
-      "Skill plugins",
-      "MCP servers",
-      "Built-in terminal",
-    ],
-    homepage: "https://zcode.com",
-    docsNote:
-      "A second desktop IDE launcher alongside Antigravity. No meeting seat, no telemetry loop — surfaces on /overview + the Antigravity IDE panel as an 'Open in ZCode' escape hatch.",
   },
   {
     id: "openclaw",

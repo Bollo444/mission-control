@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { DelegationTask } from "@/lib/DelegationTask";
 import { hexA } from "@/lib/format";
 
@@ -15,7 +15,7 @@ const STATE_META: Record<
   error: { label: "Error", color: "#ff4438" },
 };
 
-const TARGETS = ["hermes", "claude", "pi", "cline", "antigravity", "openclaw", "jcode", "vibe", "codex"];
+const TARGETS = ["hermes", "claude", "pi", "cline", "antigravity", "openclaw", "jcode", "vibe", "codex", "sentinel"];
 
 function fmt(iso?: string): string {
   if (!iso) return "–";
@@ -48,6 +48,7 @@ export default function TaskBoard() {
       const res = await fetch("/api/orchestrator", { cache: "no-store" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = (await res.json()) as ListResp;
+      tasksRef.current = json.tasks;
       setTasks(json.tasks);
       setError(null);
     } catch (e) {
@@ -57,9 +58,19 @@ export default function TaskBoard() {
     }
   }, []);
 
+  const tasksRef = useRef<DelegationTask[]>([]);
+
+  // Auto-drive the loop: poll for state, and reconcile any `running` task so
+  // an accepted delegation finishes (report-back) without waiting for a click.
   useEffect(() => {
     load();
-    const t = setInterval(load, 5000); // live poll — status streams in real time
+    const t = setInterval(async () => {
+      await load();
+      for (const task of tasksRef.current) {
+        if (task.state !== "running") continue;
+        void fetch(`/api/orchestrator/${task.id}/reconcile`, { method: "POST", cache: "no-store" }).catch(() => {});
+      }
+    }, 5000);
     return () => clearInterval(t);
   }, [load]);
 

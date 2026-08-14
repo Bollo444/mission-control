@@ -26,6 +26,8 @@ interface Node {
   accent: string;
   dur: number;
   delay: number;
+  /** Orbit-mode depth (-1 behind … +1 front) — drives size/opacity for a 3D feel. */
+  depth?: number;
 }
 
 const CAP = 44;
@@ -46,7 +48,7 @@ export default function MemorySwarm({
   const nodes = useMemo<Node[]>(() => {
     const agents = Array.from(new Set(items.map((e) => e.agentId)));
     return items.map((entry, i) => {
-      const size = i < 6 ? 16 : i < 18 ? 11 : 8;
+      let size = i < 6 ? 16 : i < 18 ? 11 : 8;
       const accent = accentFor(entry.agentId);
       const dur = 6 + rnd(i) * 7;
       const delay = rnd(i * 3) * -9;
@@ -63,6 +65,11 @@ export default function MemorySwarm({
         const ang = (j / Math.max(1, ring.length)) * Math.PI * 2 + gi * 0.7;
         x = 50 + Math.cos(ang) * R;
         y = 50 + Math.sin(ang) * R * 0.9;
+        // Fake 3D: bubbles nearer the viewer (lower on the ellipse) are bigger
+        // and brighter; the far side recedes — the ring reads as a tilted disc.
+        const depth = Math.max(-1, Math.min(1, (y - 50) / 36));
+        size = size * (1 + depth * 0.5);
+        return { entry, x, y, size, accent, dur, delay, depth };
       } else {
         x = 7 + rnd(i * 2) * 86;
         y = 9 + rnd(i * 2 + 1) * 82;
@@ -118,6 +125,7 @@ export default function MemorySwarm({
             top: `${node.y}%`,
             width: node.size,
             height: node.size,
+            opacity: node.depth !== undefined ? 0.62 + (node.depth + 1) * 0.19 : 1,
             background: hexA(node.accent, 0.22),
             boxShadow: `0 0 ${node.size}px ${hexA(node.accent, 0.5)}, inset 0 0 0 1px ${hexA(node.accent, 0.75)}`,
             animation: `mc-float ${node.dur}s ease-in-out ${node.delay}s infinite`,

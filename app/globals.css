@@ -174,6 +174,86 @@ body {
     opacity: 1;
   }
 }
+/* A gentler idle breath — the orb rests almost still, only the faintest
+   rise, so the reactor feels alive without demanding attention. */
+@keyframes mc-breathe-soft {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.92;
+  }
+  50% {
+    transform: scale(1.025);
+    opacity: 1;
+  }
+}
+/* Right-side weather square — a slow, weightless float. */
+@keyframes mc-weather-drift {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+/* Immersive orb mode — when the center mic is armed (or Jarvis is speaking)
+   the chrome fades away so the orb owns the whole stage: the left sidebar
+   slides off-screen (taken out of the flex flow so the orb recenters to the
+   true viewport center), the top ticker drifts up, the bottom bar sinks
+   down. Slow and cinematic — 1.1s ease. */
+html[data-orb-active="1"] .mc-orb-sidebar {
+  position: fixed !important;
+  transform: translateX(-115%) !important;
+  opacity: 0 !important;
+  transition: transform 1.1s cubic-bezier(0.4, 0, 0.2, 1), opacity 1.1s ease !important;
+}
+html[data-orb-active="1"] .mc-orb-ticker {
+  transform: translateY(-130%) !important;
+  opacity: 0 !important;
+  transition: transform 1.1s cubic-bezier(0.4, 0, 0.2, 1), opacity 1.1s ease !important;
+}
+html[data-orb-active="1"] .mc-orb-bar {
+  transform: translateY(145%) !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition: transform 1.1s cubic-bezier(0.4, 0, 0.2, 1), opacity 1.1s ease !important;
+}
+/* Base transitions so the chrome eases back in just as smoothly. */
+.mc-orb-ticker,
+.mc-orb-bar {
+  transition: transform 1.1s cubic-bezier(0.4, 0, 0.2, 1), opacity 1.1s ease;
+}
+/* The orb stage compensates for the 270px sidebar so the reactor sits at the
+   true viewport center (not the content area's center, which is 135px off).
+   When the sidebar leaves the flow in immersive mode, drop the compensation. */
+.mc-orb-stage {
+  padding-left: 135px;
+}
+@media (max-width: 767px) {
+  .mc-orb-stage {
+    padding-left: 0;
+  }
+}
+html[data-orb-active="1"] .mc-orb-stage {
+  padding-left: 0 !important;
+}
+
+/* The center mic's idle heartbeat — it swells to full opacity, then fades
+   completely away so the caduceus underneath shows through untouched. Slow
+   and faint so it never demands attention at rest. */
+@keyframes mc-mic-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+}
+
 @keyframes mc-shimmer {
   0% {
     background-position: -150% 0;

@@ -1,0 +1,57 @@
+{
+  "name": "mc-antigravity",
+  "displayName": "Antigravity — Mission Control",
+  "description": "Mission Control panels inside VS Code: shared vault, fleet agents, git repos, health & activity. The Antigravity IDE's powers, ported into the native editor.",
+  "version": "1.0.0",
+  "publisher": "mission-control",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": [],
+  "main": "./extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "antigravity",
+          "title": "Antigravity — Mission Control",
+          "icon": "media/antigravity.svg"
+        }
+      ]
+    },
+    "views": {
+      "antigravity": [
+        { "id": "mcVault", "name": "Vault", "icon": "media/vault.svg", "contextualTitle": "Antigravity · Vault" },
+        { "id": "mcAgents", "name": "Agents", "icon": "media/agents.svg", "contextualTitle": "Antigravity · Agents" },
+        { "id": "mcRepos", "name": "Repos", "icon": "media/repos.svg", "contextualTitle": "Antigravity · Repos" },
+        { "id": "mcHealth", "name": "Health", "icon": "media/health.svg", "contextualTitle": "Antigravity · Health" },
+        { "id": "mcActivity", "name": "Activity", "icon": "media/activity.svg", "contextualTitle": "Antigravity · Activity" }
+      ]
+    },
+    "commands": [
+      { "command": "mc.refreshAll", "title": "Antigravity: Refresh all panels", "icon": "$(refresh)" },
+      { "command": "mc.openFile", "title": "Antigravity: Open vault file", "icon": "$(go-to-file)" },
+      { "command": "mc.launchAgent", "title": "Antigravity: Launch agent", "icon": "$(play)" },
+      { "command": "mc.cloneRepo", "title": "Antigravity: Clone repo", "icon": "$(cloud-download)" },
+      { "command": "mc.dispatchAgent", "title": "Antigravity: Dispatch agent on repo", "icon": "$(run)" },
+      { "command": "mc.healthCheck", "title": "Antigravity: Run health check", "icon": "$(heart)" },
+      { "command": "mc.autoRepair", "title": "Antigravity: Auto-repair", "icon": "$(wrench)" },
+      { "command": "mc.openTerminal", "title": "Antigravity: Open integrated terminal", "icon": "$(terminal)" }
+    ],
+    "menus": {
+      "view/title": [
+        { "command": "mc.refreshAll", "when": "view == mcVault || view == mcAgents || view == mcRepos || view == mcHealth || view == mcActivity", "group": "navigation" }
+      ],
+      "view/item/context": [
+        { "command": "mc.openFile", "when": "view == mcVault && viewItem == file", "group": "inline" },
+        { "command": "mc.launchAgent", "when": "view == mcAgents", "group": "inline" },
+        { "command": "mc.dispatchAgent", "when": "view == mcRepos && viewItem == repo", "group": "inline" }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "node -e \"console.log('plain-js extension; nothing to build')\""
+  }
+}

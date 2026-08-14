@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useFetch } from "@/lib/useFetch";
 import { PageHeader, Screen } from "@/components/ui";
 
@@ -10,11 +11,27 @@ interface PowerStatus {
   omnirouteBase: string;
 }
 
-/** The Power Plant — OmniRoute's dashboard, embedded so you never leave Mission Control. */
+/**
+ * The Power Plant — OmniRoute's dashboard, embedded so you never leave Mission Control.
+ *
+ * The dashboard must be served from a SAME-SITE origin as this page, otherwise the
+ * browser treats the iframe as third-party and blocks its login cookie. Mission Control
+ * is reached over HTTPS through the Cloudflare tunnel (mission-control.decouvertquatrieme.online),
+ * so the dashboard rides the tunnel as a sibling subdomain (powerplant.decouvertquatrieme.online)
+ * — same registrable domain, first-party cookies, no mixed content. When Mission Control is
+ * opened directly on the loopback, the local :4318 proxy is used instead.
+ */
 export default function PowerPlantPage() {
   const { data: status } = useFetch<PowerStatus>("/api/omniroute/status", 5000);
   const isUp = status?.up ?? false;
   const base = (status?.omnirouteBase ?? "http://localhost:20128/v1").replace(/\/v1$/, "");
+
+  const [dashboardOrigin, setDashboardOrigin] = useState("http://127.0.0.1:4318");
+  useEffect(() => {
+    const host = window.location.hostname;
+    const remote = host !== "127.0.0.1" && host !== "localhost" && host !== "::1";
+    setDashboardOrigin(remote ? "https://powerplant.decouvertquatrieme.online" : "http://127.0.0.1:4318");
+  }, []);
 
   return (
     <Screen
@@ -50,7 +67,7 @@ export default function PowerPlantPage() {
           <div className="flex items-center gap-3">
             <span className="text-[10px] text-[var(--color-ink-4)] uppercase tracking-wider">{base}</span>
             <a
-              href={base}
+              href={dashboardOrigin}
               target="_blank"
               rel="noreferrer"
               className="rounded-lg border border-[var(--color-line)] px-3 py-1.5 text-xs font-semibold transition-colors hover:border-[var(--color-signal)] hover:text-[var(--color-signal)]"
@@ -63,7 +80,7 @@ export default function PowerPlantPage() {
         {isUp ? (
           <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-[var(--color-line)] bg-[var(--color-base)]">
             <iframe
-              src="http://127.0.0.1:4318/dashboard"
+              src={`${dashboardOrigin}/dashboard`}
               className="h-full w-full"
               style={{ border: 0, minHeight: 560 }}
               title="Power Plant — OmniRoute dashboard"

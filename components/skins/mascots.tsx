@@ -155,32 +155,6 @@ export function ClineMascot({ size = 64, className }: MProps) {
   );
 }
 
-/* ZCode — a magenta bloom: layered petals around a glowing core (GLM IDE). */
-export function ZCodeMascot({ size = 64, className }: MProps) {
-  const petals = Array.from({ length: 6 });
-  return (
-    <svg width={size} height={size} viewBox="0 0 100 100" className={className} aria-hidden>
-      <circle cx="50" cy="50" r="38" fill="none" stroke="#f04d8b" strokeWidth="2" strokeOpacity="0.45" />
-      <g className="mc-anim-spin" style={{ transformOrigin: "50px 50px", animationDuration: "18s" }}>
-        {petals.map((_, i) => (
-          <ellipse
-            key={i}
-            cx="50"
-            cy="30"
-            rx="9"
-            ry="22"
-            fill="#f04d8b"
-            fillOpacity={0.1 + (i % 3) * 0.05}
-            transform={`rotate(${i * 60} 50 50)`}
-          />
-        ))}
-      </g>
-      <circle cx="50" cy="50" r="12" fill="#160410" stroke="#f04d8b" strokeWidth="2" />
-      <circle cx="50" cy="50" r="4" fill="#ffb8d6" className="mc-anim-breathe" style={{ transformOrigin: "50px 50px" }} />
-    </svg>
-  );
-}
-
 /* Antigravity — an upward craft with two counter-rotating orbit rings, floating. */
 export function AntigravityMascot({ size = 64, className }: MProps) {
   return (
@@ -288,14 +262,99 @@ export function OpenClawMascot({ size = 64, className }: MProps) {
   );
 }
 
+/* Codex — the OpenAI hex-spark: a hexagonal cipher frame with a bold X
+   crossing it, breathing at the vertex where the strokes meet. */
+export function CodexMascot({ size = 64, className }: MProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" className={className} aria-hidden>
+      <defs>
+        <linearGradient id="cx-g" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#4fd1a8" />
+          <stop offset="100%" stopColor="#10a37f" />
+        </linearGradient>
+      </defs>
+      {/* hexagon frame */}
+      <path
+        d="M50 10 L85 30 L85 70 L50 90 L15 70 L15 30 Z"
+        fill="none"
+        stroke="url(#cx-g)"
+        strokeWidth="2"
+        strokeOpacity="0.5"
+        className="mc-anim-spin"
+        style={{ transformOrigin: "50px 50px", animationDuration: "22s" }}
+      />
+      {/* inner hex */}
+      <path
+        d="M50 22 L74 35 L74 65 L50 78 L26 65 L26 35 Z"
+        fill="none"
+        stroke="#10a37f"
+        strokeOpacity="0.3"
+        strokeWidth="1"
+      />
+      {/* the X — Codex's signature crossing */}
+      <g stroke="url(#cx-g)" strokeWidth="7" strokeLinecap="round">
+        <line x1="34" y1="34" x2="66" y2="66" />
+        <line x1="66" y1="34" x2="34" y2="66" />
+      </g>
+      {/* vertex core */}
+      <circle cx="50" cy="50" r="4.5" fill="#06281f" stroke="#4fd1a8" strokeWidth="2" className="mc-anim-breathe" style={{ transformOrigin: "50px 50px" }} />
+    </svg>
+  );
+}
+
+/* Sentinel — the vigil shield: a security escutcheon with a live radar sweep
+   and a single watchful eye at its center. */
+export function SentinelMascot({ size = 64, className }: MProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" className={className} aria-hidden>
+      <defs>
+        <linearGradient id="sn-g" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#f48fd0" />
+          <stop offset="100%" stopColor="#d65db1" />
+        </linearGradient>
+      </defs>
+      {/* radar arcs */}
+      <g stroke="#d65db1" strokeOpacity="0.35" strokeWidth="1.4" fill="none">
+        <path d="M50 16 A34 34 0 0 1 84 50" />
+        <path d="M50 24 A26 26 0 0 1 76 50" />
+      </g>
+      {/* rotating radar sweep */}
+      <line
+        x1="50"
+        y1="50"
+        x2="50"
+        y2="17"
+        stroke="#f48fd0"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        className="mc-anim-spin"
+        style={{ transformOrigin: "50px 50px", animationDuration: "4.5s" }}
+      />
+      {/* shield */}
+      <path
+        d="M50 30 L68 36 L68 55 C68 68 60 76 50 80 C40 76 32 68 32 55 L32 36 Z"
+        fill="rgba(214,93,177,0.08)"
+        stroke="url(#sn-g)"
+        strokeWidth="2.2"
+      />
+      {/* watchful eye */}
+      <circle cx="50" cy="52" r="9" fill="#1c0f1d" stroke="#f48fd0" strokeWidth="1.6" />
+      <circle cx="50" cy="52" r="3.4" fill="#f48fd0" className="mc-anim-breathe" style={{ transformOrigin: "50px 52px" }} />
+      {/* scan line */}
+      <rect x="33" y="60" width="34" height="1.4" rx="0.7" fill="#f48fd0" opacity="0.55" style={{ animation: "mc-scan 3.2s ease-in-out infinite" }} />
+    </svg>
+  );
+}
+
 export const MASCOTS: Record<string, (p: MProps) => React.ReactElement> = {
   claude: ClaudeMascot,
   hermes: HermesMascot,
   pi: PiMascot,
   cline: ClineMascot,
   antigravity: AntigravityMascot,
-  zcode: ZCodeMascot,
   jcode: JcodeMascot,
   vibe: VibeMascot,
   openclaw: OpenClawMascot,
+  codex: CodexMascot,
+  sentinel: SentinelMascot,
 };

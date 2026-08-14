@@ -5,6 +5,7 @@ import type { AgentSummary } from "@/lib/types";
 import { hexA, relTime } from "@/lib/format";
 import { StatusPill, Kind } from "./ui";
 import { getSkin, typeFontClass } from "./skins";
+import AgentLogo from "./AgentLogo";
 
 export default function AgentCard({ a, index }: { a: AgentSummary; index: number }) {
   const s = a.status;
@@ -34,24 +35,8 @@ export default function AgentCard({ a, index }: { a: AgentSummary; index: number
       <div className="relative flex items-start justify-between">
         <div className="flex items-center gap-3">
           <span className="relative grid h-14 w-14 place-items-center overflow-hidden rounded-xl">
-            {/* Default state: stylized SVG mascot fully visible.
-               Hover state for Cline: mascot fades to 5%, real PNG fades to 80%
-               (a swap, not an overlay). Both layers share the same grid cell so
-               the layout never shifts. */}
-            <span
-              aria-hidden
-              className="absolute inset-0 grid place-items-center transition-opacity duration-200 ease-out group-hover:opacity-5"
-            >
-              <Mascot size={56} />
-            </span>
-            {a.id === "cline" && (
-              <img
-                src="/emblems/cline.png"
-                alt=""
-                aria-hidden
-                className="pointer-events-none absolute inset-0 m-auto h-14 w-14 object-contain opacity-0 transition-opacity duration-200 ease-out group-hover:opacity-80"
-              />
-            )}
+            {/* The real official logo where we have one — always visible, no hover gimmicks. */}
+            <AgentLogo id={a.id} size={56} />
           </span>
           <div>
             <div className="flex items-center gap-2">

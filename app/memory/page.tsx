@@ -23,7 +23,8 @@ export default function MemoryPage() {
 
   const activity = data?.activity ?? [];
 
-  const [view, setView] = useState<MemoryView>("list");
+  // Default to the animated orbit swarm — the vault is alive, not a log file.
+  const [view, setView] = useState<MemoryView>("orbit");
   useEffect(() => {
     try {
       const v = localStorage.getItem("mc-memory-view");

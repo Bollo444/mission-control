@@ -26,15 +26,16 @@ export interface Skin {
   sentinel?: boolean;
   /** Whether this agent renders its dedicated headless prompt deck. */
   cline?: boolean;
+  /** Whether this agent renders its dedicated Anthropic-styled Claude console. */
+  claude?: boolean;
 }
 
-const META: Record<string, { mood: string; type: Skin["type"]; ide?: boolean; console?: boolean; hermes?: boolean; codex?: boolean; swarm?: boolean; sentinel?: boolean; cline?: boolean }> = {
-  claude: { mood: "Ember", type: "sans" },
+const META: Record<string, { mood: string; type: Skin["type"]; ide?: boolean; console?: boolean; hermes?: boolean; codex?: boolean; swarm?: boolean; sentinel?: boolean; cline?: boolean; claude?: boolean }> = {
+  claude: { mood: "Ember", type: "sans", claude: true },
   hermes: { mood: "Olympus", type: "serif", hermes: true },
   pi: { mood: "Laboratory", type: "mono" },
   cline: { mood: "Parallel", type: "mono", cline: true },
   antigravity: { mood: "Zero-G", type: "sans", ide: true },
-  zcode: { mood: "Bloom", type: "sans" },
   openclaw: { mood: "Apex", type: "mono", console: true },
   jcode: { mood: "Swarm", type: "mono", swarm: true },
   vibe: { mood: "Resonance", type: "sans" },
@@ -52,7 +53,6 @@ const EMBLEMS: Record<string, Skin["Emblem"]> = {
   claude: MASCOTS.claude,
   pi: MASCOTS.pi,
   antigravity: MASCOTS.antigravity,
-  zcode: MASCOTS.zcode,
   openclaw: MASCOTS.openclaw,
   jcode: MASCOTS.jcode,
   vibe: MASCOTS.vibe,
@@ -79,6 +79,7 @@ export function getSkin(id: string): Skin {
     swarm: m.swarm,
     sentinel: m.sentinel,
     cline: m.cline,
+    claude: m.claude,
   };
 }
 

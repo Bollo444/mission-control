@@ -2,7 +2,7 @@
   "name": "mission-control",
   "version": "0.1.0",
   "private": true,
-  "description": "Unified Mission Control dashboard for nine AI coding agents (Claude, Hermes, Pi, Cline, Antigravity, ZCode, OpenClaw, jcode, Vibe) with a live system terminal, a team-meeting boardroom, and an Obsidian shared-memory vault.",
+  "description": "Unified Mission Control dashboard for nine AI coding agents (Claude, Hermes, Pi, Cline, Antigravity, OpenClaw, jcode, Vibe) with a live system terminal, a team-meeting boardroom, and an Obsidian shared-memory vault.",
   "scripts": {
     "dev": "next dev -p 4317",
     "build": "next build",

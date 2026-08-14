@@ -4,6 +4,9 @@ import { useState } from "react";
 import dynamic from "next/dynamic";
 import type { AgentDetail } from "@/lib/types";
 import { hexA } from "@/lib/format";
+import { StatusPill, ExternalLink } from "@/components/ui";
+import AgentLogo from "@/components/AgentLogo";
+import { ClineBg } from "@/components/skins/backgrounds";
 
 /* ------------------------------------------------------------------ *
  * Cline — the parallel prompt deck. Cline's interactive TUI needs     *
@@ -71,21 +74,52 @@ export default function ClineConsole({ agent }: { agent: AgentDetail }) {
         <rect width="100%" height="100%" fill="url(#cgrid)" />
       </svg>
 
-      {/* Header */}
-      <header className="relative z-10 flex shrink-0 items-center justify-between gap-4 border-b px-6 py-4" style={{ borderColor: C.line }}>
-        <div className="leading-tight">
-          <div className="font-mono text-sm font-semibold tracking-tight" style={{ color: C.ink }}>
-            Cline
+      {/* Header — uniform fleet hero: skinned background, real logo, mood eyebrow,
+          name, tagline, and status — matching every other agent's page. */}
+      <header className="relative z-10 shrink-0 overflow-hidden border-b" style={{ borderColor: C.line }}>
+        <ClineBg className="opacity-70" />
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(90deg, rgba(11,10,19,0.92) 0%, rgba(11,10,19,0.6) 48%, rgba(11,10,19,0.25) 100%)",
+          }}
+        />
+        <div className="relative flex flex-wrap items-center justify-between gap-5 px-6 py-6">
+          <div className="flex items-center gap-5">
+            <span
+              className="mc-anim-float grid h-20 w-20 shrink-0 place-items-center rounded-2xl"
+              style={{
+                background: hexA(C.lavender, 0.1),
+                boxShadow: `inset 0 0 0 1px ${hexA(C.lavender, 0.35)}`,
+              }}
+            >
+              <AgentLogo id="cline" size={64} />
+            </span>
+            <div className="min-w-0">
+              <div
+                className="mb-1 font-mono text-[11px] font-semibold uppercase tracking-[0.26em]"
+                style={{ color: C.lavender }}
+              >
+                Parallel · headless prompt deck
+              </div>
+              <h1 className="font-mono text-3xl font-semibold tracking-tight" style={{ color: C.ink }}>
+                Cline
+              </h1>
+              <p className="mt-1 max-w-2xl text-sm" style={{ color: C.inkDim }}>
+                {a.tagline}
+              </p>
+            </div>
           </div>
-          <div className="font-mono text-[10px] uppercase tracking-[0.26em]" style={{ color: C.inkDim }}>
-            Parallel · headless prompt deck
+          <div className="flex flex-col items-end gap-2">
+            <div className="flex items-center gap-2">
+              <StatusPill on={a.status.installed} labelOn="ready" accent={C.lavender} />
+            </div>
+            <div className="font-mono text-xs" style={{ color: C.inkDim }}>
+              {a.status.version || (a.status.installed ? "configured" : "not detected")}
+            </div>
+            {a.homepage && <ExternalLink href={a.homepage}>{a.homepage.replace(/^https?:\/\//, "")}</ExternalLink>}
           </div>
-        </div>
-        <div className="text-right font-mono text-[11px] leading-tight" style={{ color: C.inkDim }}>
-          <div style={{ color: a.status.installed ? C.lavenderBright : C.inkDim }}>
-            {a.status.installed ? "● READY" : "○ OFFLINE"}
-          </div>
-          <div>{a.status.version || (a.status.installed ? "configured" : "not detected")}</div>
         </div>
       </header>
 

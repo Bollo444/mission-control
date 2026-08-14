@@ -186,38 +186,6 @@ export function ClineBg({ className = "" }: { className?: string }) {
   );
 }
 
-/* ZCode — magenta bloom over a thin circuit mesh (GLM desktop IDE). */
-export function ZCodeBg({ className = "" }: { className?: string }) {
-  return (
-    <div className={`${WRAP} ${className}`} aria-hidden>
-      <div
-        className="absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(100% 80% at 70% 15%, rgba(240,77,139,0.22), transparent 55%), radial-gradient(80% 60% at 15% 85%, rgba(180,40,120,0.14), transparent 60%), #100410",
-        }}
-      />
-      <svg className="absolute inset-0 h-full w-full" aria-hidden>
-        <defs>
-          <pattern id="zcodedots" width="18" height="18" patternUnits="userSpaceOnUse">
-            <circle cx="9" cy="9" r="1" fill="#f04d8b" fillOpacity="0.3" />
-          </pattern>
-        </defs>
-        <rect width="100%" height="100%" fill="url(#zcodedots)" />
-      </svg>
-      <div
-        className="absolute inset-x-0 h-px"
-        style={{
-          top: "38%",
-          background: "linear-gradient(90deg, transparent, rgba(240,77,139,0.6), transparent)",
-          animation: "mc-scan 6s linear infinite",
-        }}
-      />
-      <Iridescence blend="screen" opacity={0.12} hue={320} />
-    </div>
-  );
-}
-
 /* Antigravity — deep space, floating particles + perspective horizon grid. */
 export function AntigravityBg({ className = "" }: { className?: string }) {
   const stars = Array.from({ length: 30 });
@@ -422,7 +390,6 @@ export const BACKGROUNDS: Record<string, (p: { className?: string }) => React.Re
   pi: PiBg,
   cline: ClineBg,
   antigravity: AntigravityBg,
-  zcode: ZCodeBg,
   jcode: JcodeBg,
   vibe: VibeBg,
   openclaw: OpenClawBg,

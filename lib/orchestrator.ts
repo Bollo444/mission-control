@@ -10,6 +10,8 @@ import {
 import { deploySubagent, listRuns } from "./subagents";
 import { cascadeChat } from "./gateway";
 import { readSettings } from "./settings";
+import { appendActivity } from "./memory";
+import { getAgent } from "./registry";
 import type { DelegationTask } from "./DelegationTask";
 
 /*
@@ -109,7 +111,23 @@ function parseJsonAnswer(text: string): Record<string, unknown> | null {
 /* ------------------------------------------------------------------ */
 
 export async function proposeTask(input: NewTaskInput): Promise<DelegationTask> {
-  return createTask({ ...input, state: "proposed" });
+  const task = await createTask({ ...input, state: "proposed" });
+  // Feed the hub — every delegation shows up in the shared vault/orb activity
+  // so the whole fleet (and Hermes) can see what's been handed off.
+  const targetName = getAgent(task.target)?.name ?? task.target;
+  try {
+    appendActivity({
+      agentId: task.proposedBy === "hermes" ? "hermes" : task.target,
+      agentName: task.proposedBy === "hermes" ? "Hermes" : targetName,
+      action: task.proposedBy === "hermes"
+        ? `delegated a task to ${targetName}`
+        : `received a delegated task from the hub`,
+      detail: task.summary,
+    });
+  } catch {
+    /* activity logging must never break the delegation loop */
+  }
+  return task;
 }
 
 /* ------------------------------------------------------------------ */
@@ -236,6 +254,18 @@ export async function reportBack(taskId: string): Promise<DelegationTask | null>
 
   await setReport(taskId, { text, generatedAt: new Date().toISOString() });
   await transitionTask(taskId, "done");
+  // Report-back lands in the shared activity feed too — the loop is visible end to end.
+  try {
+    const targetName = getAgent(task.target)?.name ?? task.target;
+    appendActivity({
+      agentId: task.target,
+      agentName: targetName,
+      action: "completed a delegated task",
+      detail: task.summary,
+    });
+  } catch {
+    /* ignore */
+  }
   return getTask(taskId);
 }
 

@@ -15,7 +15,6 @@ export const AGENT_VOICE: Record<string, VoicePref> = {
   pi: { lang: "en-AU", gender: "female", rate: 1.06, pitch: 1.12 },
   cline: { lang: "en-GB", gender: "female", rate: 1.0, pitch: 1.0 },
   antigravity: { lang: "en-US", gender: "male", rate: 1.0, pitch: 1.02 },
-  zcode: { lang: "en-US", gender: "female", rate: 1.0, pitch: 1.05 },
   openclaw: { lang: "en-US", gender: "male", rate: 0.9, pitch: 0.82 },
   jcode: { lang: "en-AU", gender: "male", rate: 1.08, pitch: 1.0 },
   vibe: { lang: "en-US", gender: "female", rate: 1.05, pitch: 1.16 },

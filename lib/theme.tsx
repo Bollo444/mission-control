@@ -78,7 +78,6 @@ const MUSTARD_GOLD: ThemePalette = {
     openclaw: "#ff6b5b",
     jcode: "#5fd4c4",
     vibe: "#e88d6a",
-    zcode: "#f04d8b",
     sentinel: "#d65db1",
   },
 };
@@ -104,7 +103,6 @@ const OCEAN_BLUE: ThemePalette = {
     openclaw: "#ff6b6b",
     jcode: "#00d4ff",
     vibe: "#ff6b6b",
-    zcode: "#f04d8b",
     sentinel: "#d65db1",
   },
 };
@@ -130,7 +128,6 @@ const SUNSET_ORANGE: ThemePalette = {
     openclaw: "#ff4444",
     jcode: "#22d3ee",
     vibe: "#f472b6",
-    zcode: "#f04d8b",
     sentinel: "#d65db1",
   },
 };
@@ -156,7 +153,6 @@ const MAGENTA_VIOLET: ThemePalette = {
     openclaw: "#f43f5e",
     jcode: "#14b8a6",
     vibe: "#f43f5e",
-    zcode: "#f04d8b",
     sentinel: "#d65db1",
   },
 };
@@ -182,7 +178,6 @@ const EMERALD_GREEN: ThemePalette = {
     openclaw: "#ec4899",
     jcode: "#10b981",
     vibe: "#ec4899",
-    zcode: "#f04d8b",
     sentinel: "#d65db1",
   },
 };
