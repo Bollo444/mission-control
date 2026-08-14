@@ -4,15 +4,17 @@ A detailed record of the project's development: **every commit**, grouped by
 working session and shown newest-first. Each short hash links to the commit on
 GitHub.
 
-**23 sessions · 2026-05-31 → 2026-08-14**
-_Latest revision: 2026-08-14 — added Session 23: __the orb voice agent went live with an intelligent
-Gemini 2.0/3.0 routing core (zero-cost complexity/context/cost classifier, sentence-streamed speech,
-barge-in, routing badge), Hermes got a native VS Code surface, and the omniroute terminal window was
-finally killed by extending the windowsHide preload to `spawn` (57 tests).__ _(Prior: Session 22 — Power Plant / Backup Generator routing with an Anthropic Messages bridge, OmniRoute's
-auto-combo re-fueled + 3.8.49, nemotron slot defaults, endpoint sweep.)_
+**24 sessions · 2026-05-31 → 2026-08-14**
+_Latest revision: 2026-08-14 — added Session 24: __the orb's reflective
+circuit-breaker and dynamic thinking budgets — the router's complexity score now
+allocates a Gemini thinkingConfig budget (0/2048/4096/8192, 3.0 tier only) and
+conversational turns retry once with the error injected, hard-capped at 2 attempts
+(67 tests).__ _(Prior: Session 23 — orb voice agent with intelligent Gemini
+2.0/3.0 routing, native VS Code surface, omniroute window fix.)_
 
 | Session | Date | When | Theme |
 |:--:|---|---|---|
+| 24 | 2026-08-14 (Fri) | Day | Orb reflective circuit-breaker (retry ≤ 2 w/ error injection) + dynamic thinking budgets (complexity → 0/2048/4096/8192, 3.0 tier) |
 | 23 | 2026-08-14 (Fri) | Day | Orb voice agent + intelligent Gemini 2.0/3.0 routing (complexity/context/cost classifier, sentence streaming, barge-in); Hermes native VS Code surface; omniroute window killed (windowsHide preload → spawn) |
 | 22 | 2026-08-13 (Thu) | Night | Power Plant/Backup Generator routing + Anthropic bridge; OmniRoute auto-combo re-fueled + 3.8.49; nemotron slot defaults; endpoint sweep (model-drop, slots, bounded read, write mutex) |
 | 21 | 2026-08-13 (Thu) | Night | Cline npm pile-up fix: auto-update suppressed on app spawns, registry-first version checks, cross-process one-at-a-time update lock |
@@ -37,6 +39,33 @@ auto-combo re-fueled + 3.8.49, nemotron slot defaults, endpoint sweep.)_
 | 2 | 2026-06-02 (Tue) | Midday | Providers, health monitor & cascade proxy |
 | 1 | 2026-05-31 (Sat) | Afternoon → evening | Initial fleet console |
 
+---
+
+## Session 24 — 2026-08-14 · Orb reflective circuit-breaker + dynamic thinking budgets
+
+Two mechanisms from the agent self-configuration research landed in the orb's
+conversational path — both small, contained, and testable.
+
+**1. Dynamic thinking-budget allocation.** The orb router already scores every
+turn's complexity (0..1). That score now maps to a Gemini extended-thinking
+budget via `thinkingBudgetForComplexity` (`lib/orb/router.ts`): < 0.3 → **0**
+(no thinking at all), < 0.55 → **2048**, < 0.8 → **4096**, ≥ 0.8 → **8192**
+(hard cap, clamped input). The budget is only unlocked on the **Gemini 3.0
+tier** — the cheap 2.0 tier stays a plain, fast completion — and
+`lib/orb/gemini.ts` attaches `generationConfig.thinkingConfig` only when the
+budget is > 0, so simple turns send no thinking config and pay nothing for it.
+
+**2. Reflective circuit-breaker (`app/api/orb/turn/route.ts`).** Conversational
+Gemini calls now run inside a retry loop hard-capped at **2 attempts**
+(`MAX_REFLECTION_TURNS`). On failure, the error text is injected as a system
+instruction (“A previous attempt failed … Last error: …”) and the turn
+retries; on the second failure it emits a clean `error` event with
+`(after 2 attempts)`. Turn-level only — the Hermes ACP paths and the
+system-level health monitor are untouched, and there is deliberately no persona
+hot-swap or self-mutating behavior.
+
+`tsc` clean, **67/67 tests** green (new `lib/orb/gemini.test.ts` body-builder
+tests + thinking-budget boundary tests).
 ---
 
 ## Session 23 — 2026-08-14 · Orb voice agent with intelligent Gemini 2.0/3.0 routing

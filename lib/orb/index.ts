@@ -11,5 +11,13 @@
  */
 
 export * from "./types";
-export { routeTurn, GEMINI_TIERS, CAPABLE_THRESHOLD, COST_GUARD_RATIO, estimateTokens } from "./router";
+export {
+  routeTurn,
+  GEMINI_TIERS,
+  CAPABLE_THRESHOLD,
+  COST_GUARD_RATIO,
+  MAX_REFLECTION_TURNS,
+  thinkingBudgetForComplexity,
+  estimateTokens,
+} from "./router";
 export { streamGemini, geminiChat } from "./gemini";

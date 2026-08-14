@@ -37,6 +37,23 @@ export const CAPABLE_THRESHOLD = 0.55;
 /** Fraction of the daily budget consumed above which cost forces the cheap tier. */
 export const COST_GUARD_RATIO = 0.9;
 
+/** Hard cap on reflective retries per turn (the file's max_reflection_turns = 2). */
+export const MAX_REFLECTION_TURNS = 2;
+
+/**
+ * Map a router complexity score (0..1) to a Gemini extended-thinking budget.
+ * Simple turns get no thinking config at all (0 tokens — no waste); escalating
+ * complexity unlocks deeper reasoning, capped at 8192 so a single turn can
+ * never blow the budget. Only meaningful on thinking-capable tiers.
+ */
+export function thinkingBudgetForComplexity(complexity: number): number {
+  const c = Math.min(1, Math.max(0, complexity));
+  if (c < 0.3) return 0;
+  if (c < 0.55) return 2048;
+  if (c < 0.8) return 4096;
+  return 8192;
+}
+
 interface IntentRule {
   id: string;
   label: string;

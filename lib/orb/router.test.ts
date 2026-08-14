@@ -4,6 +4,8 @@ import {
   estimateTokens,
   CAPABLE_THRESHOLD,
   COST_GUARD_RATIO,
+  MAX_REFLECTION_TURNS,
+  thinkingBudgetForComplexity,
 } from "./router";
 
 /** Long, clearly-demanding analysis request — crosses the escalation threshold. */
@@ -84,5 +86,32 @@ describe("orb router", () => {
 
   test("COST_GUARD_RATIO is the documented threshold", () => {
     expect(COST_GUARD_RATIO).toBe(0.9);
+  });
+
+  test("thinking budget: trivial complexity gets no thinking at all", () => {
+    expect(thinkingBudgetForComplexity(0)).toBe(0);
+    expect(thinkingBudgetForComplexity(0.29)).toBe(0);
+  });
+
+  test("thinking budget: mid complexity unlocks a small budget", () => {
+    expect(thinkingBudgetForComplexity(0.3)).toBe(2048);
+    expect(thinkingBudgetForComplexity(0.5)).toBe(2048);
+  });
+
+  test("thinking budget: capable-tier complexity gets 4096", () => {
+    // 0.55 is the router's escalation threshold — escalated turns get real reasoning.
+    expect(thinkingBudgetForComplexity(0.55)).toBe(4096);
+    expect(thinkingBudgetForComplexity(0.79)).toBe(4096);
+  });
+
+  test("thinking budget: deep turns get the 8192 cap, never more", () => {
+    expect(thinkingBudgetForComplexity(0.8)).toBe(8192);
+    expect(thinkingBudgetForComplexity(1)).toBe(8192);
+    expect(thinkingBudgetForComplexity(5)).toBe(8192); // clamped
+    expect(thinkingBudgetForComplexity(-1)).toBe(0); // clamped
+  });
+
+  test("reflective circuit-breaker is hard-capped at 2 turns", () => {
+    expect(MAX_REFLECTION_TURNS).toBe(2);
   });
 });

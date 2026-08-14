@@ -18,6 +18,8 @@ export interface GeminiStreamOptions {
   system?: string;
   maxOutputTokens?: number;
   temperature?: number;
+  /** Extended-thinking token budget (Gemini thinkingConfig). 0 / unset → no thinking. */
+  thinkingBudget?: number;
   signal?: AbortSignal;
 }
 
@@ -28,7 +30,8 @@ export interface GeminiChatResult {
 }
 
 /** Build the Gemini request body from OpenAI-style messages. */
-function buildBody(opts: GeminiStreamOptions): Record<string, unknown> {
+export function buildBody(opts: GeminiStreamOptions): Record<string, unknown> {
+  const thinkingBudget = opts.thinkingBudget ?? 0;
   return {
     ...(opts.system ? { systemInstruction: { parts: [{ text: opts.system }] } } : {}),
     contents: opts.messages.map((m) => ({
@@ -38,6 +41,11 @@ function buildBody(opts: GeminiStreamOptions): Record<string, unknown> {
     generationConfig: {
       maxOutputTokens: opts.maxOutputTokens ?? 1024,
       temperature: opts.temperature ?? 0.7,
+      // Only attach thinkingConfig when a budget is actually allocated — sending
+      // it with 0 is wasteful and some models reject an empty config outright.
+      ...(thinkingBudget > 0
+        ? { thinkingConfig: { thinkingBudget } }
+        : {}),
     },
   };
 }

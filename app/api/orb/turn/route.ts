@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
-import { routeTurn, GEMINI_TIERS } from "@/lib/orb/router";
+import {
+  routeTurn,
+  GEMINI_TIERS,
+  thinkingBudgetForComplexity,
+  MAX_REFLECTION_TURNS,
+} from "@/lib/orb/router";
 import { streamGemini } from "@/lib/orb/gemini";
 import { acpPrompt, acpAvailable } from "@/lib/acp";
 import { readSettings } from "@/lib/settings";
@@ -114,7 +119,11 @@ export async function POST(req: Request) {
         return;
       }
 
-      // Conversational turn → stream directly from the selected Gemini tier.
+      // Conversational turn → stream directly from the selected Gemini tier,
+      // with a reflective circuit-breaker: on failure, retry once with the
+      // error text injected into context, hard-capped at MAX_REFLECTION_TURNS.
+      // Only the capable tier unlocks a thinking budget (reasoning is its whole
+      // point); the cheap tier stays a plain, fast completion.
       send({
         type: "route",
         tier: decision.tier,
@@ -123,21 +132,49 @@ export async function POST(req: Request) {
         complexity: decision.signals.complexity,
       });
 
+      const thinkingBudget =
+        decision.tier === "gemini-3.0"
+          ? thinkingBudgetForComplexity(decision.signals.complexity)
+          : 0;
+
       const t0 = Date.now();
+      let attempt = 0;
+      let lastError: { message: string } = { message: "" };
       try {
-        for await (const text of streamGemini({
-          model: decision.model,
-          messages: [...history, { role: "user", content: message }],
-          apiKey: key,
-          maxOutputTokens: 1024,
-        })) {
-          send({ type: "chunk", text });
+        for (;;) {
+          attempt++;
+          try {
+            const system =
+              attempt > 1
+                ? "A previous attempt failed. Fix the problem and answer correctly this time. " +
+                  "Last error: " + lastError.message
+                : undefined;
+            for await (const text of streamGemini({
+              model: decision.model,
+              messages: [...history, { role: "user", content: message }],
+              apiKey: key,
+              maxOutputTokens: 1024,
+              thinkingBudget,
+              system,
+            })) {
+              send({ type: "chunk", text });
+            }
+            recordAttempt("google", { ok: true, latencyMs: Date.now() - t0 });
+            send({ type: "done", tier: decision.tier, model: decision.model });
+            break;
+          } catch (e) {
+            lastError = e as Error;
+            if (attempt >= MAX_REFLECTION_TURNS) {
+              recordAttempt("google", { ok: false, latencyMs: Date.now() - t0 });
+              send({
+                type: "error",
+                message: `${(e as Error).message} (after ${attempt} attempts)`,
+              });
+              break;
+            }
+            // Reflective retry — inject the error and loop.
+          }
         }
-        recordAttempt("google", { ok: true, latencyMs: Date.now() - t0 });
-        send({ type: "done", tier: decision.tier, model: decision.model });
-      } catch (e) {
-        recordAttempt("google", { ok: false, latencyMs: Date.now() - t0 });
-        send({ type: "error", message: (e as Error).message });
       } finally {
         controller.close();
       }

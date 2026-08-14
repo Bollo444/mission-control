@@ -96,7 +96,10 @@ config exists. Ones you don't have installed appear as provisionable personas.
   scores complexity, context and daily cost, answers simple turns with **Gemini 2.0 Flash**, 
   escalates demanding ones to **Gemini 3.0**, and hands actual tasks ("fix the bug in X")
   to **Hermes** to execute — with a live routing badge, sentence-streamed speech, and
-  barge-in so a new command interrupts the in-flight reply. Press **`/`** to summon a Mass-Effect-style HUD:
+  barge-in so a new command interrupts the in-flight reply, dynamic thinking budgets
+  (the router's complexity score allocates 0–8k reasoning tokens on the capable tier,
+  so simple turns pay nothing), and a reflective circuit-breaker that retries a failed
+  turn once with the error injected, capped at 2 attempts. Press **`/`** to summon a Mass-Effect-style HUD:
   holographic panels drift in at the edges — Hermes capabilities, the fleet
   (colour-coded per agent), knowledge, ops — each opening a feature in place over
   the dimmed orb. The classic dashboard lives on at **Overview**.
