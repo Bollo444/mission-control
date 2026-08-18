@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useFetch } from "@/lib/useFetch";
 import type { AgentsResp } from "@/lib/types";
 import { relTime, hexA } from "@/lib/format";
@@ -8,7 +8,7 @@ import { OrchestrationRelay } from "@/components/ide/HermesConsole";
 import OracleOrb, { type MicState } from "./OracleOrb";
 import CommandHud from "./CommandHud";
 import FeaturePanel from "./FeaturePanel";
-import JarvisVoice from "./JarvisVoice";
+import JarvisVoice, { type ListenEngine } from "./JarvisVoice";
 import WeatherPanel from "./WeatherPanel";
 import SystemMeter from "./SystemMeter";
 import { PETALS } from "./petals";
@@ -35,10 +35,30 @@ export default function OrbHome() {
   const [speaking, setSpeaking] = useState(false);
   // The orb's center mic: off → listening for the wake word → capturing a command.
   const [mic, setMic] = useState<MicState>("off");
+  // Which listening engine is active — "google" Web Speech, or the "whisper"
+  // fallback (Groq) that non-Chrome browsers (Tabby/Edge) switch to. Drives
+  // the pill under the orb, which must say the truth about how to talk.
+  const [engine, setEngine] = useState<ListenEngine>("google");
   const [clock, setClock] = useState("");
   const [fs, setFs] = useState(false);
   // The user's personal wake phrase (mirrors JarvisVoice's key) for the pill.
   const [wakePhrase, setWakePhrase] = useState("");
+
+  // Content-area width — drives how the right-side panels yield to the orb:
+  // full weather only on wide stages, chip-only when tight, hidden when the
+  // orb would collide; they also vanish during immersive mode so the orb
+  // truly owns the stage.
+  const stageRef = useRef<HTMLDivElement>(null);
+  const [stageW, setStageW] = useState(0);
+  useEffect(() => {
+    const el = stageRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      for (const e of entries) setStageW(Math.round(e.contentRect.width));
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const ready = agents.filter((a) => a.status.installed).length;
   const sessions = agents.reduce((n, a) => n + a.status.sessionCount, 0);
@@ -123,7 +143,7 @@ export default function OrbHome() {
   const activePetal = active ? PETAL[active.id] : null;
 
   return (
-    <div className="relative h-full w-full overflow-hidden" style={{ background: "#06060a" }}>
+    <div ref={stageRef} className="relative h-full w-full overflow-hidden" style={{ background: "#06060a" }}>
       {/* Top telemetry ticker — Jarvis grammar, kept faint. Drifts up off-stage
           during immersive mode. */}
       <div className="mc-orb-ticker pointer-events-none absolute inset-x-0 top-0 z-10 flex items-center justify-center gap-6 px-8 py-4 font-mono text-[11px] tracking-[0.18em] text-[var(--color-ink-4)]">
@@ -183,17 +203,19 @@ export default function OrbHome() {
           />
           {mic === "listen"
             ? "Listening… speak your command"
-            : `Say “${wakePhrase || "hey jarvis"}” to wake`}
+            : engine === "whisper"
+              ? "Listening… tap the orb again when done"
+              : `Say “${wakePhrase || "hey jarvis"}” to wake`}
         </div>
       )}
 
       {/* Right-side weather — half-translucent 5-day forecast square
           (2 before / today / 2 after), collapsible to a small toggle. */}
-      <WeatherPanel />
+      <WeatherPanel space={stageW} immersive={immersive} />
 
       {/* Right-side system meter — live CPU / memory / disk as three
           translucent bars, each in its own color. */}
-      <SystemMeter />
+      <SystemMeter space={stageW} immersive={immersive} />
 
       {/* Fullscreen toggle — Mission Control covers the whole screen, no
           tabs/bookmarks. The first click anywhere also enters fullscreen. */}
@@ -213,7 +235,7 @@ export default function OrbHome() {
       </button>
 
       {/* Talk to Jarvis — type or talk and it answers; the core quickens while it speaks. */}
-      {!dim && <JarvisVoice onSpeaking={setSpeaking} mic={mic} onMicChange={setMic} />}
+      {!dim && <JarvisVoice onSpeaking={setSpeaking} mic={mic} onMicChange={setMic} onEngine={setEngine} />}
 
       {/* The "/" edge HUD. */}
       {hud && <CommandHud agents={agents} onPick={pick} onClose={() => setHud(false)} />}

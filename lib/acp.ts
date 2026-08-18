@@ -188,6 +188,15 @@ function ensureBridge(): Bridge {
 }
 
 /**
+ * Serializes prompts — Hermes' ACP server processes ONE prompt per session at
+ * a time, and a concurrent second prompt is answered with "Queued for the next
+ * turn. (N queued)" instead of actually running. Waiting in line here means
+ * every orb turn really gets processed (in order), and the shared onChunk sink
+ * can never be clobbered by an overlapping turn.
+ */
+let promptChain: Promise<unknown> = Promise.resolve();
+
+/**
  * Send a prompt to Hermes and stream back the agent's text via onChunk.
  * Resolves when the turn ends. Throws (with a useful message) if the agent
  * isn't available or set up.
@@ -196,35 +205,42 @@ export async function acpPrompt(
   text: string,
   onChunk: (t: string) => void
 ): Promise<{ stopReason: string }> {
-  const b = ensureBridge();
-  try {
-    await b.ready;
-  } catch (e) {
-    bridge = null;
-    throw new Error(
-      `Hermes ACP isn't ready (${(e as Error).message}). Run \`hermes-acp --setup\` once to pick a provider/model.`
-    );
-  }
-  if (!b.sessionId) throw new Error("Hermes ACP has no active session.");
+  const run = async (): Promise<{ stopReason: string }> => {
+    const b = ensureBridge();
+    try {
+      await b.ready;
+    } catch (e) {
+      bridge = null;
+      throw new Error(
+        `Hermes ACP isn't ready (${(e as Error).message}). Run \`hermes-acp --setup\` once to pick a provider/model.`
+      );
+    }
+    if (!b.sessionId) throw new Error("Hermes ACP has no active session.");
 
-  b.onChunk = onChunk;
-  try {
-    const res = await request(
-      b,
-      "session/prompt",
-      {
-        sessionId: b.sessionId,
-        prompt: [
-          { type: "text", text: ANTHROPIC_OATH },
-          { type: "text", text },
-        ],
-      },
-      120_000
-    );
-    return { stopReason: (res.stopReason as string) ?? "end_turn" };
-  } finally {
-    b.onChunk = null;
-  }
+    b.onChunk = onChunk;
+    try {
+      const res = await request(
+        b,
+        "session/prompt",
+        {
+          sessionId: b.sessionId,
+          prompt: [
+            { type: "text", text: ANTHROPIC_OATH },
+            { type: "text", text },
+          ],
+        },
+        120_000
+      );
+      return { stopReason: (res.stopReason as string) ?? "end_turn" };
+    } finally {
+      b.onChunk = null;
+    }
+  };
+
+  const next = promptChain.then(run, run);
+  // The chain keeps going even when a turn rejects (timeout / agent exit).
+  promptChain = next.catch(() => {});
+  return next;
 }
 
 export function acpAvailable(): boolean {

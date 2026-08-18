@@ -1,47 +1,17 @@
 "use client";
 
 /*
-  One bespoke mascot per agent. Each is a self-contained animated SVG with its
-  own motion language — deliberately nothing alike between any two.
+  Original mascots for every agent on the roster. Each one is a self-
+  contained animated SVG with its own silhouette and motion language -
+  nothing uses a vendor logo, and no two read as the same template.
+  viewBox is 100x100 for all so they share a stage at any size.
 */
+
+import * as React from "react";
 
 type MProps = { size?: number; className?: string };
 
-/* Claude — a radiant ember asterisk: rotating rays around a breathing core. */
-export function ClaudeMascot({ size = 64, className }: MProps) {
-  const rays = Array.from({ length: 12 });
-  return (
-    <svg width={size} height={size} viewBox="0 0 100 100" className={className} aria-hidden>
-      <defs>
-        <radialGradient id="cl-core" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="#ffd9b0" />
-          <stop offset="55%" stopColor="#e0915f" />
-          <stop offset="100%" stopColor="#a85a32" />
-        </radialGradient>
-      </defs>
-      <g className="mc-anim-spin" style={{ transformOrigin: "50px 50px" }}>
-        {rays.map((_, i) => (
-          <rect
-            key={i}
-            x="49"
-            y="6"
-            width="2"
-            height="20"
-            rx="1"
-            fill="#e0915f"
-            opacity={i % 2 ? 0.45 : 0.9}
-            transform={`rotate(${i * 30} 50 50)`}
-          />
-        ))}
-      </g>
-      <circle cx="50" cy="50" r="17" fill="url(#cl-core)" className="mc-anim-breathe" style={{ transformOrigin: "50px 50px" }} />
-      <circle cx="50" cy="50" r="17" fill="none" stroke="#ffd9b0" strokeOpacity="0.5" strokeWidth="1" />
-      <path d="M50 40 L52 50 L50 60 L48 50 Z M40 50 L50 48 L60 50 L50 52 Z" fill="#fff6ec" opacity="0.85" transform="rotate(45 50 50)" />
-    </svg>
-  );
-}
-
-/* Hermes — a gilded caduceus: winged staff with two entwined serpents. */
+/* hermes - gold. */
 export function HermesMascot({ size = 64, className }: MProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 100 100" className={className} aria-hidden>
@@ -53,257 +23,277 @@ export function HermesMascot({ size = 64, className }: MProps) {
         </linearGradient>
         <linearGradient id="he-sheen" x1="0" y1="0" x2="1" y2="0">
           <stop offset="0%" stopColor="#fff" stopOpacity="0" />
-          <stop offset="50%" stopColor="#fff" stopOpacity="0.85" />
+          <stop offset="50%" stopColor="#fff" stopOpacity="0.6" />
           <stop offset="100%" stopColor="#fff" stopOpacity="0" />
         </linearGradient>
       </defs>
-      {/* wings */}
       <g className="mc-anim-float" style={{ transformOrigin: "50px 30px" }}>
         <path d="M50 24 C36 14 20 16 12 26 C26 24 38 27 48 33 Z" fill="url(#he-gold)" />
         <path d="M50 24 C64 14 80 16 88 26 C74 24 62 27 52 33 Z" fill="url(#he-gold)" />
         <circle cx="50" cy="20" r="5" fill="url(#he-gold)" />
       </g>
-      {/* staff */}
       <rect x="48.5" y="28" width="3" height="58" rx="1.5" fill="url(#he-gold)" />
-      {/* serpents */}
       <path d="M50 32 C38 40 62 48 50 56 C38 64 62 72 50 82" fill="none" stroke="url(#he-gold)" strokeWidth="3" strokeLinecap="round" />
-      <path d="M50 32 C62 40 38 48 50 56 C62 64 38 72 50 82" fill="none" stroke="#c9a44d" strokeWidth="3" strokeLinecap="round" opacity="0.8" />
-      {/* shimmer sweep */}
-      <rect x="0" y="0" width="40" height="100" fill="url(#he-sheen)" opacity="0.25" style={{ mixBlendMode: "overlay" }} className="mc-anim-float" />
+      <path d="M50 32 C62 40 38 48 50 56 C62 64 38 72 50 82" fill="none" stroke="#c9a44d" strokeWidth="3" strokeLinecap="round" opacity="0.85" />
+      <rect x="0" y="0" width="40" height="100" fill="url(#he-sheen)" opacity="0.3" style={{ mixBlendMode: "overlay" }} className="mc-anim-float" />
     </svg>
   );
 }
 
-/* Pi — the constant rendered as a coiled serpent, drawn live (stroke-dash). */
+/* claude - ember. */
+export function ClaudeMascot({ size = 64, className }: MProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" className={className} aria-hidden>
+      <defs>
+        <radialGradient id="cl-core" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#ffd9b0" />
+          <stop offset="55%" stopColor="#e0915f" />
+          <stop offset="100%" stopColor="#a85a32" />
+        </radialGradient>
+      </defs>
+      <g stroke="url(#cl-core)" strokeWidth="6" strokeLinecap="round" fill="none">
+        <path d="M50 86 L50 50 L26 28" />
+        <path d="M50 86 L50 50 L74 28" />
+        <path d="M50 50 L36 22" opacity="0.7" />
+        <path d="M50 50 L64 22" opacity="0.7" />
+        <path d="M26 28 L18 32" opacity="0.55" />
+        <path d="M74 28 L82 32" opacity="0.55" />
+      </g>
+      <circle cx="50" cy="50" r="11" fill="url(#cl-core)" className="mc-anim-breathe" style={{ transformOrigin: "50px 50px" }} />
+      <circle cx="50" cy="50" r="11" fill="none" stroke="#ffd9b0" strokeOpacity="0.5" strokeWidth="1" />
+    </svg>
+  );
+}
+
+/* pi - mint. */
 export function PiMascot({ size = 64, className }: MProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 100 100" className={className} aria-hidden>
       <defs>
-        <linearGradient id="pi-g" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#9bf3c8" />
-          <stop offset="100%" stopColor="#36b87f" />
+        <radialGradient id="pi-core" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#c8fff0" />
+          <stop offset="100%" stopColor="#3aa890" />
+        </radialGradient>
+      </defs>
+      <g fill="none" stroke="#7ce0c8">
+        <circle cx="50" cy="50" r="36" strokeOpacity="0.35" strokeWidth="1.4" />
+        <circle cx="50" cy="50" r="24" strokeOpacity="0.6" strokeWidth="1.8" className="mc-anim-spin" style={{ transformOrigin: "50px 50px", animationDuration: "22s" }} />
+        <circle cx="50" cy="50" r="13" strokeOpacity="0.85" strokeWidth="2" className="mc-anim-spin" style={{ transformOrigin: "50px 50px", animationDuration: "11s", animationDirection: "reverse" }} />
+      </g>
+      <g fill="#7ce0c8" fontFamily="monospace" fontSize="9" fontWeight="700">
+        <circle cx="50" cy="14" r="2" />
+        <circle cx="86" cy="50" r="2" />
+        <circle cx="50" cy="86" r="2" />
+        <circle cx="14" cy="50" r="2" />
+      </g>
+      <g className="mc-anim-breathe" style={{ transformOrigin: "50px 50px" }}>
+        <path d="M34 42 H66 V46 H52 V58 H46 V46 H34 Z" fill="url(#pi-core)" />
+        <rect x="46" y="46" width="3.4" height="14" fill="url(#pi-core)" />
+        <rect x="52.5" y="46" width="3.4" height="14" fill="url(#pi-core)" />
+      </g>
+    </svg>
+  );
+}
+
+/* cline - violet. */
+export function ClineMascot({ size = 64, className }: MProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" className={className} aria-hidden>
+      <defs>
+        <linearGradient id="cl-trunk" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#bbb2ff" />
+          <stop offset="100%" stopColor="#6a5cff" />
         </linearGradient>
       </defs>
-      {/* serpentine sine spine */}
-      <path
-        d="M14 70 C28 40 40 40 50 58 C60 76 72 76 86 46"
-        fill="none"
-        stroke="url(#pi-g)"
-        strokeWidth="3"
-        strokeLinecap="round"
-        strokeDasharray="160"
-        strokeDashoffset="160"
-        style={{ animation: "mc-dash 2.4s ease-out forwards, mc-iris 14s linear infinite" }}
-      />
-      {/* π glyph */}
-      <g stroke="#5cd6a0" strokeWidth="6" strokeLinecap="round" fill="none">
-        <line x1="28" y1="40" x2="74" y2="40" />
-        <line x1="40" y1="40" x2="38" y2="74" />
-        <line x1="62" y1="40" x2="64" y2="74" />
+      <rect x="48" y="80" width="4" height="14" fill="url(#cl-trunk)" rx="2" />
+      <g stroke="url(#cl-trunk)" strokeWidth="3.4" strokeLinecap="round" fill="none">
+        <path d="M50 80 C50 60 30 50 18 36" opacity="0.45" />
+        <path d="M50 80 C50 64 38 56 30 38" opacity="0.6" />
+        <path d="M50 80 C50 64 62 56 70 38" opacity="0.6" />
+        <path d="M50 80 C50 60 70 50 82 36" opacity="0.45" />
       </g>
-      <circle cx="86" cy="46" r="4" fill="#5cd6a0" className="mc-anim-breathe" style={{ transformOrigin: "86px 46px" }} />
-    </svg>
-  );
-}
-
-/* Cline — the actual emblem: a pulsing diamond glyph. */
-export function ClineEmblem({ size = 64, className }: MProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 100 100" className={className} aria-hidden>
-      <text
-        x="50"
-        y="58"
-        textAnchor="middle"
-        dominantBaseline="central"
-        fontSize="72"
-        fontWeight="700"
-        fill="#9d8cff"
-        className="mc-anim-breathe"
-        style={{ transformOrigin: "50px 50px" }}
-      >
-        ◆
-      </text>
-    </svg>
-  );
-}
-
-/* Cline — a purple diamond lattice with a pulsing core (headless autonomous agent). */
-export function ClineMascot({ size = 64, className }: MProps) {
-  const petals = Array.from({ length: 4 });
-  return (
-    <svg width={size} height={size} viewBox="0 0 100 100" className={className} aria-hidden>
-      <circle cx="50" cy="50" r="38" fill="none" stroke="#9d8cff" strokeWidth="2" strokeOpacity="0.4" />
-      <g className="mc-anim-spin" style={{ transformOrigin: "50px 50px" }}>
-        {petals.map((_, i) => (
-          <rect
-            key={i}
-            x="46"
-            y="14"
-            width="8"
-            height="36"
-            rx="4"
-            fill="#9d8cff"
-            fillOpacity={0.1 + (i % 2) * 0.06}
-            transform={`rotate(${i * 45} 50 50)`}
-          />
-        ))}
+      <g className="mc-anim-pulse">
+        <path d="M50 80 C50 60 36 52 28 32" stroke="#bbb2ff" strokeWidth="4" strokeLinecap="round" fill="none" />
+        <circle cx="28" cy="32" r="6" fill="#bbb2ff" />
+        <circle cx="28" cy="32" r="11" fill="none" stroke="#bbb2ff" strokeOpacity="0.5" strokeWidth="1.5" />
       </g>
-      <path d="M50 32 L62 50 L50 68 L38 50 Z" fill="#9d8cff" fillOpacity="0.18" stroke="#9d8cff" strokeWidth="1.5" />
-      <circle cx="50" cy="50" r="6" fill="#15102a" stroke="#9d8cff" strokeWidth="2" />
-      <circle cx="50" cy="50" r="2.5" fill="#d6c9ff" className="mc-anim-breathe" style={{ transformOrigin: "50px 50px" }} />
+      <g fill="#6a5cff">
+        <circle cx="18" cy="36" r="3.4" opacity="0.7" />
+        <circle cx="30" cy="38" r="3.4" opacity="0.85" />
+        <circle cx="70" cy="38" r="3.4" opacity="0.85" />
+        <circle cx="82" cy="36" r="3.4" opacity="0.7" />
+      </g>
     </svg>
   );
 }
 
-/* Antigravity — an upward craft with two counter-rotating orbit rings, floating. */
+/* antigravity - azure. */
 export function AntigravityMascot({ size = 64, className }: MProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 100 100" className={className} aria-hidden>
       <defs>
-        <linearGradient id="ag-g" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#bcd6ff" />
-          <stop offset="100%" stopColor="#6ea8fe" />
-        </linearGradient>
+        <radialGradient id="ag-g" cx="50%" cy="40%" r="60%">
+          <stop offset="0%" stopColor="#dbe9ff" />
+          <stop offset="60%" stopColor="#9bc8ff" />
+          <stop offset="100%" stopColor="#3a6dbb" />
+        </radialGradient>
       </defs>
-      <ellipse cx="50" cy="50" rx="40" ry="15" fill="none" stroke="#6ea8fe" strokeOpacity="0.55" strokeWidth="2" className="mc-anim-spin" style={{ transformOrigin: "50px 50px" }} />
-      <ellipse cx="50" cy="50" rx="15" ry="40" fill="none" stroke="#9d8cff" strokeOpacity="0.45" strokeWidth="2" style={{ transformOrigin: "50px 50px", animation: "mc-spin-rev 12s linear infinite" }} />
-      <g className="mc-anim-float" style={{ transformOrigin: "50px 50px" }}>
-        <path d="M50 24 L66 64 L50 56 L34 64 Z" fill="url(#ag-g)" />
-        <circle cx="50" cy="44" r="5" fill="#0c1326" />
+      <ellipse cx="50" cy="74" rx="32" ry="6" fill="none" stroke="#9bc8ff" strokeOpacity="0.6" strokeWidth="1.5" />
+      <ellipse cx="50" cy="74" rx="22" ry="4" fill="none" stroke="#9bc8ff" strokeOpacity="0.4" strokeWidth="1" />
+      <g className="mc-anim-float" style={{ transformOrigin: "50px 42px" }}>
+        <path d="M50 18 L72 40 L50 64 L28 40 Z" fill="url(#ag-g)" stroke="#dbe9ff" strokeWidth="1.5" />
+        <path d="M50 18 L72 40 L50 40 Z" fill="#dbe9ff" opacity="0.55" />
+        <path d="M50 40 L28 40 L50 64 Z" fill="#3a6dbb" opacity="0.5" />
+        <path d="M50 18 L50 40 L72 40" fill="none" stroke="#dbe9ff" strokeOpacity="0.7" strokeWidth="1" />
+        <path d="M50 40 L50 64" stroke="#dbe9ff" strokeOpacity="0.7" strokeWidth="1" />
       </g>
+      <circle cx="18" cy="74" r="2.4" fill="#dbe9ff" className="mc-anim-breathe" style={{ transformOrigin: "18px 74px" }} />
+      <circle cx="82" cy="74" r="2.4" fill="#dbe9ff" className="mc-anim-breathe" style={{ transformOrigin: "82px 74px", animationDelay: "0.6s" }} />
     </svg>
   );
 }
 
-/* jcode — a swarm: central hex with orbiting hex satellites. */
-export function JcodeMascot({ size = 64, className }: MProps) {
-  const hex = "M0 -9 L8 -4.5 L8 4.5 L0 9 L-8 4.5 L-8 -4.5 Z";
-  const sats = [0, 1, 2, 3, 4];
-  return (
-    <svg width={size} height={size} viewBox="0 0 100 100" className={className} aria-hidden>
-      <g transform="translate(50 50)">
-        <path d={hex} transform="scale(1.6)" fill="#46e0d0" fillOpacity="0.9" className="mc-anim-breathe" />
-        {sats.map((i) => (
-          <g key={i} style={{ animation: `mc-orbit ${6 + i}s linear infinite`, "--r": "30px" } as React.CSSProperties}>
-            <path d={hex} transform="scale(0.7)" fill="#46e0d0" fillOpacity={0.5 - i * 0.06} />
-          </g>
-        ))}
-      </g>
-    </svg>
-  );
-}
-
-/* Vibe — a voice ring with a live equalizer (it has voice mode). */
-export function VibeMascot({ size = 64, className }: MProps) {
-  const bars = [0, 1, 2, 3, 4, 5, 6];
-  return (
-    <svg width={size} height={size} viewBox="0 0 100 100" className={className} aria-hidden>
-      <circle cx="50" cy="50" r="40" fill="none" stroke="#f06a7a" strokeOpacity="0.4" strokeWidth="2" />
-      <circle cx="50" cy="50" r="40" fill="none" stroke="#f06a7a" strokeWidth="2" className="mc-anim-breathe" style={{ transformOrigin: "50px 50px" }} />
-      <g transform="translate(26 50)">
-        {bars.map((i) => (
-          <rect
-            key={i}
-            x={i * 7}
-            y={-18}
-            width="4"
-            height="36"
-            rx="2"
-            fill="#f06a7a"
-            style={{ transformOrigin: `${i * 7 + 2}px 0px`, animation: `mc-wave ${0.7 + (i % 3) * 0.25}s ease-in-out ${i * 0.08}s infinite` }}
-          />
-        ))}
-      </g>
-    </svg>
-  );
-}
-
-/* OpenClaw — a mechanical grappling pincer that clamps open/closed around a
-   targeting core, ringed by a slow dashed reticle. */
+/* openclaw - crimson. */
 export function OpenClawMascot({ size = 64, className }: MProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 100 100" className={className} aria-hidden>
       <defs>
-        <linearGradient id="oc-g" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#ff9a7a" />
-          <stop offset="45%" stopColor="#ff4438" />
-          <stop offset="100%" stopColor="#b81f28" />
-        </linearGradient>
+        <radialGradient id="oc-glow" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#ffd0c0" />
+          <stop offset="60%" stopColor="#e85d5d" />
+          <stop offset="100%" stopColor="#7a1f1f" />
+        </radialGradient>
       </defs>
-      {/* dashed targeting reticle */}
-      <circle
-        cx="50"
-        cy="50"
-        r="40"
-        fill="none"
-        stroke="#ff4438"
-        strokeOpacity="0.35"
-        strokeWidth="2"
-        strokeDasharray="6 7"
-        className="mc-anim-spin"
-        style={{ transformOrigin: "50px 50px" }}
-      />
-      {/* hinge */}
-      <circle cx="50" cy="64" r="5" fill="url(#oc-g)" />
-      {/* left talon */}
-      <g style={{ transformOrigin: "50px 64px", animation: "mc-grab 3s ease-in-out infinite" }}>
-        <path d="M50 62 C40 52 36 40 40 26 C44 34 48 36 50 44 Z" fill="url(#oc-g)" />
-        <path d="M40 26 C37 22 33 22 30 25" fill="none" stroke="#ff9a7a" strokeWidth="3" strokeLinecap="round" />
+      <g fill="none" stroke="#e85d5d" strokeWidth="6" strokeLinecap="round">
+        <path d="M18 24 C30 36 38 50 46 56" />
+        <path d="M82 24 C70 36 62 50 54 56" />
+        <path d="M50 14 C50 30 50 46 50 56" />
       </g>
-      {/* right talon (mirror) */}
-      <g style={{ transformOrigin: "50px 64px", animation: "mc-grab-rev 3s ease-in-out infinite" }}>
-        <path d="M50 62 C60 52 64 40 60 26 C56 34 52 36 50 44 Z" fill="url(#oc-g)" />
-        <path d="M60 26 C63 22 67 22 70 25" fill="none" stroke="#ff9a7a" strokeWidth="3" strokeLinecap="round" />
+      <g fill="#e85d5d">
+        <circle cx="46" cy="56" r="3.6" />
+        <circle cx="54" cy="56" r="3.6" />
+        <circle cx="50" cy="56" r="3.6" />
       </g>
-      {/* targeting core */}
-      <circle cx="50" cy="50" r="6" fill="#1a0a0b" stroke="#ff4438" strokeWidth="2" />
-      <circle cx="50" cy="50" r="2.4" fill="#ff9a7a" className="mc-anim-breathe" style={{ transformOrigin: "50px 50px" }} />
+      <circle cx="50" cy="72" r="14" fill="url(#oc-glow)" className="mc-anim-pulse" />
+      <circle cx="50" cy="72" r="20" fill="none" stroke="#e85d5d" strokeOpacity="0.4" strokeWidth="1.2" className="mc-anim-breathe" style={{ transformOrigin: "50px 72px" }} />
+      <g stroke="#e85d5d" strokeOpacity="0.7" strokeWidth="1.5" strokeLinecap="round">
+        <line x1="34" y1="86" x2="40" y2="86" />
+        <line x1="60" y1="86" x2="66" y2="86" />
+        <line x1="50" y1="92" x2="50" y2="96" />
+      </g>
     </svg>
   );
 }
 
-/* Codex — the OpenAI hex-spark: a hexagonal cipher frame with a bold X
-   crossing it, breathing at the vertex where the strokes meet. */
+/* jcode - cyan. */
+export function JcodeMascot({ size = 64, className }: MProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" className={className} aria-hidden>
+      <defs>
+        <radialGradient id="jc-core" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#d8f4ff" />
+          <stop offset="100%" stopColor="#2089b8" />
+        </radialGradient>
+      </defs>
+      <g stroke="#6ad8ff" strokeWidth="1.4" fill="none" opacity="0.7">
+        <path d="M50 50 C30 30 14 50 22 70" />
+        <path d="M50 50 C70 30 86 50 78 70" />
+        <path d="M50 50 C20 60 30 86 50 76" />
+        <path d="M50 50 C80 60 70 86 50 76" />
+      </g>
+      <g fill="#6ad8ff">
+        <circle cx="22" cy="70" r="3" />
+        <circle cx="78" cy="70" r="3" />
+        <circle cx="50" cy="76" r="3" />
+        <circle cx="14" cy="34" r="2.2" opacity="0.7" />
+        <circle cx="86" cy="34" r="2.2" opacity="0.7" />
+        <circle cx="50" cy="20" r="2.2" opacity="0.7" />
+      </g>
+      <g className="mc-anim-pulse" style={{ transformOrigin: "50px 50px" }}>
+        <circle cx="50" cy="50" r="11" fill="url(#jc-core)" />
+        <circle cx="50" cy="50" r="11" fill="none" stroke="#d8f4ff" strokeWidth="1" />
+      </g>
+      <g className="mc-anim-spin" style={{ transformOrigin: "50px 50px", animationDuration: "30s" }}>
+        <circle cx="50" cy="50" r="29" fill="none" stroke="#6ad8ff" strokeOpacity="0.25" strokeWidth="1" strokeDasharray="2 4" />
+      </g>
+    </svg>
+  );
+}
+
+/* vibe - rose. */
+export function VibeMascot({ size = 64, className }: MProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" className={className} aria-hidden>
+      <defs>
+        <linearGradient id="vb-g" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#ffc4dd" />
+          <stop offset="100%" stopColor="#c45a8e" />
+        </linearGradient>
+        <linearGradient id="vb-haze" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#ff8ec3" stopOpacity="0.5" />
+          <stop offset="100%" stopColor="#ff8ec3" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <g fill="none" stroke="url(#vb-g)" strokeWidth="4" strokeLinecap="round">
+        <path d="M22 56 Q50 24 78 56" />
+        <path d="M30 62 Q50 38 70 62" opacity="0.85" />
+        <path d="M38 66 Q50 50 62 66" opacity="0.7" />
+      </g>
+      <path d="M16 76 Q50 70 84 76 L84 92 L16 92 Z" fill="url(#vb-haze)" />
+      <circle cx="50" cy="22" r="6" fill="#ff8ec3" className="mc-anim-breathe" style={{ transformOrigin: "50px 22px" }} />
+      <circle cx="50" cy="22" r="6" fill="none" stroke="#ffc4dd" strokeWidth="1.5" />
+    </svg>
+  );
+}
+
+/* codex - teal. */
 export function CodexMascot({ size = 64, className }: MProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 100 100" className={className} aria-hidden>
       <defs>
-        <linearGradient id="cx-g" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#4fd1a8" />
-          <stop offset="100%" stopColor="#10a37f" />
+        <linearGradient id="cx-pages" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#dffcee" />
+          <stop offset="100%" stopColor="#4fd1a8" />
         </linearGradient>
+        <radialGradient id="cx-spark" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#ffffff" />
+          <stop offset="60%" stopColor="#4fd1a8" />
+          <stop offset="100%" stopColor="#1f7050" />
+        </radialGradient>
       </defs>
-      {/* hexagon frame */}
-      <path
-        d="M50 10 L85 30 L85 70 L50 90 L15 70 L15 30 Z"
-        fill="none"
-        stroke="url(#cx-g)"
-        strokeWidth="2"
-        strokeOpacity="0.5"
-        className="mc-anim-spin"
-        style={{ transformOrigin: "50px 50px", animationDuration: "22s" }}
-      />
-      {/* inner hex */}
-      <path
-        d="M50 22 L74 35 L74 65 L50 78 L26 65 L26 35 Z"
-        fill="none"
-        stroke="#10a37f"
-        strokeOpacity="0.3"
-        strokeWidth="1"
-      />
-      {/* the X — Codex's signature crossing */}
-      <g stroke="url(#cx-g)" strokeWidth="7" strokeLinecap="round">
-        <line x1="34" y1="34" x2="66" y2="66" />
-        <line x1="66" y1="34" x2="34" y2="66" />
+      <g>
+        <path d="M50 36 L20 44 L20 80 L50 76 Z" fill="url(#cx-pages)" stroke="#1f7050" strokeWidth="1.4" />
+        <g stroke="#1f7050" strokeOpacity="0.55" strokeWidth="0.8">
+          <line x1="26" y1="50" x2="48" y2="47" />
+          <line x1="26" y1="58" x2="48" y2="55" />
+          <line x1="26" y1="66" x2="48" y2="63" />
+          <line x1="26" y1="74" x2="48" y2="71" />
+        </g>
       </g>
-      {/* vertex core */}
-      <circle cx="50" cy="50" r="4.5" fill="#06281f" stroke="#4fd1a8" strokeWidth="2" className="mc-anim-breathe" style={{ transformOrigin: "50px 50px" }} />
+      <g>
+        <path d="M50 36 L80 44 L80 80 L50 76 Z" fill="url(#cx-pages)" stroke="#1f7050" strokeWidth="1.4" />
+        <g stroke="#1f7050" strokeOpacity="0.55" strokeWidth="0.8">
+          <line x1="52" y1="47" x2="74" y2="50" />
+          <line x1="52" y1="55" x2="74" y2="58" />
+          <line x1="52" y1="63" x2="74" y2="66" />
+          <line x1="52" y1="71" x2="74" y2="74" />
+        </g>
+      </g>
+      <line x1="50" y1="36" x2="50" y2="76" stroke="#1f7050" strokeWidth="1.6" />
+      <g className="mc-anim-breathe" style={{ transformOrigin: "50px 24px" }}>
+        <circle cx="50" cy="24" r="6" fill="url(#cx-spark)" />
+        <g stroke="#dffcee" strokeWidth="1.4" strokeLinecap="round">
+          <line x1="50" y1="10" x2="50" y2="16" />
+          <line x1="50" y1="32" x2="50" y2="38" />
+          <line x1="36" y1="24" x2="42" y2="24" />
+          <line x1="58" y1="24" x2="64" y2="24" />
+        </g>
+      </g>
     </svg>
   );
 }
 
-/* Sentinel — the vigil shield: a security escutcheon with a live radar sweep
-   and a single watchful eye at its center. */
+/* sentinel - magenta. */
 export function SentinelMascot({ size = 64, className }: MProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 100 100" className={className} aria-hidden>
@@ -313,48 +303,58 @@ export function SentinelMascot({ size = 64, className }: MProps) {
           <stop offset="100%" stopColor="#d65db1" />
         </linearGradient>
       </defs>
-      {/* radar arcs */}
-      <g stroke="#d65db1" strokeOpacity="0.35" strokeWidth="1.4" fill="none">
-        <path d="M50 16 A34 34 0 0 1 84 50" />
-        <path d="M50 24 A26 26 0 0 1 76 50" />
+      <path d="M50 14 L80 30 L80 70 L50 86 L20 70 L20 30 Z" fill="none" stroke="url(#sn-g)" strokeWidth="2.4" />
+      <path d="M50 24 L72 36 L72 64 L50 76 L28 64 L28 36 Z" fill="none" stroke="#d65db1" strokeOpacity="0.35" strokeWidth="1" />
+      <line x1="50" y1="50" x2="50" y2="20" stroke="#f48fd0" strokeWidth="1.6" strokeLinecap="round" className="mc-anim-spin" style={{ transformOrigin: "50px 50px", animationDuration: "4.5s" }} />
+      <path d="M50 50 A30 30 0 0 1 70 75" fill="none" stroke="#f48fd0" strokeOpacity="0.55" strokeWidth="1.4" className="mc-anim-spin" style={{ transformOrigin: "50px 50px", animationDuration: "4.5s" }} />
+      <g>
+        <circle cx="50" cy="50" r="9" fill="#1c0f1d" stroke="#f48fd0" strokeWidth="1.6" />
+        <circle cx="50" cy="50" r="3.4" fill="#f48fd0" className="mc-anim-breathe" style={{ transformOrigin: "50px 50px" }} />
       </g>
-      {/* rotating radar sweep */}
-      <line
-        x1="50"
-        y1="50"
-        x2="50"
-        y2="17"
-        stroke="#f48fd0"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        className="mc-anim-spin"
-        style={{ transformOrigin: "50px 50px", animationDuration: "4.5s" }}
-      />
-      {/* shield */}
-      <path
-        d="M50 30 L68 36 L68 55 C68 68 60 76 50 80 C40 76 32 68 32 55 L32 36 Z"
-        fill="rgba(214,93,177,0.08)"
-        stroke="url(#sn-g)"
-        strokeWidth="2.2"
-      />
-      {/* watchful eye */}
-      <circle cx="50" cy="52" r="9" fill="#1c0f1d" stroke="#f48fd0" strokeWidth="1.6" />
-      <circle cx="50" cy="52" r="3.4" fill="#f48fd0" className="mc-anim-breathe" style={{ transformOrigin: "50px 52px" }} />
-      {/* scan line */}
-      <rect x="33" y="60" width="34" height="1.4" rx="0.7" fill="#f48fd0" opacity="0.55" style={{ animation: "mc-scan 3.2s ease-in-out infinite" }} />
+      <g fill="#d65db1">
+        <circle cx="50" cy="14" r="2" />
+        <circle cx="80" cy="30" r="2" />
+        <circle cx="80" cy="70" r="2" />
+        <circle cx="50" cy="86" r="2" />
+        <circle cx="20" cy="70" r="2" />
+        <circle cx="20" cy="30" r="2" />
+      </g>
+    </svg>
+  );
+}
+
+/* Cline emblem (used on the agent page header) - stylised "C" with a
+   highlighted branch in the same family as the ClineMascot. */
+export function ClineEmblem({ size = 64, className }: MProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" className={className} aria-hidden>
+      <defs>
+        <linearGradient id="ce-g" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#bbb2ff" />
+          <stop offset="100%" stopColor="#6a5cff" />
+        </linearGradient>
+      </defs>
+      {/* "C" arc */}
+      <path d="M76 36 A30 30 0 1 0 76 64" fill="none" stroke="url(#ce-g)" strokeWidth="6" strokeLinecap="round" />
+      {/* highlighted branch node inside the C */}
+      <g className="mc-anim-pulse">
+        <line x1="22" y1="64" x2="46" y2="56" stroke="#bbb2ff" strokeWidth="3" strokeLinecap="round" />
+        <circle cx="46" cy="56" r="5" fill="#bbb2ff" />
+        <circle cx="46" cy="56" r="9" fill="none" stroke="#bbb2ff" strokeOpacity="0.5" strokeWidth="1.2" />
+      </g>
     </svg>
   );
 }
 
 export const MASCOTS: Record<string, (p: MProps) => React.ReactElement> = {
-  claude: ClaudeMascot,
   hermes: HermesMascot,
+  claude: ClaudeMascot,
   pi: PiMascot,
   cline: ClineMascot,
   antigravity: AntigravityMascot,
+  openclaw: OpenClawMascot,
   jcode: JcodeMascot,
   vibe: VibeMascot,
-  openclaw: OpenClawMascot,
   codex: CodexMascot,
   sentinel: SentinelMascot,
 };

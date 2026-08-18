@@ -2,9 +2,9 @@
  * orb/router.ts
  *
  * The orb's intelligent routing system. Every turn is classified along three
- * axes — complexity, context, and cost — and delegated to either the cheap
- * Gemini 2.0 backend or the more capable Gemini 3.0 backend, or handed to
- * Hermes when the turn is an actual task (agentic) rather than a question.
+ * axes — complexity, context, and cost — and delegated to either the fast Groq
+ * model or the more capable Groq model, or handed to Hermes when the turn is an
+ * actual task (agentic) rather than a question.
  *
  * The classifier is deliberately deterministic and zero-cost: it runs in
  * microseconds with no extra LLM call, so routing never adds latency or spend
@@ -18,41 +18,30 @@ import type {
   RouteSignals,
 } from "./types";
 
-/** Concrete Gemini model ids per tier — env-overridable so a key whose API
- *  window has moved on (e.g. 2.0 retired upstream) can be repointed without
- *  a code change. Defaults honor the user's "Gemini 2.0 / Gemini 3.0" naming. */
-export const GEMINI_TIERS: Record<OrbTier, { model: string; label: string }> = {
-  "gemini-2.0": {
-    model: process.env.ORB_GEMINI_20_MODEL || "gemini-2.0-flash",
-    label: "Gemini 2.0",
+/** Concrete Groq model ids per tier — env-overridable so a key whose catalog
+ *  has moved on can be repointed without a code change.
+ *
+ *  Defaults are verified-live on this account's Groq key (probed 2026-08-18):
+ *  the fast tier uses gpt-oss-20b and the capable tier uses gpt-oss-120b.
+ *  Override with ORB_GROQ_FAST_MODEL / ORB_GROQ_CAPABLE_MODEL. */
+export const GROQ_TIERS: Record<OrbTier, { model: string; label: string }> = {
+  "groq-fast": {
+    model: process.env.ORB_GROQ_FAST_MODEL || "openai/gpt-oss-20b",
+    label: "Groq fast",
   },
-  "gemini-3.0": {
-    model: process.env.ORB_GEMINI_30_MODEL || "gemini-3-flash",
-    label: "Gemini 3.0",
+  "groq-capable": {
+    model: process.env.ORB_GROQ_CAPABLE_MODEL || "openai/gpt-oss-120b",
+    label: "Groq capable",
   },
 };
 
 /** Complexity (0..1) above which a turn escalates to the capable tier. */
 export const CAPABLE_THRESHOLD = 0.55;
-/** Fraction of the daily budget consumed above which cost forces the cheap tier. */
+/** Fraction of the daily budget consumed above which cost forces the fast tier. */
 export const COST_GUARD_RATIO = 0.9;
 
 /** Hard cap on reflective retries per turn (the file's max_reflection_turns = 2). */
 export const MAX_REFLECTION_TURNS = 2;
-
-/**
- * Map a router complexity score (0..1) to a Gemini extended-thinking budget.
- * Simple turns get no thinking config at all (0 tokens — no waste); escalating
- * complexity unlocks deeper reasoning, capped at 8192 so a single turn can
- * never blow the budget. Only meaningful on thinking-capable tiers.
- */
-export function thinkingBudgetForComplexity(complexity: number): number {
-  const c = Math.min(1, Math.max(0, complexity));
-  if (c < 0.3) return 0;
-  if (c < 0.55) return 2048;
-  if (c < 0.8) return 4096;
-  return 8192;
-}
 
 interface IntentRule {
   id: string;
@@ -100,6 +89,15 @@ const INTENTS: IntentRule[] = [
     pattern:
       /\b(execute|do this|perform|take over|control|manage|schedule|automate|deploy to|\bssh\b|kill|restart|provision|set up|configure|install)\b/i,
   },
+  {
+    // A live-data ask - the turn route answers it with the weather tool, so
+    // this intent must be detectable even when the message is phrased casually.
+    id: "weather",
+    label: "weather",
+    weight: 0.08,
+    pattern:
+      /\b(weather|forecast|temperature|degrees|\bhow (hot|cold|warm)\b|\brain(ing|y|ed)?\b|snow(ing|y)?|sunny|cloudy|overcast|humid|humidity|windy|wind speed|storm|thunder|hail|outfit|dress for)\b/i,
+  },
 ];
 
 /** Imperative action verbs — when a turn is both "code" and one of these, it is
@@ -108,7 +106,7 @@ const ACTION_VERBS =
   /\b(fix|build|refactor|implement|deploy|run|execute|create|write|add|remove|update|install|configure|restart|kill|commit|test|patch|scaffold|migrate|rewrite|optimize)\b/i;
 
 /** Heuristic for "this is a question, not an order" — so "why is the build
- *  slow" stays a Gemini question instead of being mistaken for a task. */
+ *  slow" stays an answered question instead of being mistaken for a task. */
 const QUESTIONISH =
   /^\s*(why|how|what|when|which|who)\b/i;
 
@@ -174,9 +172,9 @@ export interface RouteOptions {
  * Classify one orb turn and choose a backend.
  *
  * Scoring: complexity = length (≤0.5) + intent (≤0.5) + context (≤0.3),
- * clamped to 0..1. Default is the cheap tier; escalation to Gemini 3.0 happens
- * when complexity crosses CAPABLE_THRESHOLD and the budget isn't nearly
- * exhausted. Agentic turns are delegated to Hermes regardless of tier.
+ * clamped to 0..1. Default is the fast tier; escalation to the capable Groq
+ * model happens when complexity crosses CAPABLE_THRESHOLD and the budget isn't
+ * nearly exhausted. Agentic turns are delegated to Hermes regardless of tier.
  */
 export function routeTurn(message: string, opts: RouteOptions = {}): RouteDecision {
   const msgTokens = estimateTokens(message);
@@ -200,20 +198,20 @@ export function routeTurn(message: string, opts: RouteOptions = {}): RouteDecisi
   let reason: string;
 
   if (opts.preferSmart) {
-    tier = "gemini-3.0";
+    tier = "groq-capable";
     reason = "You asked for the capable tier this turn.";
   } else if (opts.preferFast) {
-    tier = "gemini-2.0";
-    reason = "You asked for the fast, low-cost tier this turn.";
+    tier = "groq-fast";
+    reason = "You asked for the fast tier this turn.";
   } else if (shouldEscalate && nearBudget) {
-    // Complex, but the budget is nearly gone — keep it cheap and say why.
-    tier = "gemini-2.0";
-    reason = "Complex turn, but daily budget is nearly exhausted — kept on the cheap tier.";
+    // Complex, but the budget is nearly gone — keep it fast and say why.
+    tier = "groq-fast";
+    reason = "Complex turn, but daily budget is nearly exhausted — kept on the fast tier.";
   } else if (shouldEscalate) {
-    tier = "gemini-3.0";
+    tier = "groq-capable";
     reason = `Complex turn (score ${complexity.toFixed(2)}) — escalated to the capable tier.`;
   } else {
-    tier = "gemini-2.0";
+    tier = "groq-fast";
     reason = `Simple turn (score ${complexity.toFixed(2)}) — served by the fast tier.`;
   }
 
@@ -227,8 +225,8 @@ export function routeTurn(message: string, opts: RouteOptions = {}): RouteDecisi
 
   return {
     tier,
-    model: GEMINI_TIERS[tier].model,
-    delegate: agentic ? "hermes" : "gemini",
+    model: GROQ_TIERS[tier].model,
+    delegate: agentic ? "hermes" : "groq",
     reason: agentic ? `${reason} Task execution delegated to Hermes.` : reason,
     signals,
   };

@@ -6,11 +6,9 @@ import { getSkin } from "./skins";
  * bespoke animated mascot everywhere else. Add an emblem file under
  * public/emblems/<id>.(svg|png) and list it here to make an agent "official". */
 
-const EMBLEM_FILES: Record<string, string> = {
-  claude: "/emblems/claude.svg", // Anthropic starburst
-  codex: "/emblems/codex.svg", // OpenAI (Codex)
-  cline: "/emblems/cline.png", // Cline
-};
+// All agents use original mascots we drew - no third-party brand logos.
+// Add an id/file here only if you ever vendor an official asset.
+const EMBLEM_FILES: Record<string, string> = {};
 
 export default function AgentLogo({
   id,

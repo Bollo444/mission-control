@@ -1,70 +1,49 @@
 import { NextResponse } from "next/server";
 import { readSettings } from "@/lib/settings";
+import { splitForGroq, joinWavs } from "@/lib/tts";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /*
  * Jarvis voice — text → speech, tried in order:
- *   1. Google Gemini TTS (gemini-3.1-flash-tts-preview) — natural, free via an
- *      AI Studio key. Returns raw 24kHz/16-bit/mono PCM, which we wrap in a WAV
- *      header. Needs GEMINI_API_KEY.
+ *   1. Groq Orpheus (canopylabs/orpheus-v1-english) — OpenAI-compatible
+ *      /v1/audio/speech, returns WAV directly. Free tier, no card; the endpoint
+ *      caps each request at 200 chars, so text is chunked and re-stitched.
+ *      Needs GROQ_API_KEY.
  *   2. Cloudflare Workers AI MeloTTS — returns WAV. Needs CF token + account.
  *   3. (client) browser SpeechSynthesis — the offline-proof last resort.
  * Each rung falls through to the next on missing key / error.
  */
 
-const GEMINI_MODEL = "gemini-3.1-flash-tts-preview";
-const GEMINI_VOICE = "Charon"; // deep, measured — the Jarvis register
+const GROQ_MODEL = "canopylabs/orpheus-v1-english";
+const GROQ_VOICE = "troy"; // warm, measured male — the Jarvis register
 
-/** Prepend a 44-byte RIFF/WAVE header to raw PCM so browsers can play it. */
-function pcmToWav(pcm: Buffer, sampleRate = 24000, channels = 1, bits = 16): Buffer {
-  const blockAlign = (channels * bits) / 8;
-  const byteRate = sampleRate * blockAlign;
-  const h = Buffer.alloc(44);
-  h.write("RIFF", 0);
-  h.writeUInt32LE(36 + pcm.length, 4);
-  h.write("WAVE", 8);
-  h.write("fmt ", 12);
-  h.writeUInt32LE(16, 16);
-  h.writeUInt16LE(1, 20); // PCM
-  h.writeUInt16LE(channels, 22);
-  h.writeUInt32LE(sampleRate, 24);
-  h.writeUInt32LE(byteRate, 28);
-  h.writeUInt16LE(blockAlign, 32);
-  h.writeUInt16LE(bits, 34);
-  h.write("data", 36);
-  h.writeUInt32LE(pcm.length, 40);
-  return Buffer.concat([h, pcm]);
-}
-
-async function geminiTTS(
+/**
+ * Groq Orpheus — OpenAI-compatible /v1/audio/speech, returns WAV. Orpheus caps
+ * each request at 200 input chars, so long text is split at sentence boundaries
+ * and the per-chunk WAVs are stitched back into one response.
+ */
+async function groqTTS(
   text: string,
   voice: string,
   key: string,
-  model: string = GEMINI_MODEL,
+  model: string = GROQ_MODEL,
 ): Promise<Buffer | null> {
-  const r = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-    {
+  const chunks = splitForGroq(text);
+  const wavs: Buffer[] = [];
+  for (const chunk of chunks) {
+    const r = await fetch("https://api.groq.com/openai/v1/audio/speech", {
       method: "POST",
-      headers: { "x-goog-api-key": key, "content-type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text }] }],
-        generationConfig: {
-          responseModalities: ["AUDIO"],
-          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } },
-        },
-      }),
-    },
-  );
-  if (!r.ok) return null;
-  const j = (await r.json()) as {
-    candidates?: Array<{ content?: { parts?: Array<{ inlineData?: { data?: string } }> } }>;
-  };
-  const b64 = j?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-  if (!b64) return null;
-  return pcmToWav(Buffer.from(b64, "base64")); // Gemini returns 24kHz/16-bit/mono PCM
+      headers: { Authorization: `Bearer ${key}`, "content-type": "application/json" },
+      body: JSON.stringify({ model, input: chunk, voice, response_format: "wav" }),
+    });
+    if (!r.ok) return null;
+    const buf = Buffer.from(await r.arrayBuffer());
+    if (buf.length < 44) return null;
+    wavs.push(buf);
+  }
+  return wavs.length === 1 ? wavs[0] : joinWavs(wavs);
 }
 
 async function cloudflareTTS(text: string, lang: string, acct: string, token: string): Promise<Buffer | null> {
@@ -87,7 +66,6 @@ export async function POST(req: Request) {
     voice?: string;
     lang?: string;
     provider?: string;
-    model?: string;
   };
   try {
     body = await req.json();
@@ -101,19 +79,17 @@ export async function POST(req: Request) {
   const wav = (buf: Buffer) =>
     new Response(buf, { headers: { "content-type": "audio/wav", "cache-control": "no-store" } });
 
-  // An explicit provider pins us to that engine; omitted → try Gemini then Melo.
+  // An explicit provider pins us to that engine; omitted → try Groq Orpheus,
+  // then Melo.
   const provider = body.provider;
-  const wantGemini = provider !== "melotts";
-  const wantMelo = provider !== "gemini";
+  const wantGroq = !provider || provider === "groq";
+  const wantMelo = !provider || provider === "melotts";
 
-  // 1) Gemini
-  const gemKey = keys.GEMINI_API_KEY || process.env.GEMINI_API_KEY;
-  if (wantGemini && gemKey) {
+  // 1) Groq Orpheus — free OpenAI-compatible neural voice
+  const groqKey = keys.GROQ_API_KEY || process.env.GROQ_API_KEY;
+  if (wantGroq && groqKey) {
     try {
-      // An explicit model overrides the default (e.g. gemini-2.5-pro-preview-tts
-      // for a higher-quality register). Same :generateContent REST + PCM shape.
-      const model = body.model || GEMINI_MODEL;
-      const out = await geminiTTS(text, body.voice || GEMINI_VOICE, gemKey, model);
+      const out = await groqTTS(text, body.voice || GROQ_VOICE, groqKey);
       if (out) return wav(out);
     } catch {
       /* fall through */

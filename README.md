@@ -61,7 +61,7 @@ and direct calls to the model providers you choose.
 
 ## The fleet
 
-Nine agents, each with its own identity (a bespoke animated background + mascot)
+Nine agents, each with its own identity (an original animated background + mascot drawn for this project — no third-party brand logos)
 and a role it genuinely excels at. **Three carry a special remit that also powers
 the health monitor** (see [failover & recovery](#free-tier-health-monitor-failover--recovery)):
 
@@ -87,18 +87,20 @@ config exists. Ones you don't have installed appear as provisionable personas.
 
 - **Jarvis command center** (`/`) — the home page is a living **command orb**: a
   breathing reactor core wrapped in Hermes' caduceus, with one orbiting spark per
-  fleet agent. **Talk to it** — type and Hermes answers, streamed back and **spoken
-  aloud** — natural neural TTS via **Google Gemini 3.1 Flash** (`gemini-3.1-flash-tts-preview`;
-  the 30 prebuilt voices (Zephyr, Puck, Charon, Kore, ...) are why the orb UI shows those
-  Olympus-themed names), falling back to
-  Cloudflare MeloTTS then the browser voice, with a voice picker. Every orb turn is
+  fleet agent. **Talk to it** — type or speak and it answers, streamed back and **spoken
+  aloud** — natural neural TTS via **Groq Orpheus** (`canopylabs/orpheus-v1-english`,
+  free OpenAI-compatible TTS with six voices — the endpoint's 200-char/request cap is
+  handled by chunking + WAV stitching), falling back to Cloudflare MeloTTS, then the
+  browser voice, with a voice picker. Listening is browser-agnostic too: Google's Web
+  Speech engine is Chrome-only in practice, so non-Chrome browsers (Tabby, Edge) start
+  straight on a **Groq Whisper** fallback (`/api/orb/transcribe`) — tap the orb to
+  record, tap again to send, and hands-free wake works the same way. Every orb turn is
   routed by an intelligent backend selector (`/api/orb/turn`) — a zero-cost classifier
-  scores complexity, context and daily cost, answers simple turns with **Gemini 2.0 Flash**, 
-  escalates demanding ones to **Gemini 3.0**, and hands actual tasks ("fix the bug in X")
+  scores complexity, context and daily cost, answers simple turns with **gpt-oss-20b**,
+  escalates demanding ones to **gpt-oss-120b**, and hands actual tasks ("fix the bug in X")
   to **Hermes** to execute — with a live routing badge, sentence-streamed speech, and
-  barge-in so a new command interrupts the in-flight reply, dynamic thinking budgets
-  (the router's complexity score allocates 0–8k reasoning tokens on the capable tier,
-  so simple turns pay nothing), and a reflective circuit-breaker that retries a failed
+  barge-in so a new command interrupts the in-flight reply, plus a reflective
+  circuit-breaker that retries a failed
   turn once with the error injected, capped at 2 attempts. Press **`/`** to summon a Mass-Effect-style HUD:
   holographic panels drift in at the edges — Hermes capabilities, the fleet
   (colour-coded per agent), knowledge, ops — each opening a feature in place over
@@ -756,6 +758,8 @@ Provider settings are optional, but `MC_ADMIN_TOKEN` is required to open the con
 |---|---|---|
 | `MC_ADMIN_TOKEN` | — | Required high-entropy admin credential for browser login and CLI/API access; never commit it |
 | `MC_VAULT_DIR` | `$HOME/MissionControlVault` | Point the shared vault at a custom (e.g. existing Obsidian) folder |
+| `MC_MEMORY_PRIME` | `1` | Inject the Hermes memory-vault priming block (boot config + vault index + yesterday's daily note + active priorities) into every orb turn routed to Hermes. Set `0` to disable |
+| `MC_DAILY_NOTE` | `1` | Auto-append a session skeleton to today's daily note after each Hermes orb turn. Set `0` to disable |
 | `MC_HEALTH_INTERVAL_MIN` | `360` (6h) | Health-sweep cadence in minutes (floored at 5) |
 | `LOCAL_BASE_URL` | `http://127.0.0.1:1234/v1` | OpenAI-compatible base for the **Local** provider (LM Studio/Ollama/vLLM) |
 | `MC_ENCRYPTION_KEY` | — | When set, provider keys are encrypted at rest (AES-256-GCM). **Back it up** — keys can't be recovered without it |
@@ -781,6 +785,23 @@ MissionControlVault/
 ```
 
 Open that folder as a vault in Obsidian to browse the agent graph.
+
+### Hermes memory vault (AI-memory-vault style priming)
+
+Mission Control adapts the "give your AI a real, persistent memory" pattern
+(the ai-memory-vault idea) for Hermes. On first orb use it seeds four extra
+files into the vault — `Boot/Hermes.md` (identity + the rules that can't
+lapse), `VAULT-INDEX.md` (your profile + the vault map), `Active Priorities.md`,
+and `01 - Daily Notes/Daily Note Template.md` — all marked `[FILL IN: ...]` for
+you (or the orb) to complete. Every orb turn routed to Hermes is then
+**primed**: the boot config, vault index, yesterday's daily note, and active
+priorities are read server-side (read-only — Hermes is never handed arbitrary
+file access over ACP) and injected before your message, so Hermes boots as the
+same colleague every turn instead of a stranger. After each Hermes turn the
+server appends a session skeleton to today's daily note, which Hermes fills in
+when it runs with file access in its own sessions. Both behaviours are
+kill-switchable via `MC_MEMORY_PRIME` / `MC_DAILY_NOTE`. Implemented in
+[`lib/orb/memory-prime.ts`](lib/orb/memory-prime.ts).
 
 ---
 

@@ -57,7 +57,7 @@ function chip(extra: React.CSSProperties = {}): React.CSSProperties {
   };
 }
 
-export default function WeatherPanel() {
+export default function WeatherPanel({ space, immersive }: { space: number; immersive: boolean }) {
   const [loc, setLoc] = useState<{ lat: number; lon: number } | null>(null);
   const [data, setData] = useState<WeatherData | null>(null);
   const [open, setOpen] = useState(true);
@@ -135,16 +135,39 @@ export default function WeatherPanel() {
   const todayStr = data?.days.find((d) => dayLabel(d.date, d.date) === "Today")?.date
     ?? new Date().toISOString().slice(0, 10);
 
+  // Yield to the orb: no room → hidden; tight stage → collapsed to the single
+  // today chip (not expandable — expanding would collide again); wide stage →
+  // the full floating constellation. Gone entirely during immersive mode.
+  const noRoom = space > 0 && space < 720;
+  const compact = space > 0 && space < 1150;
+  if (immersive || noRoom) return null;
+
   return (
     <div className="pointer-events-auto absolute right-5 top-1/2 z-30 flex -translate-y-1/2 flex-col items-end gap-2.5">
-      {/* inner wrapper carries the drift so it never fights the centering translate */}
-      <div style={{ animation: "mc-weather-drift 7s ease-in-out infinite" }} className="flex flex-col items-end gap-2.5">
-        {open && data ? (
+      {/* Six floating islands - each chip carries its own @keyframes + duration + delay
+          so they never visibly sync up. The column reads as six independent
+          drifts, not one block bouncing in step. */}
+      <div className="flex flex-col items-end gap-1.5">
+        {compact ? (
+          <div
+            title="Weather"
+            aria-label="Weather"
+            className="grid h-14 w-14 place-items-center rounded-2xl text-2xl"
+            style={chip()}
+          >
+            {data ? wmo(data.current.code) : error ? "⚠" : "☁"}
+          </div>
+        ) : open && data ? (
           <>
-            {/* Today — the big floating chip */}
+            {/* Today — the large floating island, slow vertical bob */}
             <div
               className="flex items-center gap-3 rounded-2xl px-3.5 py-2.5"
-              style={chip({ animationDelay: "0.2s" })}
+              style={chip({
+                animation: "mc-island-1 6.4s ease-in-out infinite",
+                animationDelay: "0s",
+                transformOrigin: "center",
+                willChange: "transform",
+              })}
             >
               <span className="text-3xl leading-none">{wmo(data.current.code)}</span>
               <div className="min-w-0">
@@ -166,18 +189,35 @@ export default function WeatherPanel() {
               </button>
             </div>
 
-            {/* The 5-day strip — each day floats as its own chip */}
-            <div className="flex gap-2">
-              {data.days.map((d) => {
+            {/* The 5-day strip — stacked vertically, each day an independent
+                floating glass island with its own @keyframes + duration +
+                delay so no two share a motion. */}
+            <div className="flex flex-col items-end gap-1.5">
+              {data.days.map((d, i) => {
                 const isToday = dayLabel(d.date, todayStr) === "Today";
+                const kf = ["mc-island-2","mc-island-3","mc-island-4","mc-island-5","mc-island-6"][i % 5];
+                const dur = ["7.2s","5.8s","8.4s","6.9s","7.5s"][i % 5];
+                const del = ["-0.4s","-1.1s","-2.3s","-3.5s","-1.7s"][i % 5];
                 return (
                   <div
                     key={d.date}
                     className="flex w-11 flex-col items-center gap-0.5 rounded-xl px-1 py-2"
                     style={chip(
                       isToday
-                        ? { background: hexA(GOLD, 0.14), boxShadow: `inset 0 0 0 1px ${hexA(GOLD, 0.35)}, 0 10px 30px -12px rgba(0,0,0,0.7)` }
-                        : undefined,
+                        ? {
+                            background: hexA(GOLD, 0.14),
+                            boxShadow: `inset 0 0 0 1px ${hexA(GOLD, 0.35)}, 0 10px 30px -12px rgba(0,0,0,0.7)`,
+                            animation: `${kf} ${dur} ease-in-out infinite`,
+                            animationDelay: del,
+                            transformOrigin: "center",
+                            willChange: "transform",
+                          }
+                        : {
+                            animation: `${kf} ${dur} ease-in-out infinite`,
+                            animationDelay: del,
+                            transformOrigin: "center",
+                            willChange: "transform",
+                          },
                     )}
                   >
                     <span className="text-[8px] uppercase tracking-wider" style={{ color: isToday ? GOLD : "var(--color-ink-4)" }}>

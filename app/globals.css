@@ -187,6 +187,40 @@ body {
     opacity: 1;
   }
 }
+/* Six independent float motions used by the weather chip column.
+   Each chip carries one of these with its own duration + negative delay,
+   so they never visibly sync up - the column reads as six floating
+   islands rather than one block  drifting in step. */
+@keyframes mc-island-1 {
+  0%,100%{transform:translate(0,0) rotate(0);}
+  50%   {transform:translate(0,-10px) rotate(0);}
+}
+@keyframes mc-island-2 {
+  0%,100%{transform:translate(0,0) rotate(0);}
+  33%   {transform:translate(6px,-7px) rotate(0.4deg);}
+  66%   {transform:translate(-2px,-3px) rotate(-0.3deg);}
+}
+@keyframes mc-island-3 {
+  0%,100%{transform:translate(0,0) scale(1);}
+  50%   {transform:translate(0,-4px) scale(1.025);}
+}
+@keyframes mc-island-4 {
+  0%,100%{transform:translate(0,0) rotate(0);}
+  25%   {transform:translate(-5px,-3px) rotate(-1deg);}
+  50%   {transform:translate(0,-8px) rotate(0);}
+  75%   {transform:translate(5px,-3px) rotate(1deg);}
+}
+@keyframes mc-island-5 {
+  0%,100%{transform:translate(0,0) rotate(0) scale(1);}
+  50%   {transform:translate(2px,-6px) rotate(1.5deg) scale(1.015);}
+}
+@keyframes mc-island-6 {
+  0%,100%{transform:translate(0,0);}
+  20%   {transform:translate(-5px,-4px);}
+  40%   {transform:translate(4px,-9px);}
+  60%   {transform:translate(7px,-2px);}
+  80%   {transform:translate(-3px,-7px);}
+}
 /* Right-side weather square — a slow, weightless float. */
 @keyframes mc-weather-drift {
   0%,
@@ -224,19 +258,15 @@ html[data-orb-active="1"] .mc-orb-bar {
 .mc-orb-bar {
   transition: transform 1.1s cubic-bezier(0.4, 0, 0.2, 1), opacity 1.1s ease;
 }
-/* The orb stage compensates for the 270px sidebar so the reactor sits at the
-   true viewport center (not the content area's center, which is 135px off).
-   When the sidebar leaves the flow in immersive mode, drop the compensation. */
+/* The orb stage fills the whole main pane (which already starts after the
+   270px sidebar), so `grid place-items-center` puts the reactor dead-center
+   of the *content area* — the same axis the bottom bar, wake pill, and top
+   ticker use. No manual sidebar compensation: a hardcoded padding offset
+   would shove the orb off to the right of everything else. When the sidebar
+   leaves the flow in immersive mode, the main pane becomes the full viewport
+   and the orb recenters to the true screen center automatically. */
 .mc-orb-stage {
-  padding-left: 135px;
-}
-@media (max-width: 767px) {
-  .mc-orb-stage {
-    padding-left: 0;
-  }
-}
-html[data-orb-active="1"] .mc-orb-stage {
-  padding-left: 0 !important;
+  padding-left: 0;
 }
 
 /* The center mic's idle heartbeat — it swells to full opacity, then fades

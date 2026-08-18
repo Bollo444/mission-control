@@ -5,7 +5,7 @@ import {
   CAPABLE_THRESHOLD,
   COST_GUARD_RATIO,
   MAX_REFLECTION_TURNS,
-  thinkingBudgetForComplexity,
+  GROQ_TIERS,
 } from "./router";
 
 /** Long, clearly-demanding analysis request — crosses the escalation threshold. */
@@ -16,23 +16,23 @@ const LONG_ANALYSIS =
   "filler ".repeat(120);
 
 describe("orb router", () => {
-  test("a trivial question stays on the cheap Gemini 2.0 tier", () => {
+  test("a trivial question stays on the fast Groq tier", () => {
     const d = routeTurn("what time is it");
-    expect(d.tier).toBe("gemini-2.0");
-    expect(d.delegate).toBe("gemini");
+    expect(d.tier).toBe("groq-fast");
+    expect(d.delegate).toBe("groq");
     expect(d.signals.complexity).toBeLessThan(CAPABLE_THRESHOLD);
   });
 
-  test("a demanding analysis escalates to Gemini 3.0", () => {
+  test("a demanding analysis escalates to the capable Groq tier", () => {
     const d = routeTurn(LONG_ANALYSIS);
-    expect(d.tier).toBe("gemini-3.0");
-    expect(d.delegate).toBe("gemini");
+    expect(d.tier).toBe("groq-capable");
+    expect(d.delegate).toBe("groq");
     expect(d.signals.complexity).toBeGreaterThanOrEqual(CAPABLE_THRESHOLD);
   });
 
   test("a question about the build is answered inline, not mistaken for a task", () => {
     const d = routeTurn("why is the build slow?");
-    expect(d.delegate).toBe("gemini");
+    expect(d.delegate).toBe("groq");
     expect(d.signals.agentic).toBe(false);
   });
 
@@ -49,23 +49,23 @@ describe("orb router", () => {
 
   test("preferSmart forces the capable tier even for a trivial turn", () => {
     const d = routeTurn("hi", { preferSmart: true });
-    expect(d.tier).toBe("gemini-3.0");
+    expect(d.tier).toBe("groq-capable");
   });
 
-  test("preferFast forces the cheap tier even for a demanding turn", () => {
+  test("preferFast forces the fast tier even for a demanding turn", () => {
     const d = routeTurn(LONG_ANALYSIS, { preferFast: true });
-    expect(d.tier).toBe("gemini-2.0");
+    expect(d.tier).toBe("groq-fast");
   });
 
-  test("a nearly-exhausted budget keeps a complex turn cheap", () => {
+  test("a nearly-exhausted budget keeps a complex turn fast", () => {
     const d = routeTurn(LONG_ANALYSIS, { budgetRatio: 0.95 });
-    expect(d.tier).toBe("gemini-2.0");
+    expect(d.tier).toBe("groq-fast");
     expect(d.reason).toMatch(/budget/i);
   });
 
   test("budget ratio is clamped into 0..1", () => {
     const d = routeTurn(LONG_ANALYSIS, { budgetRatio: 5 });
-    expect(d.tier).toBe("gemini-2.0"); // clamped to 1 → cost guard fires
+    expect(d.tier).toBe("groq-fast"); // clamped to 1 → cost guard fires
   });
 
   test("long history pushes a borderline turn over the threshold", () => {
@@ -88,30 +88,29 @@ describe("orb router", () => {
     expect(COST_GUARD_RATIO).toBe(0.9);
   });
 
-  test("thinking budget: trivial complexity gets no thinking at all", () => {
-    expect(thinkingBudgetForComplexity(0)).toBe(0);
-    expect(thinkingBudgetForComplexity(0.29)).toBe(0);
-  });
-
-  test("thinking budget: mid complexity unlocks a small budget", () => {
-    expect(thinkingBudgetForComplexity(0.3)).toBe(2048);
-    expect(thinkingBudgetForComplexity(0.5)).toBe(2048);
-  });
-
-  test("thinking budget: capable-tier complexity gets 4096", () => {
-    // 0.55 is the router's escalation threshold — escalated turns get real reasoning.
-    expect(thinkingBudgetForComplexity(0.55)).toBe(4096);
-    expect(thinkingBudgetForComplexity(0.79)).toBe(4096);
-  });
-
-  test("thinking budget: deep turns get the 8192 cap, never more", () => {
-    expect(thinkingBudgetForComplexity(0.8)).toBe(8192);
-    expect(thinkingBudgetForComplexity(1)).toBe(8192);
-    expect(thinkingBudgetForComplexity(5)).toBe(8192); // clamped
-    expect(thinkingBudgetForComplexity(-1)).toBe(0); // clamped
-  });
-
   test("reflective circuit-breaker is hard-capped at 2 turns", () => {
     expect(MAX_REFLECTION_TURNS).toBe(2);
+  });
+
+  test("a weather ask is flagged for the weather tool, not delegated away", () => {
+    const d = routeTurn("what's the weather like today?");
+    expect(d.signals.intents).toContain("weather");
+    expect(d.delegate).toBe("groq"); // answered inline with the tool's data
+  });
+
+  test("a casual temperature ask still triggers the weather tool", () => {
+    const d = routeTurn("how cold is it outside right now");
+    expect(d.signals.intents).toContain("weather");
+  });
+
+  test("a non-weather turn has no weather intent", () => {
+    const d = routeTurn("what time is it");
+    expect(d.signals.intents).not.toContain("weather");
+  });
+
+  test("tier defaults point at verified-live Groq model ids", () => {
+    // Verified on this account's key (probed 2026-08-18).
+    expect(GROQ_TIERS["groq-fast"].model).toBe("openai/gpt-oss-20b");
+    expect(GROQ_TIERS["groq-capable"].model).toBe("openai/gpt-oss-120b");
   });
 });

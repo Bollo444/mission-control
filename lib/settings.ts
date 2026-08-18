@@ -236,7 +236,7 @@ export const PROVIDERS: Provider[] = [
     id: "google",
     name: "Google",
     keyEnv: "GEMINI_API_KEY",
-    models: ["gemini-3-pro", "gemini-3-flash"],
+    models: ["gemini-3.6-flash", "gemini-3.1-flash-lite"],
   },
   {
     id: "local",

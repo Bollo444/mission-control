@@ -7,6 +7,18 @@
 # ============================================================
 $ErrorActionPreference = 'SilentlyContinue'
 
+# Single-instance guard: the scheduled task repeats every 3 minutes with
+# "stop if still running" disabled, so slow network checks can stack up
+# concurrent runs. Each stacked run fires its own `pm2 restart`, which is
+# what caused the mc-tunnel restart bursts (8 restarts in one second).
+# If another run holds the lock, bail out silently.
+$lock = 'C:\Users\Amari\.pm2\logs\tunnel-watchdog.lock'
+try {
+  $fs = [System.IO.File]::Open($lock, 'OpenOrCreate', 'ReadWrite', 'None')
+} catch {
+  exit 0   # another watchdog run is already in progress
+}
+
 $public = 'https://mission-control.decouvertquatrieme.online'
 $origin = 'http://127.0.0.1:4317'
 $log    = 'C:\Users\Amari\.pm2\logs\tunnel-watchdog.log'
@@ -37,14 +49,52 @@ $edgeOk = (($edge -ge 200 -and $edge -lt 400) -or $edge -eq 403)
 if ($edgeOk) { exit 0 }   # healthy — stay silent
 
 # --- 3. Recover ---
+function Restart-TunnelClean {
+  # `pm2 restart` on Windows leaks a duplicate cloudflared.exe on every call:
+  # cloudflared ignores the SIGINT PM2 sends, so the old process keeps
+  # running (and keeps its tunnel registrations) while PM2 spawns a new one.
+  # Stop the app, force-kill leftover mission-control tunnels, then start a
+  # single fresh instance.
+  & $pm2 stop mc-tunnel | Out-Null
+  Start-Sleep -Seconds 2
+  Get-CimInstance Win32_Process -Filter "Name like '%cloudflared%'" |
+    Where-Object { $_.CommandLine -like '*mission-control.yml*' } |
+    ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+  Start-Sleep -Seconds 2
+  & $pm2 start mc-tunnel | Out-Null
+}
+
+# App restarts are expensive: every one costs a cold boot (seconds of slow
+# first page loads), and this box is often under memory pressure — a single
+# slow 10s origin probe can false-positive. The app is only bounced when
+# (a) a second origin probe also fails AND (b) the last app restart was more
+# than 15 minutes ago. The tunnel is cleaned on any edge failure regardless.
+$appLock = 'C:\Users\Amari\.pm2\logs\mission-control-restart.lock'
+function Test-AppReallyDown {
+  if ($originOk) { return $false }
+  if (Test-Path $appLock) {
+    $last = (Get-Item $appLock).LastWriteTime
+    if ((Get-Date) - $last -lt (New-TimeSpan -Minutes 15)) { return $false }
+  }
+  try {
+    $r = Invoke-WebRequest -Uri $origin -UseBasicParsing -TimeoutSec 10
+    return -not ($r.StatusCode -ge 200 -and $r.StatusCode -lt 500)
+  } catch { return $true }
+}
+
 if (-not $originOk) {
-  Log "edge=$edge origin=DOWN  -> restart mission-control + mc-tunnel"
-  & $pm2 restart mission-control | Out-Null
-  Start-Sleep -Seconds 8
-  & $pm2 restart mc-tunnel | Out-Null
+  if (Test-AppReallyDown) {
+    Log "edge=$edge origin=DOWN(2x) -> restart mission-control + clean mc-tunnel"
+    [System.IO.File]::WriteAllText($appLock, (Get-Date).ToString('o'))   # cooldown marker
+    & $pm2 restart mission-control | Out-Null
+    Start-Sleep -Seconds 8
+  } else {
+    Log "edge=$edge origin probe failed but cooldown/retry holds -> tunnel clean only"
+  }
+  Restart-TunnelClean
 } else {
-  Log "edge=$edge origin=OK    -> restart mc-tunnel"
-  & $pm2 restart mc-tunnel | Out-Null
+  Log "edge=$edge origin=OK    -> clean mc-tunnel restart"
+  Restart-TunnelClean
 }
 
 # --- 4. Verify recovery ---
@@ -55,3 +105,4 @@ try {
   $after = [int]$r2.StatusCode
 } catch { $resp = $_.Exception.Response; if ($resp) { $after = [int]$resp.StatusCode } }
 Log "after restart: edge=$after"
+$fs.Close()

@@ -22,8 +22,12 @@ function chip(color: string): React.CSSProperties {
   };
 }
 
-export default function SystemMeter() {
+export default function SystemMeter({ space, immersive }: { space: number; immersive: boolean }) {
   const { data } = useFetch<SystemReport>("/api/system", 2000);
+
+  // Yield to the orb: hidden during immersive mode (the orb owns the stage)
+  // and on stages too narrow for the three chips to clear the orb.
+  if (immersive || (space > 0 && space < 980)) return null;
 
   return (
     <div className="pointer-events-auto absolute bottom-10 right-5 z-30 flex flex-col items-end gap-2.5">

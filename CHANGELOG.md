@@ -4,16 +4,15 @@ A detailed record of the project's development: **every commit**, grouped by
 working session and shown newest-first. Each short hash links to the commit on
 GitHub.
 
-**24 sessions · 2026-05-31 → 2026-08-14**
-_Latest revision: 2026-08-14 — added Session 24: __the orb's reflective
-circuit-breaker and dynamic thinking budgets — the router's complexity score now
-allocates a Gemini thinkingConfig budget (0/2048/4096/8192, 3.0 tier only) and
-conversational turns retry once with the error injected, hard-capped at 2 attempts
-(67 tests).__ _(Prior: Session 23 — orb voice agent with intelligent Gemini
-2.0/3.0 routing, native VS Code surface, omniroute window fix.)_
+**28 sessions · 2026-05-31 → 2026-08-18**
+_Latest revision: 2026-08-18 — Session 28 removed Gemini from the orb entirely: the brain now runs on Groq (gpt-oss), the voice on Groq Orpheus, and listening on Groq Whisper. _(Prior: Session 27 — Whisper fallback STT engine + Hermes ACP queue fix.)_
 
 | Session | Date | When | Theme |
 |:--:|---|---|---|
+| 28 | 2026-08-18 (Tue) | Day | Gemini removed from the orb — Groq brain (gpt-oss-20b/120b), Groq Orpheus voice primary, Groq Whisper listening |
+| 27 | 2026-08-18 (Tue) | Day | Orb hears in any browser — Whisper fallback STT (Groq) auto-switched when Google's Chrome-only speech service is refused (Tabby/Edge) |
+| 26 | 2026-08-17 (Mon) | Day | Groq Orpheus neural voice for the orb (free OpenAI-compatible TTS rung; 200-char chunking + WAV stitching) |
+| 25 | 2026-08-15 (Sat) | Day | Original mascots for every agent (10 accents, distinct silhouettes, animated); third-party brand emblems removed |
 | 24 | 2026-08-14 (Fri) | Day | Orb reflective circuit-breaker (retry ≤ 2 w/ error injection) + dynamic thinking budgets (complexity → 0/2048/4096/8192, 3.0 tier) |
 | 23 | 2026-08-14 (Fri) | Day | Orb voice agent + intelligent Gemini 2.0/3.0 routing (complexity/context/cost classifier, sentence streaming, barge-in); Hermes native VS Code surface; omniroute window killed (windowsHide preload → spawn) |
 | 22 | 2026-08-13 (Thu) | Night | Power Plant/Backup Generator routing + Anthropic bridge; OmniRoute auto-combo re-fueled + 3.8.49; nemotron slot defaults; endpoint sweep (model-drop, slots, bounded read, write mutex) |
@@ -40,6 +39,186 @@ conversational turns retry once with the error injected, hard-capped at 2 attemp
 | 1 | 2026-05-31 (Sat) | Afternoon → evening | Initial fleet console |
 
 ---
+
+## Session 28 — 2026-08-18 · Gemini removed from the orb — Groq end to end
+
+Gemini was never actually removed earlier — it was only demoted to a fallback
+(a dead key's 429 on every turn). This session strips it out of the orb for
+real, so the orb is now **all Groq**: brain, voice, and ears.
+
+- **`lib/orb/groq.ts`** (new) — direct Groq client (OpenAI-compatible
+  `/v1/chat/completions`, SSE streaming). gpt-oss models are reasoning models,
+  so the streamer skips `reasoning` deltas — the orb only ever speaks the
+  answer, never the internal thinking.
+- **`lib/orb/router.ts`** — tiers renamed to `groq-fast` / `groq-capable` with
+  verified-live defaults `openai/gpt-oss-20b` (fast) and
+  `openai/gpt-oss-120b` (capable), env-overridable via `ORB_GROQ_FAST_MODEL` /
+  `ORB_GROQ_CAPABLE_MODEL`. Gemini's thinking-budget logic is gone (Groq has no
+  thinkingConfig); the reflective circuit-breaker, cost guard and complexity
+  classifier stay.
+- **`app/api/orb/turn/route.ts`** — brain is now `streamGroq`; the cost guard
+  tracks `groq` usage; Groq failures fall back to Hermes with honest badge
+  reasons (key rejected / model unavailable / rate limit) instead of "Gemini
+  prepaid credits exhausted". The availability probe reports the Groq key.
+- **`app/api/jarvis/tts/route.ts`** — the Gemini TTS rung is gone; **Groq
+  Orpheus is now the primary voice**, then Cloudflare MeloTTS, then the browser.
+- **`components/orb/JarvisVoice.tsx`** — the 30-voice Gemini picker is gone;
+  the orb defaults to **Groq Troy** (saved `gemini:*` prefs auto-migrate), and
+  the speak path only knows Groq / Melo / browser.
+- **`lib/orb/gemini.ts`** + its tests deleted; `lib/orb/groq.test.ts` covers
+  the body builder and streaming (reasoning-skip, error prefix); router tests
+  re-pointed at the Groq tiers.
+
+`tsc` clean, **93/93 tests** green, rebuilt + restarted.
+
+---
+
+## Session 27 — 2026-08-18 · The orb hears in any browser: Whisper fallback STT engine
+
+Google's Web Speech recognition — the only mic engine `webkitSpeechRecognition`
+exposes — is **Chrome-only in practice**: non-Chrome Chromium browsers (Tabby,
+Edge, …) get their connection to Google's speech service refused at the
+connection level, which the browser reports as a `network` error. That was
+proven live by driving real Chrome and Edge instances against the same page
+(Chrome connects, Edge is refused) — but the user's browser is **Tabby**, so the
+orb could not hear them at all. This session adds a browser-agnostic listening
+engine.
+
+- **`app/api/orb/transcribe/route.ts`** (new) + **`lib/whisper.ts`** (new) — the
+  orb's own ear: the browser records the mic and POSTs the audio here; the route
+  forwards it to **Groq Whisper** (`whisper-large-v3-turbo`, OpenAI-compatible,
+  same `GROQ_API_KEY` as the Orpheus voice) and returns the transcript. No
+  Google anywhere in the path.
+- **`components/orb/JarvisVoice.tsx`** — a second listening engine. When the Web
+  Speech API is missing or refuses the connection (`network` error), the orb
+  **auto-switches to Whisper**: tap the orb to record, tap again to send
+  (push-to-talk); hands-free wake works too, via a ~5s segment loop that
+  transcribes and listens for the wake word, then captures the command
+  (8s auto-send, or tap to send early). The mic stream is acquired once and
+  shared; permission blocks and transcribe errors surface as specific notices.
+- **`components/orb/OrbHome.tsx`** — the pill under the orb tells the truth per
+  engine: "Listening… tap the orb again when done" instead of a wake-word
+  prompt that can't be heard.
+- **`tests/lib/whisper.test.ts`** — transcription request shape, error
+  surfacing, network-failure handling.
+
+Also logged from the same mic saga (shipped earlier, unlogged): hands-free no
+longer flips itself off when the speech service fails (it stays armed, shows
+the diagnostic notice, re-arms after a cooldown); the notice names the actual
+failure (unsupported / permission / network); the browser-identity diagnosis
+(Chrome works, Edge/Tabby refused by Google's service); and a pm2 cleanup
+(errored process re-created clean: online, 0 restarts).
+
+`tsc` clean, **97/97 tests** green, rebuilt + restarted.
+
+### Same-day follow-up — "my request goes into a queue" + Tabby not processing
+
+Two live complaints traced to real bugs and fixed:
+
+- **"It puts my request in Q" = Hermes' ACP queue, not the app.** Concurrent
+  orb turns share ONE `hermes-acp` session, and Hermes answers a second prompt
+  with *"Queued for the next turn. (N queued)"* instead of running it — proven
+  with 3 concurrent turns. Each queued reply is itself a ~10s turn, so the
+  queue snowballs. `lib/acp.ts` now serializes prompts through a promise-chain
+  mutex: concurrent turns wait their turn and are **all actually answered**,
+  in order; the shared chunk sink can no longer be clobbered either.
+- **Tabby "not even processing" = silent speech-engine hang.** The engine
+  switch waited for Google's `network` error, but some non-Chrome browsers
+  hang with no error and no recognition, so Whisper never engaged.
+  `JarvisVoice.tsx` now picks the engine from the user agent at mount:
+  non-Chrome browsers start straight on the Whisper engine (with a one-time
+  "using Whisper transcription" notice) instead of attempting a doomed Google
+  call first; Chrome keeps the fast path and the error-switch stays as backup.
+
+---
+
+## Session 26 — 2026-08-17 · Groq Orpheus neural voice for the orb
+
+The orb's Gemini TTS key had exhausted its prepaid credits (429 on every call),
+and the remaining free fallbacks were Cloudflare MeloTTS (needs a CF account)
+and the browser voice. Added a new neural rung: **Groq Orpheus**
+(`canopylabs/orpheus-v1-english`) via the OpenAI-compatible
+`/v1/audio/speech` endpoint — free tier, no card, WAV straight out, with six
+voice personas and expressive vocal-direction support.
+
+- **`app/api/jarvis/tts/route.ts`** — new `groqTTS()` rung between Gemini and
+  MeloTTS; `provider: "groq"` pins it from the picker, while an omitted
+  provider still tries Gemini → Groq → Melo → browser. Orpheus caps each
+  request at 200 chars, so text is split at sentence boundaries and the
+  per-chunk WAVs are stitched back into a single response.
+- **`lib/tts.ts`** (new) — `pcmToWav` (moved out of the route), `splitForGroq`
+  (200-char boundary splitting) and `joinWavs` (RIFF chunk-walking + stitch) as
+  pure, unit-tested helpers.
+- **`components/orb/JarvisVoice.tsx`** — new "Groq Orpheus (neural)" optgroup
+  with all six voices (Troy, Austin, Daniel, Autumn, Hannah, Diana); the choice
+  persists like the others. No Settings changes needed — Groq was already in the
+  provider catalog, so `GROQ_API_KEY` has always been settable there.
+- **`tests/lib/tts.test.ts`** — chunking at sentence/word/hard boundaries and
+  WAV stitching (incl. extra RIFF chunks) covered.
+
+`tsc` clean, all tests green, rebuilt + `pm2 restart mission-control`.
+
+### Same-day follow-up — slow reloads + mic diagnostics
+
+Troubleshooted two live issues the next morning:
+
+- **Slow page reloads = watchdog churn.** `tunnel-watchdog.ps1` (Scheduled Task,
+  every 3 min) restarted `mission-control` on every single flaky origin probe —
+  the box sits at ~85% memory with WARP + two cloudflared tunnels, so a single
+  10s `Invoke-WebRequest` timeout false-positived regularly and each bounce cost
+  a cold boot (seconds of slow first loads). The watchdog now double-checks the
+  origin probe AND respects a 15-minute cooldown before it will restart the app
+  (marker file `mission-control-restart.lock`); the tunnel is still cleaned on
+  any edge failure. The EADDRINUSE entries in the pm2 error log were historical
+  (Aug 15) — the current bounce source was the watchdog.
+- **Mic "blocked or unsupported" was misleading.** The real error from Chrome's
+  Web Speech engine is `network` — permission was granted and the API exists;
+  the recognition backend (Google's speech service) is unreachable through
+  Cloudflare WARP. `JarvisVoice.tsx` now surfaces the specific reason
+  (`unsupported` / `permission` / `network`) so the notice says which fix to
+  try instead of a generic "blocked or unsupported".
+
+`tsc` clean, 92/92 tests green, rebuilt + restarted.
+
+---
+
+## Session 25 — 2026-08-15 · Original agent icons (no more third-party logos)
+
+Every agent on the roster gets an original, animated SVG icon drawn for this
+project — no third-party brand marks anywhere in the overview. Each mascot
+occupies a 100×100 viewBox so they share a stage, uses a single accent color
+(matched to that agent's API accent), and has its own silhouette + motion so
+no two cards read as the same template.
+
+**Per-agent concepts**
+
+- **hermes** — gilded caduceus: winged staff with two entwined serpents, gold
+  gradient + sheen sweep (MC's running visual signature)
+- **claude** — twin-antler "A": symmetrical branching monogram with an
+  ember core that breathes
+- **pi** — concentric-arc network: three nested rings rotate at different
+  rates, four cardinal nodes, a pulsing **π**-shaped core
+- **cline** — worktree fan: trunk splits into four branches, one branch
+  highlighted as "yours" with a pulse halo
+- **antigravity** — floating crystal: hex diamond hovering above an orbit
+  ring with twin pulse particles (the "weightless" motif)
+- **openclaw** — three converging claws seizing a glowing target with
+  crosshair ticks at the perimeter (Apex predator framing)
+- **jcode** — swarm constellation: eight dots linked by curved trails around
+  a pulsing core, slow dashed orbit on the outside
+- **vibe** — layered voice wave: three intersecting audio arcs + faint mist
+  haze below + breathing mic dot at the apex
+- **codex** — open codex: bound-book perspective with ruled pages on both
+  sides and a spark above the spine breathing in/out
+- **sentinel** — hex perimeter + radar sweep: hex outer frame, rotating radar
+  line with arc echo, watchful pupil at the center
+
+**Removed**
+
+- `EMBLEM_FILES` in `components/AgentLogo.tsx` now empty — the three brand
+  emblems (Anthropic starburst, OpenAI Codex mark, Cline PNG) are out of the
+  build entirely; confirmed `0` references in both the emitted JS chunks
+  AND in the rendered HTML shell.
 
 ## Session 24 — 2026-08-14 · Orb reflective circuit-breaker + dynamic thinking budgets
 

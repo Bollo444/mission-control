@@ -107,7 +107,7 @@ export default function Shell({
   }, []);
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-dvh overflow-hidden">
       {/* Floating opener — visible whenever the sidebar is hidden (desktop or mobile). */}
       {!open && (
         <button
@@ -258,7 +258,7 @@ export default function Shell({
         </div>
       </aside>
 
-      <main className="h-screen min-w-0 flex-1 overflow-hidden">
+      <main className="h-dvh min-w-0 flex-1 overflow-hidden">
         <RouteTransition>{children}</RouteTransition>
       </main>
 
