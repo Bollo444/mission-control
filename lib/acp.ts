@@ -1,4 +1,5 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { existsSync } from "node:fs";
 import { home } from "./paths";
 
 /* ------------------------------------------------------------------ *
@@ -11,7 +12,20 @@ import { home } from "./paths";
  * get a clear message instead of a hang.                                *
  * ------------------------------------------------------------------ */
 
-const ACP_BIN = home(".local", "bin", "hermes-acp.exe");
+/**
+ * Resolve the hermes-acp launcher. The Hermes Agent's install layout moved
+ * over time: the current hermes-acp lives in the hermes-agent venv (v0.20+,
+ * whose config carries the ≥64K-context model), while older installs left a
+ * shim at ~/.local/bin/hermes-acp.exe. Prefer the current install, then the
+ * legacy shim, then PATH — so the bridge always talks to the hermes-acp that
+ * matches the agent's own config instead of a stale copy that errors out
+ * ("Model auto ... below the minimum 64,000 required by Hermes Agent").
+ */
+const ACP_BIN =
+  [
+    home("AppData", "Local", "hermes", "hermes-agent", "venv", "Scripts", "hermes-acp.exe"),
+    home(".local", "bin", "hermes-acp.exe"),
+  ].find((p) => existsSync(p)) ?? "hermes-acp";
 
 /**
  * Anthropic Constitutional AI Oath — injected as a system prompt so
@@ -229,7 +243,11 @@ export async function acpPrompt(
             { type: "text", text },
           ],
         },
-        120_000
+        // Agentic turns run a real tool loop through the free gateway — each
+        // API call can take 10–30s, so give a delegated turn room to finish
+        // instead of cutting it off mid-work. 180s bounds a runaway loop
+        // while still allowing multi-step tasks to complete.
+        180_000
       );
       return { stopReason: (res.stopReason as string) ?? "end_turn" };
     } finally {

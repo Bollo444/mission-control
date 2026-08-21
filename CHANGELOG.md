@@ -4,11 +4,12 @@ A detailed record of the project's development: **every commit**, grouped by
 working session and shown newest-first. Each short hash links to the commit on
 GitHub.
 
-**28 sessions · 2026-05-31 → 2026-08-18**
-_Latest revision: 2026-08-18 — Session 28 removed Gemini from the orb entirely: the brain now runs on Groq (gpt-oss), the voice on Groq Orpheus, and listening on Groq Whisper. _(Prior: Session 27 — Whisper fallback STT engine + Hermes ACP queue fix.)_
+**29 sessions · 2026-05-31 → 2026-08-21**
+_Latest revision: 2026-08-21 — Session 29 shipped the orb's speech flow for real: prefetched TTS audio (no dead air between sentences) plus a watchdog so a stalled audio never cuts a reply off — and then fixed the silent-orb root cause (a streaming batcher that consumed every sentence without ever enqueuing it for TTS, so the orb never spoke at all). Weather is now location-aware: set it by zip code or by voice, geocoded server-side, with a °C/°F toggle that feeds both the panel and the orb's spoken answers. The Hermes ACP bridge prefers the current venv binary over a stale shim, killing the 64K-context "Model auto" error on agentic turns. _(Prior: Session 28 — Gemini removed from the orb entirely: Groq brain, voice, and ears.)_
 
 | Session | Date | When | Theme |
 |:--:|---|---|---|
+| 29 | 2026-08-21 (Fri) | Day | Orb speech flow shipped for real: prefetched TTS + watchdog, then the silent-orb root cause fixed (SpeechBatcher — streamed sentences were consumed without being enqueued; 7 new tests) + location-aware weather (set by zip or voice, geocoded server-side) + user-picked °C/°F for panel and spoken answers + Hermes ACP bridge re-pointed at the current venv binary (64K-context error gone) |
 | 28 | 2026-08-18 (Tue) | Day | Gemini removed from the orb — Groq brain (gpt-oss-20b/120b), Groq Orpheus voice primary, Groq Whisper listening |
 | 27 | 2026-08-18 (Tue) | Day | Orb hears in any browser — Whisper fallback STT (Groq) auto-switched when Google's Chrome-only speech service is refused (Tabby/Edge) |
 | 26 | 2026-08-17 (Mon) | Day | Groq Orpheus neural voice for the orb (free OpenAI-compatible TTS rung; 200-char chunking + WAV stitching) |
@@ -37,6 +38,49 @@ _Latest revision: 2026-08-18 — Session 28 removed Gemini from the orb entirely
 | 3 | 2026-06-03 (Wed) | Late morning → evening | Gateway phases, branding & public launch |
 | 2 | 2026-06-02 (Tue) | Midday | Providers, health monitor & cascade proxy |
 | 1 | 2026-05-31 (Sat) | Afternoon → evening | Initial fleet console |
+
+---
+
+## Session 29 — 2026-08-21 · The orb actually speaks — plus location-aware weather and a hardened Hermes bridge
+
+The orb's speech flow was rewritten for real streaming TTS (prefetched audio so
+there's no dead air between sentences, plus a watchdog so a stalled audio never
+cuts a reply off) — and then, driven live in a real browser, it turned out the
+orb wasn't speaking **at all**: replies rendered in the transcript, but **zero**
+`/api/jarvis/tts` requests ever fired. Root cause: `queueSentences` built its
+batch in a per-call local variable and advanced the `spokenUpTo` cursor past
+every complete sentence, so streamed sentences under the enqueue threshold
+(short replies like "Jarvis." or "1, 2, 3.", and multi-sentence replies arriving
+in separate chunks) were marked consumed and dropped — by the time the final
+flush ran there was nothing left to enqueue.
+
+- **`lib/tts.ts`** — new stateful **`SpeechBatcher`**: the pending batch lives
+  inside the batcher and carries across chunk calls, so streamed sentences
+  accumulate into utterances (released at the 240-char / 2-sentence threshold,
+  or on flush) and are **never consumed without being enqueued**; incomplete
+  trailing text stays unconsumed for the next chunk to finish.
+- **`components/orb/JarvisVoice.tsx`** — `queueSentences` now feeds the batcher
+  through a ref, reset at the start of every turn.
+- **`tests/lib/tts.test.ts`** — 7 new tests covering the exact failure modes
+  (short replies, multi-chunk batching, incomplete tails, flush).
+- **Location-aware weather.** Set your location by zip code or by voice ("set
+  my location to 10075") — the weather panel's 📍 chip or the orb itself —
+  geocoded server-side through a new `app/api/orb/geocode` route (Zippopotam
+  for zips, Open-Meteo for place names; pure, testable helpers in
+  `lib/orb/tools.ts`). A °C/°F toggle on the panel feeds both the display and
+  the orb's spoken answers, and a `LOCATION:` reply marker lets the orb change
+  the saved place on your say-so. Bare-zip questions ("weather in 10075")
+  geocode even with no saved location.
+- **Hermes ACP bridge hardened** (`lib/acp.ts`) — the bridge spawned a stale
+  `~/.local/bin/hermes-acp.exe` (v0.15.2) that read an old config and failed
+  agentic turns with *"Model auto has a 32,000-token context window, below the
+  64,000 minimum required by Hermes Agent"*. It now prefers the current
+  hermes-acp in the hermes-agent venv (whose config carries the 64K-context
+  model), then the legacy shim, then PATH — and the prompt timeout was raised
+  120s → 180s so real agentic loops through the free gateway can finish.
+
+`tsc` clean, **115/115 tests green**, rebuilt + restarted. Verified live in the
+browser: replies now fetch Groq Orpheus audio and **play it**.
 
 ---
 
@@ -70,6 +114,47 @@ real, so the orb is now **all Groq**: brain, voice, and ears.
   re-pointed at the Groq tiers.
 
 `tsc` clean, **93/93 tests** green, rebuilt + restarted.
+
+### Same-day follow-up — the "Jarvis operator" notebook: vault structure, persona, security gate
+
+Implemented the no-external-dependency steps from the operator-spec notebook
+(voice, visualizer, barge-in, warm session, MCP, checkpoints were already live):
+
+- **`lib/orb/memory-prime.ts`** — the vault now seeds the spec's knowledge silos
+  (`00 - Inbox`, `02 - Business Profiles`, `03 - Marketing Skills`,
+  `04 - Dev Projects`, each with an index note) plus a new **`Identity.md`**
+  persona file (peer-level tone, push back, conversion-first, checkpoint
+  habit) injected into every turn — user-editable, never clobbered, capped at
+  2 kB. The vault-index map lists the new folders.
+- **`lib/orb/security.ts`** (new) + gate in `app/api/orb/turn/route.ts` —
+  destructive executor commands (`rm -rf` / `git push` / `git reset --hard` /
+  `drop database` / `shutdown` / `format` / `deploy`) are refused unless the
+  message carries the operator passphrase. The phrase lives in Settings
+  (`OPERATOR_PHRASE`, **encrypted at rest**) — deliberately not hardcoded in
+  source, since this repo is public; the gate is inert until armed, and it
+  only fires on the agentic (executor) path, never on ordinary questions.
+  Armed live with the spec's phrase and verified: blocked without it,
+  streams through with it.
+
+`tsc` clean, **100/100 tests** green, rebuilt + restarted.
+
+### Same-day follow-up — the orb's name is Jarvis, everywhere
+
+The orb introduced itself as "Hermes" when asked its name — the UI has always
+called it **Jarvis**, but the injected identity still said Hermes, and the Groq
+conversational brain had no identity at all. Made uniform:
+
+- **`lib/orb/memory-prime.ts`** — the boot template, the priming intro, and a
+  new `orbIdentityContext()` (a short name + persona block) all now say the orb
+  is **Jarvis**, executed through Hermes (the fleet run-agent that carries its
+  memory and rules). `Identity.md` template gained a **Name: Jarvis** line.
+- **`app/api/orb/turn/route.ts`** — the Groq brain now gets `orbIdentityContext()`
+  as its system prompt, so *whichever* backend answers, the name is consistent.
+- **Live vault** — the already-seeded `Boot/Hermes.md` and `Identity.md` were
+  updated in place (name lines only, nothing clobbered).
+- **README** — a Naming note documenting: Jarvis = the orb's identity; Hermes =
+  the executor beneath it (badge shows `HERMES` when it handles agentic turns);
+  "hermes" stays a valid wake word.
 
 ---
 

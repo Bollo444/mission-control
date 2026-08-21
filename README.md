@@ -101,10 +101,21 @@ config exists. Ones you don't have installed appear as provisionable personas.
   to **Hermes** to execute — with a live routing badge, sentence-streamed speech, and
   barge-in so a new command interrupts the in-flight reply, plus a reflective
   circuit-breaker that retries a failed
-  turn once with the error injected, capped at 2 attempts. Press **`/`** to summon a Mass-Effect-style HUD:
+  turn once with the error injected, capped at 2 attempts. Weather is
+  location-aware: set your location by zip or by voice ("set my location to 10075"),
+  geocoded server-side, with a °C/°F toggle that feeds both the panel and the orb's
+  spoken answers. Press **`/`** to summon a Mass-Effect-style HUD:
   holographic panels drift in at the edges — Hermes capabilities, the fleet
   (colour-coded per agent), knowledge, ops — each opening a feature in place over
   the dimmed orb. The classic dashboard lives on at **Overview**.
+
+  > **Naming:** the orb answers as **Jarvis** — that is its identity everywhere
+  > (wake word "hey jarvis", the transcript header, the injected persona).
+  > **Hermes** is the fleet run-agent the orb executes through: agentic tasks
+  > ("fix the bug in X") are delegated to it, and the routing badge shows
+  > `HERMES` when it handles a turn. "hermes" also remains a valid wake word.
+  > If the orb ever introduces itself as Hermes, that's the old persona
+  > leaking — the identity files in the vault say Jarvis.
 - **Fleet overview** — a live status grid: which agents are installed, versions,
   session counts, configs, last-active times.
 - **Per-agent Mission Control** — a dedicated page per agent: tools, live on-disk
@@ -839,6 +850,11 @@ This is a **local control plane with real power** — treat it accordingly:
 - **Destructive system actions are proposed, not executed.** OpenClaw's console
   prints destructive commands for you to review and run — the web app never
   deletes files, uninstalls apps, or edits the registry on its own.
+- **Orb operator gate.** The orb's agentic (executor) path refuses destructive
+  commands (`rm -rf`, `git push`, `git reset --hard`, database drops, deploys)
+  unless the message carries the operator passphrase — set in Settings
+  (`OPERATOR_PHRASE`, encrypted at rest, never hardcoded — this repo is public).
+  Inert until armed; only fires on the agentic path, never on ordinary questions.
 
 ---
 

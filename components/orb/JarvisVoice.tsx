@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { hexA } from "@/lib/format";
+import { SpeechBatcher } from "@/lib/tts";
 import type { MicState } from "./OracleOrb";
 
 /* The orb's voice. Type a line (or talk) and the orb answers; the reply streams
@@ -45,6 +46,11 @@ function isGoogleChrome(): boolean {
 const GOLD = "#f5b75a";
 
 const WAKE_WORDS = ["hey jarvis", "ok jarvis", "jarvis", "hermes"];
+
+// Location-change marker: when the user tells the orb to set / change its
+// location, the reply ends with `LOCATION:<zip or city, state>` and the client
+// geocodes + persists it (the marker never appears in what's shown or spoken).
+const LOC_MARKER = /LOCATION:\s*([A-Za-z0-9][A-Za-z0-9 .,'\-]{0,80})/;
 
 // A user-set personal wake phrase — persisted, takes precedence over the defaults.
 const WAKE_KEY = "mc.jarvis.wakephrase.v1";
@@ -158,6 +164,12 @@ export default function JarvisVoice({
   // Default browser voice — a deeper English one for the Jarvis register.
   const voiceRef = useRef<SpeechSynthesisVoice | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  // Lookahead audio cache — the next sentence batch's audio is fetched while
+  // the current one plays, killing the dead-air gap between utterances.
+  const prefetchCache = useRef<Map<string, { audio: HTMLAudioElement; url: string }>>(new Map());
+  // Latest voice choice — prefetch reads it without resubscribing.
+  const selRef = useRef(sel);
+  selRef.current = sel;
   const recRef = useRef<{ stop: () => void; start: () => void } | null>(null);
   // ---- Whisper fallback engine (browser-agnostic listening) state. ----
   // Active listening engine: "google" (Web Speech) or "whisper" (record the
@@ -189,10 +201,17 @@ export default function JarvisVoice({
   const turnId = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
   const historyRef = useRef<{ role: "user" | "assistant"; content: string }[]>([]);
+  // True once a reply's LOCATION: marker has been applied (per turn).
+  const locHandledRef = useRef(false);
   // Sentence-streaming speech queue — serializes speak() calls so sentences
   // don't overlap, and checks turn id so aborted turns never speak.
   const speakChain = useRef<Promise<void>>(Promise.resolve());
   const spokenUpTo = useRef(0);
+  // The sentence batcher (see lib/tts.ts) — carries the pending batch across
+  // stream chunks so sentences that arrive in separate chunks still batch
+  // into natural utterances instead of being dropped or spoken one clause at
+  // a time.
+  const speechBatchRef = useRef(new SpeechBatcher());
 
   // Restore the saved personal wake phrase.
   useEffect(() => {
@@ -281,9 +300,41 @@ export default function JarvisVoice({
     window.speechSynthesis.speak(u);
   }, []);
 
+  // Fetch one utterance's audio ahead of playback, so the next batch is ready
+  // the moment the current one ends (no dead air between sentences). Capped to
+  // a couple of pending blobs; on failure speak() falls back to fetching on demand.
+  const prefetchAudio = useCallback(
+    async (key: string, reqBody: { text: string; provider: string; voice?: string }) => {
+      if (prefetchCache.current.has(key)) return;
+      try {
+        const res = await fetch("/api/jarvis/tts", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(reqBody),
+        });
+        if (!res.ok || !(res.headers.get("content-type") || "").startsWith("audio")) return;
+        const url = URL.createObjectURL(await res.blob());
+        prefetchCache.current.set(key, { audio: new Audio(url), url });
+        if (prefetchCache.current.size > 3) {
+          const oldest = prefetchCache.current.keys().next().value as string;
+          const ev = prefetchCache.current.get(oldest);
+          if (ev) {
+            URL.revokeObjectURL(ev.url);
+            prefetchCache.current.delete(oldest);
+          }
+        }
+      } catch {
+        /* fall back to the on-demand fetch inside speak() */
+      }
+    },
+    [],
+  );
+
   // Speak a finished reply honoring the picked voice. A browser voice plays
-  // directly; the model voice tries the audio endpoint then falls back to the
-  // browser. onDone fires exactly once, when the voice actually stops.
+  // directly; the model voice tries the audio endpoint (or a prefetched copy)
+  // then falls back to the browser. onDone fires exactly once, guaranteed —
+  // a stalled or blocked audio can never stall the speech chain (which would
+  // silently swallow the rest of the reply).
   const speak = useCallback(
     async (text: string, onDone: () => void) => {
       if (muted || !text) {
@@ -298,35 +349,56 @@ export default function JarvisVoice({
       }
       // Neural providers (Groq Orpheus / MeloTTS) → audio endpoint, browser fallback.
       const reqBody = sel.startsWith("groq:")
-        ? { text, provider: "groq", voice: sel.slice("groq:".length) }
-        : { text, provider: "melotts" };
-      try {
-        const res = await fetch("/api/jarvis/tts", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(reqBody),
-        });
-        if (res.ok && (res.headers.get("content-type") || "").startsWith("audio")) {
-          const url = URL.createObjectURL(await res.blob());
-          const audio = new Audio(url);
-          audioRef.current = audio;
-          audio.onended = () => {
-            URL.revokeObjectURL(url);
-            audioRef.current = null;
-            onDone();
-          };
-          audio.onerror = () => {
-            URL.revokeObjectURL(url);
-            audioRef.current = null;
-            browserSpeak(text, onDone); // model gave audio we can't play → browser
-          };
-          await audio.play();
-          return;
+        ? { text, provider: "groq" as const, voice: sel.slice("groq:".length) }
+        : { text, provider: "melotts" as const };
+      const key = `${sel}|${text}`;
+      let url: string | null = null;
+      let audio: HTMLAudioElement | null = prefetchCache.current.get(key)?.audio ?? null;
+      if (audio) {
+        url = prefetchCache.current.get(key)?.url ?? null;
+        prefetchCache.current.delete(key);
+      } else {
+        try {
+          const res = await fetch("/api/jarvis/tts", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(reqBody),
+          });
+          if (res.ok && (res.headers.get("content-type") || "").startsWith("audio")) {
+            url = URL.createObjectURL(await res.blob());
+            audio = new Audio(url);
+          }
+        } catch {
+          /* fall through to browser */
         }
-      } catch {
-        /* network/abort → fall through to browser */
       }
-      browserSpeak(text, onDone);
+      if (!audio || !url) {
+        browserSpeak(text, onDone); // no model audio → browser voice
+        return;
+      }
+      audioRef.current = audio;
+      let watchdog: ReturnType<typeof setTimeout> | undefined;
+      let done = false;
+      const finish = (failed?: boolean) => {
+        if (done) return;
+        done = true;
+        if (watchdog) clearTimeout(watchdog);
+        URL.revokeObjectURL(url!);
+        if (audioRef.current === audio) audioRef.current = null;
+        if (failed) browserSpeak(text, onDone); // model audio failed → browser voice
+        else onDone();
+      };
+      // Watchdog: if the audio never ends (pause / tab switch / hiccup) the
+      // chain would stall and the rest of the reply would go silent — force
+      // advance so every sentence gets spoken.
+      watchdog = setTimeout(() => finish(), Math.max(15000, text.length * 130));
+      audio.onended = () => finish();
+      audio.onerror = () => finish(true);
+      try {
+        await audio.play();
+      } catch {
+        finish(true); // autoplay blocked or replaced → never hang the chain
+      }
     },
     [muted, sel, voices, browserSpeak],
   );
@@ -344,12 +416,16 @@ export default function JarvisVoice({
   // restarts the engine. Batching gives the voice a continuous run.
   const queueSentences = useCallback((fullText: string, flush = false, myTurn = turnId.current) => {
     const pending = fullText.slice(spokenUpTo.current);
-    const parts = pending.match(/[^.!?\n]+[.!?\n]*/g) ?? [];
-    let consumed = 0;
-    let batch = "";
     const enqueue = (text: string) => {
       const t = text.trim();
       if (!t) return;
+      // Fetch the next batch's audio now so it's ready when the current one
+      // ends — hides the TTS round-trip that used to leave dead air between
+      // sentences.
+      const body = selRef.current.startsWith("groq:")
+        ? { text: t, provider: "groq" as const, voice: selRef.current.slice("groq:".length) }
+        : { text: t, provider: "melotts" as const };
+      void prefetchAudio(`${selRef.current}|${t}`, body);
       speakChain.current = speakChain.current.then(
         () =>
           new Promise<void>((resolve) => {
@@ -361,26 +437,23 @@ export default function JarvisVoice({
           }),
       );
     };
-    for (const part of parts) {
-      const complete = /[.!?\n]/.test(part);
-      if (!complete && !flush) break;
-      consumed += part.length;
-      batch += part;
-      const sentences = (batch.match(/[.!?\n]/g) ?? []).length;
-      if (batch.trim().length >= 240 || (sentences >= 2 && batch.trim().length >= 90)) {
-        enqueue(batch);
-        batch = "";
-      }
-    }
-    if (flush && batch.trim()) enqueue(batch);
+    // The batcher holds the pending batch across calls: complete sentences
+    // are consumed here but only released (enqueued) once the batching
+    // threshold is met — or when the reply flushes. Without the carry-over,
+    // sentences arriving in separate chunks were marked consumed and never
+    // spoken (the orb answered silently).
+    const { utterances, consumed } = speechBatchRef.current.push(pending, flush);
+    for (const u of utterances) enqueue(u);
     spokenUpTo.current += consumed;
-  }, []);
+  }, [prefetchAudio]);
 
   // Silence any voice on unmount.
   useEffect(
     () => () => {
       window.speechSynthesis?.cancel();
       audioRef.current?.pause();
+      prefetchCache.current.forEach(({ url }) => URL.revokeObjectURL(url));
+      prefetchCache.current.clear();
       recRef.current?.stop();
       stopFb();
       if (voiceDeniedTimer.current) clearTimeout(voiceDeniedTimer.current);
@@ -402,6 +475,53 @@ export default function JarvisVoice({
     audioRef.current = null;
   }, []);
 
+  // Apply a LOCATION: marker from a reply: geocode the place server-side
+  // (/api/orb/geocode — zips AND city names), persist it as the weather
+  // location, and confirm to the user. No model dependencies.
+  //
+  // The model can mangle the echoed value (it once "resolved" 10075 into a
+  // city on another continent) — so when the user's own message contains a
+  // 5-digit zip, the user's words win over the marker.
+  const applyLocation = useCallback(async (target: string, userMsg?: string) => {
+    const userZip = userMsg?.match(/\b(\d{5})\b/)?.[1];
+    const t = (userZip ?? target).trim();
+    if (!t) return;
+    let loc: { lat: number; lon: number; zip?: string; label: string } | null = null;
+    try {
+      const res = await fetch("/api/orb/geocode", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ q: t }),
+      });
+      const j = (await res.json()) as { ok?: boolean; loc?: { lat: number; lon: number; zip?: string; label: string }; error?: string };
+      if (res.ok && j?.ok && j?.loc) loc = j.loc;
+    } catch {
+      /* fall through to the error notice */
+    }
+    if (!loc) {
+      setFbNotice(`Couldn't find that place — set your zip in the weather panel.`);
+      if (fbNoticeTimer.current) clearTimeout(fbNoticeTimer.current);
+      fbNoticeTimer.current = setTimeout(() => setFbNotice(null), 5000);
+      return;
+    }
+    try {
+      localStorage.setItem("mc.weather.loc", JSON.stringify(loc));
+    } catch {
+      /* ignore */
+    }
+    // Live-sync the weather panel (it reads the saved location on mount).
+    try {
+      window.dispatchEvent(new CustomEvent("mc:loc", { detail: loc }));
+    } catch {
+      /* ignore */
+    }
+    setFbNotice(
+      `📍 Location set to ${loc.label}${loc.zip ? ` · ${loc.zip}` : ""} — weather and answers update.`,
+    );
+    if (fbNoticeTimer.current) clearTimeout(fbNoticeTimer.current);
+    fbNoticeTimer.current = setTimeout(() => setFbNotice(null), 5000);
+  }, []);
+
   const sendText = useCallback(
     async (text: string) => {
       const trimmed = text.trim();
@@ -409,9 +529,14 @@ export default function JarvisVoice({
 
       // Barge in: cancel whatever is running, then start this turn fresh.
       interrupt();
+      // Drop any prefetched audio from the previous turn.
+      prefetchCache.current.forEach(({ url }) => URL.revokeObjectURL(url));
+      prefetchCache.current.clear();
       const myTurn = ++turnId.current;
       spokenUpTo.current = 0;
+      speechBatchRef.current.reset();
       speakChain.current = Promise.resolve();
+      locHandledRef.current = false;
 
       setInput("");
       setRoute(null);
@@ -424,20 +549,31 @@ export default function JarvisVoice({
       const ac = new AbortController();
       abortRef.current = ac;
       let full = "";
+      // The reply without the LOCATION: marker — what's shown and spoken.
+      let displayFull = "";
       const history = historyRef.current.slice(-12);
       // Share the client-resolved location (the same one the weather panel
       // persists) so the orb's weather tool answers for where you actually are.
       let lat: number | undefined;
       let lon: number | undefined;
+      let zip: string | undefined;
+      let locLabel: string | undefined;
+      let units: "c" | "f" | undefined;
       try {
         const saved = localStorage.getItem("mc.weather.loc");
         if (saved) {
-          const loc = JSON.parse(saved) as { lat?: number; lon?: number };
+          const loc = JSON.parse(saved) as { lat?: number; lon?: number; zip?: string; label?: string };
           if (typeof loc.lat === "number" && typeof loc.lon === "number") {
             lat = loc.lat;
             lon = loc.lon;
+            zip = loc.zip;
+            locLabel = loc.label;
           }
         }
+        // The user's temperature-unit pick — the orb answers in the same unit
+        // the weather panel shows.
+        if (localStorage.getItem("mc.weather.units") === "f") units = "f";
+        else units = "c";
       } catch {
         /* no saved location — tool falls back to defaults */
       }
@@ -445,7 +581,7 @@ export default function JarvisVoice({
         const res = await fetch("/api/orb/turn", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ message: trimmed, history, lat, lon }),
+          body: JSON.stringify({ message: trimmed, history, lat, lon, zip, locLabel, units }),
           signal: ac.signal,
         });
         const reader = res.body?.getReader();
@@ -474,12 +610,26 @@ export default function JarvisVoice({
               });
             } else if (ev.type === "chunk" && ev.text) {
               full += ev.text;
-              setMsgs((m) => {
-                const copy = [...m];
-                copy[copy.length - 1] = { who: "jarvis", text: copy[copy.length - 1].text + ev.text };
+              // A LOCATION: marker (the orb changing the saved location) is
+              // stripped from what's shown and spoken, then applied once.
+              const m = full.match(LOC_MARKER);
+              if (m && !locHandledRef.current) {
+                locHandledRef.current = true;
+                void applyLocation(m[1], trimmed);
+                // The marker ends the actionable reply — trim there.
+                displayFull = full.slice(0, m.index ?? full.length).replace(/[ \t]+$/g, "");
+              } else if (!m) {
+                displayFull = full;
+              }
+              setMsgs((ms) => {
+                const copy = [...ms];
+                // Never clobber already-streamed text (a marker-only chunk
+                // truncates displayFull to "").
+                const prev = copy[copy.length - 1]?.text ?? "";
+                copy[copy.length - 1] = { who: "jarvis", text: displayFull || prev };
                 return copy;
               });
-              queueSentences(full, false, myTurn);
+              queueSentences(displayFull, false, myTurn);
             } else if (ev.type === "error") {
               setMsgs((m) => {
                 const copy = [...m];
@@ -500,8 +650,15 @@ export default function JarvisVoice({
       } finally {
         if (turnId.current === myTurn) {
           setBusy(false);
+          // A marker that only completed in the final chunk is still applied.
+          const m = full.match(LOC_MARKER);
+          if (m && !locHandledRef.current) {
+            locHandledRef.current = true;
+            void applyLocation(m[1], trimmed);
+            displayFull = full.slice(0, m.index ?? full.length).replace(/[ \t]+$/g, "");
+          }
           // Flush any trailing (incomplete) sentence and settle the speech queue.
-          queueSentences(full, true, myTurn);
+          queueSentences(displayFull, true, myTurn);
           void speakChain.current.then(() => {
             if (turnId.current === myTurn) {
               onSpeaking(false);
@@ -513,7 +670,7 @@ export default function JarvisVoice({
             historyRef.current = [
               ...historyRef.current,
               { role: "user" as const, content: trimmed },
-              { role: "assistant" as const, content: full },
+              { role: "assistant" as const, content: displayFull },
             ].slice(-24);
           }
         }

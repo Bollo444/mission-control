@@ -1,5 +1,23 @@
 // Client-safe formatting helpers (no node imports).
 
+/** Temperature units the user can pick for weather display and speech. */
+export type TempUnit = "c" | "f";
+
+/** Convert °C → °F (Open-Meteo reports Celsius). */
+export function cToF(c: number): number {
+  return (c * 9) / 5 + 32;
+}
+
+/** Round a Celsius temperature to the user's preferred unit with its sign. */
+export function fmtTemp(c: number, unit: TempUnit): string {
+  return `${Math.round(unit === "f" ? cToF(c) : c)}°`;
+}
+
+/** Full unit label for speech: "23°C" or "73°F". */
+export function fmtTempUnit(c: number, unit: TempUnit): string {
+  return `${fmtTemp(c, unit)}${unit.toUpperCase()}`;
+}
+
 export function relTime(iso: string | null): string {
   if (!iso) return "—";
   const then = new Date(iso).getTime();

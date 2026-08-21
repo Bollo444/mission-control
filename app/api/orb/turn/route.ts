@@ -9,12 +9,14 @@ import { fetchWeatherBrief } from "@/lib/orb/tools";
 import {
   bootstrapMemoryVault,
   primeHermesContext,
+  orbIdentityContext,
   appendDailyNote,
   memoryPrimeEnabled,
   dailyNoteEnabled,
 } from "@/lib/orb/memory-prime";
 import { ensureVault } from "@/lib/memory";
 import { acpPrompt, acpAvailable } from "@/lib/acp";
+import { operatorGateBlocked, operatorGateMessage } from "@/lib/orb/security";
 import { readSettings } from "@/lib/settings";
 import { recordAttempt, usageReport } from "@/lib/usage";
 import type { OrbTurnRequest, OrbTurnEvent } from "@/lib/orb/types";
@@ -112,14 +114,44 @@ export async function POST(req: Request) {
 
       const key = groqKey();
       const history = body.history ?? [];
+      // Operator security gate — destructive actions (rm -rf / git push /
+      // deploy / db-drop) are refused unless the message carries the operator
+      // passphrase. Inert until a phrase is configured (Settings / env).
+      const gatePhrase =
+        readSettings().apiKeys.OPERATOR_PHRASE || process.env.MC_OPERATOR_PHRASE || "";
 
       // Tool layer: if the router flagged a live-data ask (weather), run the
       // deterministic weather tool and inject the result into whatever backend
       // answers — Groq system context or the Hermes prompt — so the orb can
-      // answer from real data even with no model-side tool calling.
+      // answer from real data even with no model-side tool calling. The zip /
+      // label the client saves are passed through so weather answers for where
+      // the user actually is (e.g. 10075), and a bare-zip question geocodes.
+      // A bare zip in the message ("weather in 10075") geocodes even when no
+      // location is saved yet.
+      const msgZip = message.match(/\b(\d{5})\b/)?.[1];
       const weatherNote = decision.signals.intents.includes("weather")
-        ? (await fetchWeatherBrief(body.lat, body.lon)).text
+        ? (await fetchWeatherBrief(body.lat, body.lon, body.zip || msgZip, body.locLabel, body.units)).text
         : null;
+      // Location awareness: tell whichever backend answers where the user is,
+      // so "how's the weather?" and "where am I?" answer correctly without a
+      // per-turn geolocation round trip.
+      const zipStr = body.zip?.trim() ?? "";
+      const labelStr = body.locLabel?.trim() ?? "";
+      const locationNote =
+        labelStr || zipStr
+          ? `The user's location is ${labelStr}${zipStr ? (labelStr ? ` (${zipStr})` : zipStr) : ""}. Answer location and weather questions for this place.`
+          : typeof body.lat === "number" && typeof body.lon === "number"
+            ? `The user's approximate location is latitude ${body.lat}, longitude ${body.lon}. Answer weather questions for this place.`
+            : "";
+      // The orb can change the saved location on the user's say-so: if the
+      // message names a place, the model ends its reply with a LOCATION marker
+      // and the client geocodes + persists it (the marker is stripped from
+      // what's spoken/displayed).
+      const locationChangeNote =
+        "If the user asks you to set or change your location (a zip code, a city, or \"set my location\"), " +
+        "end your reply with a line `LOCATION:<zip or city, state>` on its own and the client will save it. " +
+        "Echo the exact place the user gave — do not translate, geocode, or guess it. " +
+        "Only emit it when the user tells you a place — never invent one.";
       // Memory-vault layer: seed the vault files once and read the priming
       // block every Hermes turn boots with (boot config + index + yesterday's
       // daily note + active priorities), so Hermes answers as the same
@@ -131,7 +163,7 @@ export async function POST(req: Request) {
       }
       const primed = primeHermesContext();
       const hermPrompt = (msg: string) =>
-        [weatherNote, primed, msg]
+        [weatherNote, locationNote, locationChangeNote, primed, msg]
           .filter(Boolean)
           .join(
             `\n\n`,
@@ -153,6 +185,11 @@ export async function POST(req: Request) {
           reason: "No Groq API key configured — answering via Hermes.",
           complexity: decision.signals.complexity,
         });
+        if (operatorGateBlocked(message, gatePhrase)) {
+          send({ type: "error", message: operatorGateMessage() });
+          controller.close();
+          return;
+        }
         try {
           await acpPrompt(hermPrompt(message), (text) => send({ type: "chunk", text }));
           checkpoint();
@@ -175,6 +212,11 @@ export async function POST(req: Request) {
           reason: decision.reason,
           complexity: decision.signals.complexity,
         });
+        if (operatorGateBlocked(message, gatePhrase)) {
+          send({ type: "error", message: operatorGateMessage() });
+          controller.close();
+          return;
+        }
         try {
           await acpPrompt(hermPrompt(message), (text) => send({ type: "chunk", text }));
           checkpoint();
@@ -210,7 +252,13 @@ export async function POST(req: Request) {
                 ? "A previous attempt failed. Fix the problem and answer correctly this time. " +
                   "Last error: " + lastError.message
                 : "";
-            const system = [weatherNote && `Live weather: ${weatherNote}`, retryNote]
+            const system = [
+              orbIdentityContext(),
+              weatherNote && `Live weather: ${weatherNote}`,
+              locationNote,
+              locationChangeNote,
+              retryNote,
+            ]
               .filter(Boolean)
               .join("\n") || undefined;
             for await (const text of streamGroq({

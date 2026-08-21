@@ -1,13 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { hexA } from "@/lib/format";
+import { fmtTemp, hexA, type TempUnit } from "@/lib/format";
 
 /* Right-side weather — a cluster of independently floating glass chips
  * (today's conditions + one chip per day for the 5-day strip: 2 before,
  * today, 2 after) from Open-Meteo (free, no API key). No enclosing box —
  * each chip floats on its own translucent glass, gently drifting as a
- * constellation. Collapses to a single small chip showing today. */
+ * constellation. Collapses to a single small chip showing today.
+ *
+ * Location: resolved saved-override → browser geolocation → default NYC.
+ * Browser geolocation can be blocked (403 / permission) — a 📍 chip lets the
+ * user set a US zip code instead, geocoded via Zippopotam (free, no key) and
+ * persisted. The same saved location is what the orb's weather tool reads, so
+ * the panel and the orb never disagree about where the user is. */
 
 const GOLD = "#f5b75a";
 
@@ -24,7 +30,15 @@ const WMO: Record<number, string> = {
 const wmo = (c: number) => WMO[c] ?? "🌡️";
 
 const LOC_KEY = "mc.weather.loc";
+const UNITS_KEY = "mc.weather.units"; // "c" | "f" — the user's pick
 const DEFAULT_LOC = { lat: 40.7128, lon: -74.006 }; // fallback: NYC
+
+interface SavedLoc {
+  lat: number;
+  lon: number;
+  zip?: string;
+  label?: string;
+}
 
 interface DayRow {
   date: string;
@@ -58,17 +72,40 @@ function chip(extra: React.CSSProperties = {}): React.CSSProperties {
 }
 
 export default function WeatherPanel({ space, immersive }: { space: number; immersive: boolean }) {
-  const [loc, setLoc] = useState<{ lat: number; lon: number } | null>(null);
+  const [loc, setLoc] = useState<SavedLoc | null>(null);
   const [data, setData] = useState<WeatherData | null>(null);
   const [open, setOpen] = useState(true);
   const [error, setError] = useState("");
+  // Temperature unit — user picks; same choice feeds the orb's spoken answers.
+  const [units, setUnits] = useState<TempUnit>("c");
+  // Location manager — set a zip code when geolocation is blocked.
+  const [editing, setEditing] = useState(false);
+  const [zipDraft, setZipDraft] = useState("");
+  const [zipBusy, setZipBusy] = useState(false);
+  const [zipError, setZipError] = useState("");
+
+  // Restore + persist the temperature unit choice.
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(UNITS_KEY) === "f") setUnits("f");
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  useEffect(() => {
+    try {
+      localStorage.setItem(UNITS_KEY, units);
+    } catch {
+      /* ignore */
+    }
+  }, [units]);
 
   // Resolve location: saved override → geolocation → default.
   useEffect(() => {
     try {
       const saved = localStorage.getItem(LOC_KEY);
       if (saved) {
-        setLoc(JSON.parse(saved));
+        setLoc(JSON.parse(saved) as SavedLoc);
         return;
       }
     } catch {
@@ -132,6 +169,55 @@ export default function WeatherPanel({ space, immersive }: { space: number; imme
     return () => clearInterval(t);
   }, [loc, load]);
 
+  // The orb can change the location too ("set my location to 10075") — apply
+  // its saved location live so the panel reflects it without a reload.
+  useEffect(() => {
+    const onLoc = (e: Event) => {
+      const l = (e as CustomEvent<SavedLoc>).detail;
+      if (l && typeof l.lat === "number" && typeof l.lon === "number") setLoc(l);
+    };
+    window.addEventListener("mc:loc", onLoc);
+    return () => window.removeEventListener("mc:loc", onLoc);
+  }, []);
+
+  // Save a zip code as the weather location (geocoded server-side, persisted,
+  // live). Same /api/orb/geocode route the orb's LOCATION: marker uses, so the
+  // panel and the orb resolve places identically.
+  const saveZip = useCallback(async () => {
+    const z = zipDraft.trim();
+    if (!/^\d{5}$/.test(z)) {
+      setZipError("Enter a 5-digit US zip code");
+      return;
+    }
+    setZipBusy(true);
+    setZipError("");
+    try {
+      const res = await fetch("/api/orb/geocode", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ q: z }),
+      });
+      const j = (await res.json()) as { ok?: boolean; loc?: SavedLoc; error?: string };
+      if (!res.ok || !j?.ok || !j?.loc) {
+        setZipError(j?.error ?? `Couldn't find zip ${z}`);
+        return;
+      }
+      const g = j.loc;
+      setLoc(g);
+      try {
+        localStorage.setItem(LOC_KEY, JSON.stringify(g));
+      } catch {
+        /* ignore */
+      }
+      setEditing(false);
+      setZipDraft("");
+    } catch {
+      setZipError("Location service unreachable — try again");
+    } finally {
+      setZipBusy(false);
+    }
+  }, [zipDraft]);
+
   const todayStr = data?.days.find((d) => dayLabel(d.date, d.date) === "Today")?.date
     ?? new Date().toISOString().slice(0, 10);
 
@@ -141,6 +227,9 @@ export default function WeatherPanel({ space, immersive }: { space: number; imme
   const noRoom = space > 0 && space < 720;
   const compact = space > 0 && space < 1150;
   if (immersive || noRoom) return null;
+
+  const locName = loc?.label || (loc?.zip ? `zip ${loc.zip}` : "");
+  const locLine = locName ? `📍 ${locName}${loc?.zip && loc.label ? ` · ${loc.zip}` : ""}` : "📍 Set location";
 
   return (
     <div className="pointer-events-auto absolute right-5 top-1/2 z-30 flex -translate-y-1/2 flex-col items-end gap-2.5">
@@ -159,6 +248,76 @@ export default function WeatherPanel({ space, immersive }: { space: number; imme
           </div>
         ) : open && data ? (
           <>
+            {/* Location — set / change the zip the weather is for. */}
+            <div className="flex items-center gap-1.5" style={chip({ padding: "4px 10px" })}>
+              {editing ? (
+                <>
+                  <input
+                    value={zipDraft}
+                    onChange={(e) => setZipDraft(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && void saveZip()}
+                    placeholder="10075"
+                    aria-label="Zip code"
+                    autoFocus
+                    className="w-16 rounded-md px-1.5 py-0.5 text-[10px] outline-none"
+                    style={{ background: "rgba(8,8,12,0.7)", color: "var(--color-ink)", boxShadow: `inset 0 0 0 1px ${hexA(GOLD, 0.4)}` }}
+                  />
+                  <button
+                    onClick={() => void saveZip()}
+                    disabled={zipBusy}
+                    title="Set location"
+                    aria-label="Set location"
+                    className="rounded-md px-2 py-0.5 text-[10px] font-semibold disabled:opacity-40"
+                    style={{ background: hexA(GOLD, 0.16), color: GOLD, boxShadow: `inset 0 0 0 1px ${hexA(GOLD, 0.4)}` }}
+                  >
+                    {zipBusy ? "…" : "Set"}
+                  </button>
+                  <button
+                    onClick={() => { setEditing(false); setZipError(""); }}
+                    title="Cancel"
+                    aria-label="Cancel"
+                    className="rounded-md px-1.5 py-0.5 text-[10px] text-[var(--color-ink-4)] hover:text-[var(--color-ink)]"
+                  >
+                    ✕
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => setEditing(true)}
+                  title="Set your location — weather is shown for this place"
+                  className="max-w-[180px] truncate rounded-md px-1.5 py-0.5 text-[10px] font-medium"
+                  style={{ color: hexA(GOLD, 0.9) }}
+                >
+                  {locLine}
+                </button>
+              )}
+              <span className="mx-0.5 h-3 w-px" style={{ background: hexA(GOLD, 0.25) }} />
+              {/* °C / °F — the user's temperature-unit pick. */}
+              <div className="flex items-center gap-0.5 rounded-md px-0.5 py-0.5" style={{ background: "rgba(8,8,12,0.6)", boxShadow: `inset 0 0 0 1px ${hexA(GOLD, 0.25)}` }}>
+                {(["c", "f"] as TempUnit[]).map((u) => (
+                  <button
+                    key={u}
+                    onClick={() => setUnits(u)}
+                    title={`Show temperatures in ${u === "c" ? "Celsius" : "Fahrenheit"}`}
+                    aria-label={u === "c" ? "Celsius" : "Fahrenheit"}
+                    className="rounded px-1.5 py-0.5 text-[10px] font-semibold"
+                    style={
+                      units === u
+                        ? { background: hexA(GOLD, 0.2), color: GOLD }
+                        : { color: "var(--color-ink-4)" }
+                    }
+                  >
+                    °{u.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {zipError && (
+              <div className="rounded-md px-2 py-0.5 text-[10px]" style={{ color: "#ff9d9d", background: "rgba(8,8,12,0.7)" }}>
+                {zipError}
+              </div>
+            )}
+
             {/* Today — the large floating island, slow vertical bob */}
             <div
               className="flex items-center gap-3 rounded-2xl px-3.5 py-2.5"
@@ -172,8 +331,8 @@ export default function WeatherPanel({ space, immersive }: { space: number; imme
               <span className="text-3xl leading-none">{wmo(data.current.code)}</span>
               <div className="min-w-0">
                 <div className="flex items-baseline gap-1.5">
-                  <span className="text-xl font-semibold leading-none tabular-nums">{data.current.temp}°</span>
-                  <span className="text-[10px] text-[var(--color-ink-3)]">feels {data.current.feels}°</span>
+                  <span className="text-xl font-semibold leading-none tabular-nums">{fmtTemp(data.current.temp, units)}</span>
+                  <span className="text-[10px] text-[var(--color-ink-3)]">feels {fmtTemp(data.current.feels, units)}</span>
                 </div>
                 <div className="mt-0.5 text-[10px] text-[var(--color-ink-3)]">
                   💧 {data.current.humidity}% · 🍃 {data.current.wind} km/h
@@ -225,7 +384,7 @@ export default function WeatherPanel({ space, immersive }: { space: number; imme
                     </span>
                     <span className="text-base leading-none">{wmo(d.code)}</span>
                     <span className="text-[9px] tabular-nums" style={{ color: "var(--color-ink-2)" }}>
-                      {d.tmax}° <span style={{ color: "var(--color-ink-4)" }}>{d.tmin}°</span>
+                      {fmtTemp(d.tmax, units)} <span style={{ color: "var(--color-ink-4)" }}>{fmtTemp(d.tmin, units)}</span>
                     </span>
                   </div>
                 );

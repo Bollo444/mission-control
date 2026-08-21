@@ -34,9 +34,17 @@ import { VAULT_DIR } from "../paths";
 
 export const BOOT_FILE = "Boot/Hermes.md";
 export const INDEX_FILE = "VAULT-INDEX.md";
+export const IDENTITY_FILE = "Identity.md";
 export const PRIORITIES_FILE = "Active Priorities.md";
 export const DAILY_DIR = "01 - Daily Notes";
 export const DAILY_TEMPLATE = `${DAILY_DIR}/Daily Note Template.md`;
+
+// The operator's knowledge silos — a "map to the load" layout: the agent knows
+// the whole tree but only reads the file it needs for the task at hand.
+export const INBOX_DIR = "00 - Inbox";
+export const BUSINESS_DIR = "02 - Business Profiles";
+export const MARKETING_DIR = "03 - Marketing Skills";
+export const DEV_DIR = "04 - Dev Projects";
 
 /** Env kill-switches. Both default ON (the flow the user asked for). */
 export function memoryPrimeEnabled(): boolean {
@@ -52,9 +60,10 @@ export function dailyNoteEnabled(): boolean {
 
 const CAP_BOOT = 4_000;
 const CAP_INDEX = 6_000;
+const CAP_IDENTITY = 2_000;
 const CAP_PRIORITIES = 2_000;
 const CAP_YESTERDAY = 2_000;
-const CAP_TOTAL = 14_000;
+const CAP_TOTAL = 16_000;
 
 function cap(text: string | null | undefined, max: number): string {
   if (!text) return "";
@@ -130,9 +139,10 @@ rules that can't lapse. The full operating manual is [[VAULT-INDEX]] at the
 vault root — the profile and the map — read it whenever you start real work.
 
 ## Identity
-- You are **Hermes**, the autonomous-runs and scheduling agent of the Mission
-  Control fleet. Same identity every session, every channel — not a chatbot.
-  A chatbot talks; you work.
+- You are **Jarvis** — the voice and identity of the Mission Control orb. Same
+  identity every session, every channel — not a chatbot. A chatbot talks; you
+  work. You execute through **Hermes**, the fleet's run-agent, which carries
+  your memory and your rules. If asked your name, it is **Jarvis**.
 - **Personality:** [FILL IN: tone, formality, energy — describe it like a person,
   not a setting]
 - **Welcome line:** [FILL IN: your first line of a session, e.g. "All systems
@@ -224,12 +234,16 @@ are based. First person, concise, nothing required.]
 
 ## Vault Structure
 \`\`\`
-00 - Inbox          ← capture everything, sort later
-01 - Daily Notes    ← dated logs of what got done, one file per day
-Boot               ← agent boot configs (identity + rules)
-Agents             ← one note per fleet agent
-Activity           ← the shared live feed
-Memory             ← durable cross-agent knowledge
+00 - Inbox              ← capture everything, sort later
+01 - Daily Notes        ← dated logs of what got done, one file per day
+02 - Business Profiles  ← one note per business / entity
+03 - Marketing Skills   ← copy & campaign playbooks, brand guides
+04 - Dev Projects       ← codebases the orb maintains
+Boot                   ← agent boot configs (identity + rules)
+Identity               ← the orb's personality — injected every turn
+Agents                 ← one note per fleet agent
+Activity               ← the shared live feed
+Memory                 ← durable cross-agent knowledge
 \`\`\`
 [FILL IN: add your own project folders and keep this map in sync.]
 
@@ -261,6 +275,96 @@ conversation; verify an item's real state before acting on it.
   from \`${DAILY_TEMPLATE}\`. Log profile updates under "Profile Updates".
 - The profile is a living document: update Key People / habits / interests as
   you learn them; never rewrite the bio, projects, or rules sections on your own.
+`;
+
+const IDENTITY_TEMPLATE = `---
+status: active
+project: meta
+type: identity
+---
+# Identity
+
+This file is the orb's personality layer — injected into **every** turn, so it
+must stay tight. Edit freely; it is the source of truth for how the orb talks,
+thinks, and pushes back. It is never a suggestion.
+
+## Personality
+- **Tone:** peer-level, direct, zero corporate gloss. A capable partner, not a
+  subservient assistant — the "old bar buddy" who actually knows the business.
+- **Push back:** when an idea is strategically unsound, contradicts a locked
+  decision, or would waste effort, say so plainly and show the tradeoff.
+  Never rubber-stamp.
+- **Directness:** plain language, no jargon, no filler. Bad news first.
+- **Conversion-first:** for anything commercial, prioritize outcomes that
+  convert and compound; flag polish that doesn't serve the goal.
+- **Checkpoint habit:** end every working session with a dated log entry in
+  01 - Daily Notes auditing what was done against the active priorities.
+
+## Hard lines
+- **Immutability:** the operator security gate (destructive commands need the
+  passphrase) is enforced in the backend, not here — never suggest bypassing it.
+- **Evidence only:** verify state from the real file or command before
+  claiming anything is done.
+`;
+
+const INBOX_TEMPLATE = `---
+status: active
+project: meta
+type: inbox
+---
+# Inbox
+
+Capture zone for mobile inputs and quick raw clips. Sort items into their
+proper folders ([[02 - Business Profiles|Business]], [[03 - Marketing Skills|Marketing]],
+[[04 - Dev Projects|Dev]]) as part of any session that touches them.
+
+## Unprocessed
+-
+`;
+
+const BUSINESS_TEMPLATE = `---
+status: active
+project: meta
+type: index
+---
+# Business Profiles
+
+One note per business or entity — who it is, its stage, its playbook, its
+numbers. The orb reads the specific profile only when a task mentions it
+(map to the load, never the whole tree).
+
+## Profiles
+- [[FILL IN: business one]] — one-line description
+`;
+
+const MARKETING_TEMPLATE = `---
+status: active
+project: meta
+type: index
+---
+# Marketing Skills
+
+Priming data for direct-response copy and campaigns — brand guides, customer
+avatars, and the house style. The house style is conversion-first: raw and
+honest beats sleek. Note here what converts and what the brand refuses.
+
+## Playbooks
+- [[FILL IN: campaign / skill]] — what it is, when it wins
+`;
+
+const DEV_TEMPLATE = `---
+status: active
+project: meta
+type: index
+---
+# Dev Projects
+
+Implementation logs for the codebases the orb maintains (Mission Control first
+among them). Each project gets a note: stack, current state, and what changed
+last.
+
+## Projects
+- [[Mission Control]] — the orb's own codebase
 `;
 
 const PRIORITIES_TEMPLATE = `---
@@ -324,8 +428,13 @@ export function bootstrapMemoryVault(
   const seeds: Array<[string, string]> = [
     [BOOT_FILE, BOOT_TEMPLATE(vaultDir)],
     [INDEX_FILE, INDEX_TEMPLATE(vaultDir)],
+    [IDENTITY_FILE, IDENTITY_TEMPLATE],
     [PRIORITIES_FILE, PRIORITIES_TEMPLATE],
     [DAILY_TEMPLATE, DAILY_TEMPLATE_CONTENT],
+    [`${INBOX_DIR}/Inbox.md`, INBOX_TEMPLATE],
+    [`${BUSINESS_DIR}/README.md`, BUSINESS_TEMPLATE],
+    [`${MARKETING_DIR}/README.md`, MARKETING_TEMPLATE],
+    [`${DEV_DIR}/README.md`, DEV_TEMPLATE],
   ];
   for (const [rel, content] of seeds) {
     if (!exists(vaultDir, rel)) {
@@ -373,6 +482,7 @@ export function primeHermesContext(vaultDir: string = VAULT_DIR): string {
   if (!memoryPrimeEnabled()) return "";
   const boot = cap(readFile(vaultDir, BOOT_FILE), CAP_BOOT);
   const index = cap(readFile(vaultDir, INDEX_FILE), CAP_INDEX);
+  const identity = cap(readFile(vaultDir, IDENTITY_FILE), CAP_IDENTITY);
   const yesterday = cap(
     readFile(vaultDir, findDailyNote(vaultDir, yesterdayStr()) ?? ""),
     CAP_YESTERDAY,
@@ -381,12 +491,13 @@ export function primeHermesContext(vaultDir: string = VAULT_DIR): string {
 
   const sections: Array<[string, string]> = [];
   if (boot) sections.push(["Boot config (your identity + standing rules)", boot]);
+  if (identity) sections.push(["Identity (how you talk and push back)", identity]);
   if (index) sections.push(["Vault index (profile + map)", index]);
   if (yesterday) sections.push(["Yesterday's daily note", yesterday]);
   if (priorities) sections.push(["Active priorities", priorities]);
   if (sections.length === 0) return "";
 
-  let out = "Memory vault context — read before answering. You are Hermes; " +
+  let out = "Memory vault context — read before answering. You are Jarvis; " +
     "this is your memory, so act from it and keep it current.\n";
   for (const [label, body] of sections) {
     const block = `\n### ${label}\n${body}`;
@@ -394,6 +505,21 @@ export function primeHermesContext(vaultDir: string = VAULT_DIR): string {
     out += block;
   }
   return out.trim();
+}
+
+/**
+ * A short identity block for backends that don't carry the full Hermes priming
+ * (the Groq conversational brain). Keeps the name uniform everywhere: the orb
+ * is **Jarvis**, executed through Hermes. Returns "" when priming is disabled.
+ */
+export function orbIdentityContext(vaultDir: string = VAULT_DIR): string {
+  if (!memoryPrimeEnabled()) return "";
+  const identity = cap(readFile(vaultDir, IDENTITY_FILE), CAP_IDENTITY);
+  const name =
+    "You are Jarvis — the voice of the Mission Control orb. If asked your " +
+    "name, say \"Jarvis\" (Hermes is the fleet run-agent you execute through; " +
+    "it handles tasks, you answer conversationally).";
+  return identity ? `${name}\n\n${identity}` : name;
 }
 
 // ---------------------------------------------------------------------------

@@ -12,6 +12,53 @@
 /** Groq's Orpheus endpoint rejects input longer than this. */
 export const GROQ_MAX_CHARS = 200;
 
+/**
+ * Streaming sentence batcher for the orb's speech queue.
+ *
+ * The orb's reply arrives as token-sized SSE chunks; complete sentences are
+ * enqueued for TTS as they stream. Speaking each sentence separately makes
+ * the voice choppy (every clause restarts the engine), so sentences are
+ * accumulated into slightly larger utterances (a couple of sentences, up to
+ * ~240 chars) before being released. The pending batch lives inside the
+ * batcher and carries across calls, so sentences that arrive in separate
+ * chunks still batch together — and, crucially, are never consumed without
+ * being enqueued.
+ *
+ * Usage: feed the *delta* (text not yet seen) on each call; the batcher
+ * returns the utterances ready to speak plus how many chars it consumed.
+ * Incomplete trailing text is left unconsumed so the next call can finish it.
+ * Call `flush` when the reply ends to release whatever is still pending.
+ */
+export class SpeechBatcher {
+  private batch = "";
+
+  push(text: string, flush = false): { utterances: string[]; consumed: number } {
+    const parts = text.match(/[^.!?\n]+[.!?\n]*/g) ?? [];
+    const utterances: string[] = [];
+    let consumed = 0;
+    for (const part of parts) {
+      const complete = /[.!?\n]/.test(part);
+      if (!complete && !flush) break;
+      consumed += part.length;
+      this.batch += part;
+      const sentences = (this.batch.match(/[.!?\n]/g) ?? []).length;
+      if (this.batch.trim().length >= 240 || (sentences >= 2 && this.batch.trim().length >= 90)) {
+        utterances.push(this.batch.trim());
+        this.batch = "";
+      }
+    }
+    if (flush && this.batch.trim()) {
+      utterances.push(this.batch.trim());
+      this.batch = "";
+    }
+    return { utterances, consumed };
+  }
+
+  reset(): void {
+    this.batch = "";
+  }
+}
+
 /** Prepend a 44-byte RIFF/WAVE header to raw PCM so browsers can play it. */
 export function pcmToWav(pcm: Buffer, sampleRate = 24000, channels = 1, bits = 16): Buffer {
   const blockAlign = (channels * bits) / 8;

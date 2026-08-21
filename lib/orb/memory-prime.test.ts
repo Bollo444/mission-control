@@ -5,9 +5,14 @@ import path from "node:path";
 import {
   BOOT_FILE,
   INDEX_FILE,
+  IDENTITY_FILE,
   PRIORITIES_FILE,
   DAILY_DIR,
   DAILY_TEMPLATE,
+  INBOX_DIR,
+  BUSINESS_DIR,
+  MARKETING_DIR,
+  DEV_DIR,
   bootstrapMemoryVault,
   primeHermesContext,
   appendDailyNote,
@@ -31,11 +36,21 @@ afterEach(() => {
 });
 
 describe("memory vault bootstrap", () => {
-  test("seeds the four files exactly once and never clobbers", () => {
+  test("seeds the memory files exactly once and never clobbers", () => {
     const vault = makeVault();
     const first = bootstrapMemoryVault(vault);
     expect(first.created.sort()).toEqual(
-      [BOOT_FILE, INDEX_FILE, PRIORITIES_FILE, DAILY_TEMPLATE].sort(),
+      [
+        BOOT_FILE,
+        INDEX_FILE,
+        IDENTITY_FILE,
+        PRIORITIES_FILE,
+        DAILY_TEMPLATE,
+        `${INBOX_DIR}/Inbox.md`,
+        `${BUSINESS_DIR}/README.md`,
+        `${MARKETING_DIR}/README.md`,
+        `${DEV_DIR}/README.md`,
+      ].sort(),
     );
     for (const rel of first.created) {
       expect(fs.existsSync(path.join(vault, rel))).toBe(true);
@@ -63,14 +78,30 @@ describe("memory vault bootstrap", () => {
 });
 
 describe("priming", () => {
-  test("assembles boot + index + priorities after bootstrap", () => {
+  test("assembles boot + identity + index + priorities after bootstrap", () => {
     const vault = makeVault();
     bootstrapMemoryVault(vault);
     const primed = primeHermesContext(vault);
     expect(primed).toContain("Boot config");
+    expect(primed).toContain("Identity (how you talk");
     expect(primed).toContain("Vault index");
     expect(primed).toContain("Active priorities");
     expect(primed).toMatch(/Hermes/);
+  });
+
+  test("the identity file carries the persona and is user-editable", () => {
+    const vault = makeVault();
+    bootstrapMemoryVault(vault);
+    const identity = fs.readFileSync(path.join(vault, IDENTITY_FILE), "utf8");
+    expect(identity).toMatch(/Push back/i);
+    expect(identity).toMatch(/Conversion-first/i);
+
+    // A user edit is reflected in the next priming pass (never clobbered).
+    fs.writeFileSync(path.join(vault, IDENTITY_FILE), "call me blunt", "utf8");
+    const primed = primeHermesContext(vault);
+    expect(primed).toContain("call me blunt");
+    bootstrapMemoryVault(vault);
+    expect(fs.readFileSync(path.join(vault, IDENTITY_FILE), "utf8")).toBe("call me blunt");
   });
 
   test("includes yesterday's daily note when it exists", () => {

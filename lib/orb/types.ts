@@ -32,6 +32,15 @@ export interface OrbTurnRequest {
    *  user's actual location instead of a fallback. */
   lat?: number;
   lon?: number;
+  /** Client-resolved US zip code (from the saved location) — lets the weather
+   *  tool and the location-aware system prompt speak in the user's terms. */
+  zip?: string;
+  /** Human-readable location label (e.g. "New York City") from the client's
+   *  saved location — shown to the model so it knows where the user is. */
+  locLabel?: string;
+  /** The user's temperature-unit pick ("c" | "f") — the weather tool answers
+   *  in the same unit the weather panel shows. */
+  units?: "c" | "f";
 }
 
 /** Structured signals the router derived while classifying a turn. */
