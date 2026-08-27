@@ -4,11 +4,12 @@ A detailed record of the project's development: **every commit**, grouped by
 working session and shown newest-first. Each short hash links to the commit on
 GitHub.
 
-**29 sessions · 2026-05-31 → 2026-08-21**
-_Latest revision: 2026-08-21 — Session 29 shipped the orb's speech flow for real: prefetched TTS audio (no dead air between sentences) plus a watchdog so a stalled audio never cuts a reply off — and then fixed the silent-orb root cause (a streaming batcher that consumed every sentence without ever enqueuing it for TTS, so the orb never spoke at all). Weather is now location-aware: set it by zip code or by voice, geocoded server-side, with a °C/°F toggle that feeds both the panel and the orb's spoken answers. The Hermes ACP bridge prefers the current venv binary over a stale shim, killing the 64K-context "Model auto" error on agentic turns. _(Prior: Session 28 — Gemini removed from the orb entirely: Groq brain, voice, and ears.)_
+**30 sessions · 2026-05-31 → 2026-08-22**
+_Latest revision: 2026-08-22 — Session 30 fixed silent model swaps at the gateway: explicit `provider/model` picks (like Claude Code's `opencode/x-preview-f-free`) now bypass the Power Plant and go straight to the Backup Generator cascade, because OmniRoute doesn't know every catalog id and would silently substitute a different model while returning 200. Slot mapping (haiku/sonnet/opus) now applies only to non-explicit ids, and `/models` listings gained friendly `display_name`s (the free ox-alpha shows up as "ox-alpha (free)" in Claude Code's model picker). _(Prior: Session 29 — the orb's speech flow shipped for real, plus location-aware weather.)_
 
 | Session | Date | When | Theme |
 |:--:|---|---|---|
+| 30 | 2026-08-22 (Sat) | Day | Explicit provider/model gateway picks bypass the Power Plant (no more silent model swap); slot mapping only for non-explicit ids; friendly display_name in /models (ox-alpha shows as "ox-alpha (free)") |
 | 29 | 2026-08-21 (Fri) | Day | Orb speech flow shipped for real: prefetched TTS + watchdog, then the silent-orb root cause fixed (SpeechBatcher — streamed sentences were consumed without being enqueued; 7 new tests) + location-aware weather (set by zip or voice, geocoded server-side) + user-picked °C/°F for panel and spoken answers + Hermes ACP bridge re-pointed at the current venv binary (64K-context error gone) |
 | 28 | 2026-08-18 (Tue) | Day | Gemini removed from the orb — Groq brain (gpt-oss-20b/120b), Groq Orpheus voice primary, Groq Whisper listening |
 | 27 | 2026-08-18 (Tue) | Day | Orb hears in any browser — Whisper fallback STT (Groq) auto-switched when Google's Chrome-only speech service is refused (Tabby/Edge) |
@@ -38,6 +39,36 @@ _Latest revision: 2026-08-21 — Session 29 shipped the orb's speech flow for re
 | 3 | 2026-06-03 (Wed) | Late morning → evening | Gateway phases, branding & public launch |
 | 2 | 2026-06-02 (Tue) | Midday | Providers, health monitor & cascade proxy |
 | 1 | 2026-05-31 (Sat) | Afternoon → evening | Initial fleet console |
+
+---
+
+## Session 30 — 2026-08-22 · No more silent model swaps at the gateway
+
+Claude Code was pointed at `opencode/x-preview-f-free` for free ox-alpha routing,
+but the gateway was silently breaking the pick. The Power Plant (OmniRoute) doesn't
+know every catalog id, so instead of failing it **substituted a different model and
+returned 200** — a silent swap. The fix makes explicit `provider/model` requests
+deterministic: they skip the Power Plant entirely and go straight to the Backup
+Generator cascade.
+
+- **`app/api/gateway/[...path]/route.ts`** — both the `/messages` and
+  `/chat/completions` paths now detect an explicit route (`/^[a-z0-9_-]+\/.+/i`
+  on the model id) and skip the Power Plant probe, going straight to the Backup
+  Generator cascade. Only `auto` / bare-model ("fleet's choice") requests may be
+  re-routed by the Power Plant. Same gate on `/models` so the standby stays
+  visible.
+- **`app/api/anthropic/[...path]/route.ts`** — slot mapping (haiku/sonnet/opus)
+  now applies only to non-explicit ids. `parseSlot()` would otherwise shove an
+  explicit pick into the sonnet slot and swap the model the caller asked for.
+- **`lib/settings.ts`** — added `opencode/x-preview-f-free` to
+  `PROVIDERS.opencode.models`, a new `MODEL_DISPLAY_NAMES` map, and a
+  `displayName(id)` helper. The free ox-alpha now lists as **"ox-alpha (free)"**
+  in Claude Code's `/model` picker instead of a bare id.
+- **`lib/gateway.ts`** — `gatewayModels()` returns `display_name` alongside id /
+  owned_by for the `/v1/models` listing.
+- Verified live: `X-MC-Served-By: backup/opencode/x-preview-f-free` on both
+  non-stream and SSE requests; the explicit pick is honored verbatim; slot
+  requests still route through the slots.
 
 ---
 

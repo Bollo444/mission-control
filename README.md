@@ -638,6 +638,11 @@ Control *in the inference path* (opt-in) and makes the routing table live.
 - **Routing:**
   - `model: "auto"` → the fleet picks the best available free model.
   - `model: "groq/llama-3.3-70b-versatile"` (or any catalog id) → that first, then cascade.
+  - **Explicit `provider/model` picks (e.g. `opencode/x-preview-f-free`) bypass the
+    Power Plant** and go straight to the Backup Generator — the Power Plant
+    doesn't know every catalog id and would otherwise silently substitute a
+    different model while returning 200. Only `auto` / bare-model ("fleet's
+    choice") requests may be re-routed by it.
   - Header `X-MC-Agent: pi` → use **that agent's preferred** model as primary — the routing table goes live.
 - Streams responses through; `X-MC-Served-By` / `X-MC-Attempts` headers report what served and how deep it cascaded.
 

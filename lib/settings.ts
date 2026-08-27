@@ -87,6 +87,7 @@ export const PROVIDERS: Provider[] = [
     free: true,
     models: [
       "big-pickle",
+      "x-preview-f-free",
       "deepseek-v4-flash-free",
       "mimo-v2.5-free",
       "nemotron-3-super-free",
@@ -246,6 +247,18 @@ export const PROVIDERS: Provider[] = [
     models: ["local-default", "devstral", "qwen3-coder", "qwythos-9b"],
   },
 ];
+
+/**
+ * Friendly names surfaced in /v1/models listings (e.g. Claude Code's /model
+ * picker renders display_name). Anything not listed here falls back to its id.
+ */
+export const MODEL_DISPLAY_NAMES: Record<string, string> = {
+  "x-preview-f-free": "ox-alpha (free)",
+};
+
+export function displayName(id: string): string {
+  return MODEL_DISPLAY_NAMES[id] ?? id;
+}
 
 /**
  * The fleet's out-of-the-box routing. Used for both effective + preferred.

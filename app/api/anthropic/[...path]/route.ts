@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
   import { anthropicToOpenAI, openAIToAnthropic, parseSlot, makeAnthropicError } from "@/lib/anthropic-bridge";
   import { cascadeChat } from "@/lib/gateway";
   import { readSettings } from "@/lib/settings";
-  import { PROVIDERS } from "@/lib/settings";
+  import { PROVIDERS, displayName } from "@/lib/settings";
   import { recordTokens } from "@/lib/usage";
   import { logEvent } from "@/lib/logbook";
 
@@ -42,7 +42,7 @@ import { NextRequest, NextResponse } from "next/server";
               id,
               object: "model",
               type: "model",
-              display_name: id,
+              display_name: displayName(id),
             })),
         };
         return NextResponse.json(out);
@@ -59,10 +59,13 @@ import { NextRequest, NextResponse } from "next/server";
           return NextResponse.json(makeAnthropicError(400, "model is required").body, { status: 400 });
         }
 
-        // Resolve slot -> upstream via settings.anthropicSlots[slot] when possible
+        // Resolve slot -> upstream via settings.anthropicSlots[slot] when possible.
+        // Explicit provider/model requests (e.g. "opencode/x-preview-f-free") pass
+        // through untouched — parseSlot() would otherwise map them to the sonnet
+        // slot and silently swap the model the caller asked for.
         let upstreamModel = requestedModel;
         const slot = parseSlot(requestedModel);
-        if (slot === "haiku" || slot === "sonnet" || slot === "opus") {
+        if (!/^[a-z0-9_-]+\/.+/i.test(requestedModel)) {
           const settings = readSettings();
           const rule = settings.anthropicSlots?.[slot];
           if (rule?.model) upstreamModel = rule.model;

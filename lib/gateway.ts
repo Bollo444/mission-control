@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { PROVIDERS, readSettings, type RouteRule } from "./settings";
+import { PROVIDERS, readSettings, displayName, type RouteRule } from "./settings";
 import { logEvent } from "./logbook";
 import { recordAttempt, overBudget } from "./usage";
 import { recordHeaders } from "./livelimits";
@@ -303,15 +303,15 @@ export async function cascadeChat(
 }
 
 /** Union of every configured provider's catalog models — for GET /v1/models. */
-export function gatewayModels(): { id: string; owned_by: string }[] {
+export function gatewayModels(): { id: string; owned_by: string; display_name: string }[] {
   const keys = readSettings().apiKeys;
-  const out: { id: string; owned_by: string }[] = [];
+  const out: { id: string; owned_by: string; display_name: string }[] = [];
   for (const p of PROVIDERS) {
     const cp = CHAT[p.id];
     if (!cp || !hasKey(keys, cp)) continue;
-    for (const m of p.models) out.push({ id: `${p.id}/${m}`, owned_by: p.id });
+    for (const m of p.models) out.push({ id: `${p.id}/${m}`, owned_by: p.id, display_name: displayName(m) });
   }
-  out.push({ id: "auto", owned_by: "mission-control" });
+  out.push({ id: "auto", owned_by: "mission-control", display_name: "auto" });
   return out;
 }
 

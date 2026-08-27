@@ -1,5 +1,5 @@
 import { cascadeChat, gatewayModels } from "@/lib/gateway";
-import { getGatewayToken, readSettings } from "@/lib/settings";
+import { getGatewayToken, readSettings, displayName } from "@/lib/settings";
 import { recordTokens } from "@/lib/usage";
 import { logEvent } from "@/lib/logbook";
 import { responsesToChat, parseChat, buildResponsesSSE } from "@/lib/responses-bridge";
@@ -85,13 +85,21 @@ export async function POST(req: Request, { params }: { params: Promise<{ path: s
     // Resolve Claude slots (haiku/sonnet/opus) to the configured upstream model
     // from Settings — same semantics as the legacy /api/anthropic slot bridge,
     // so the sonnet/opus/haiku slot defaults actually take effect here.
+    // Explicit provider/model requests (e.g. "opencode/x-preview-f-free") pass
+    // through untouched — parseSlot() would otherwise shove them into the
+    // sonnet slot and silently swap the model the caller asked for.
     const settings = readSettings();
-    const slotRule = settings.anthropicSlots?.[parseSlot(requestedModel)];
+    const isExplicitRoute = /^[a-z0-9_-]+\/.+/i.test(requestedModel);
+    const slotRule = isExplicitRoute ? undefined : settings.anthropicSlots?.[parseSlot(requestedModel)];
     const upstreamModel = slotRule?.model ?? requestedModel;
     const wantsStream = mbody.stream !== false;
     const chatBody = anthropicToOpenAI({ ...mbody, model: upstreamModel, stream: wantsStream ? true : false });
 
-    const ppRes = await forwardChat(chatBody, req.headers);
+    // Explicit provider/model picks skip the Power Plant entirely: it doesn't
+    // know every catalog id and will silently substitute a different model
+    // rather than 404. Only auto/slot requests (which imply "fleet's choice")
+    // are allowed to be re-routed by it.
+    const ppRes = isExplicitRoute ? null : await forwardChat(chatBody, req.headers);
     if (ppRes && ppRes.ok) {
       // Served by the Power Plant (OmniRoute).
       if (wantsStream) {
@@ -160,9 +168,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ path: s
 
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
 
-  // 1. Probe + Forward to the Power Plant (OmniRoute)
+  // 1. Probe + Forward to the Power Plant (OmniRoute). Explicit provider/model
+  // picks skip it — same rule as the messages path: only "fleet's choice"
+  // requests (auto / bare model names) may be re-routed by the Power Plant.
   let result: any = null;
-  let response: Response | null = await forwardChat(body, req.headers);
+  const chatExplicit = /^[a-z0-9_-]+\/.+/i.test(String(body.model ?? ""));
+  let response: Response | null = chatExplicit ? null : await forwardChat(body, req.headers);
   let isFailover = false;
 
   if (response && response.ok) {
@@ -261,12 +272,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ path: st
     return Response.json({ error: "Unauthorized — use your Mission Control gateway token as the API key." }, { status: 401 });
   }
   if (sub === "models") {
-    const backupModels = gatewayModels().map((m) => ({ id: m.id, object: "model", owned_by: m.owned_by }));
+    const backupModels = gatewayModels().map((m) => ({ id: m.id, object: "model", owned_by: m.owned_by, display_name: m.display_name }));
     const primaryModels = await omnirouteModels();
 
     // Merge, favoring primary but keeping backup as standby visible
     const all = [
-      ...primaryModels.map(m => ({ ...m, object: "model" })),
+      ...primaryModels.map(m => ({ ...m, object: "model", display_name: displayName(m.id) })),
       ...backupModels.filter(b => !primaryModels.some(p => p.id === b.id))
     ];
 
